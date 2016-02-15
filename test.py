@@ -2,8 +2,12 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.io as sio
+import scipy.signal as ssig
 import pdb
 st = pdb.set_trace
+
+electron_charge = 1.60217662e-19 # coulombs
+atomic_mass_unit = 1.66053904e-27 # kg
 
 physical_electrodes = 15
 
@@ -47,7 +51,7 @@ class Moments:
 class Waveform:
     def __init__(self, desc, uid, samples, generated):
         """ Waveform storage class. Convert the list into a numpy
-        array and store various details about it. """ 
+        array and store various details about it. """
         self.desc = desc
         self.uid = uid
         self.generated = generated
@@ -55,13 +59,15 @@ class Waveform:
         self.channels, self.length = self.samples.shape
 
 class WavPotential:
-    def __init__(self, potentials, trap_axis):
+    def __init__(self, potentials, trap_axis, ion_mass):
         """ potentials: (points along trap z axis) x (timesteps)
-        self.potentials = potentials
-        self.trap_axis = trap_axis
+        trap_axis: physical coordinates of potentials along trap axis
+        ion mass: the ion's mass in AMU (for certain calculations)
         """
         self.potentials = potentials
         self.trap_axis = trap_axis
+        self.ion_mass = ion_mass
+        self.pot_resolution = self.trap_axis[1]-self.trap_axis[0]
 
     def plot(self, ax=None):
         """ ax: Matplotlib axes """
@@ -75,10 +81,22 @@ class WavPotential:
         if not ax:
             fig = plt.figure()
             ax = fig.add_subplot(1,1,1)
-        ax.pcolormesh(px, py, self.potentials)
+        ax.pcolormesh(px, py, self.potentials, cmap='gray')
         ax.set_xlabel('timestep')
         ax.set_ylabel('trap z axis (um)')
         # ax.colorbar()
+
+    def find_wells(self, wfm_idx):
+        """For a given waveform index, return the minima and their
+        curvatures"""
+        pot = self.potentials[:,wfm_idx]
+        potg2 = np.gradient(np.gradient(pot))
+        min_indices, = ssig.argrelmin(pot)
+        offsets = pot[min_indices]
+        grads = potg2[min_indices]/(self.pot_resolution**2)
+        trap_freqs = np.sqrt(electron_charge * self.ion_mass / atomic_mass_unit * grads)/2/np.pi
+
+        return min_indices, offsets, trap_freqs
 
 class WaveformFile:
     def __init__(self, file_path):
@@ -113,17 +131,39 @@ def calculate_potentials(moments, waveform, real_electrodes=physical_electrodes)
     """
     mom_trunc = moments.potentials[:,:real_electrodes]
     waveform_trunc = waveform.samples[:real_electrodes,:]
-    return WavPotential(np.dot(mom_trunc, waveform_trunc), moments.transport_axis)
+    return WavPotential(np.dot(mom_trunc, waveform_trunc), moments.transport_axis, 39.962591)
     
 if __name__ == "__main__":
 
     mom = Moments()
     
-    wf = WaveformFile('waveform_files/splitting_zone_Ts_70_vn_2016_01_29_v02.dwc.json')        
+    wf = WaveformFile('waveform_files/splitting_zone_Ts_70_vn_2016_01_29_v01.dwc.json')        
     wf_load = wf.get_waveform(7)
 
     pot_load = calculate_potentials(mom, wf_load)
 
+    def well_search():
+        indices = []
+        trap_freqs = []
+        wfms = np.arange(2000)
+        for k in wfms:
+            ind, _, tf = pot_load.find_wells(k)
+            try:
+                indices.append(ind[np.argmax(tf)])
+            except IndexError:
+                st()
+            trap_freqs.append(tf.max)
+
+        plt.plot3d(wfms, indices)
+        plt.show()
+
+    well_search()
+            
+    # pot_load.find_wells(0)
     
-    pot_load.plot()
-    plt.show()
+    # plt.plot(pot_load.potentials[:,990])
+    # plt.show()
+    # pot_load.plot()
+    # plt.show()
+    
+    
