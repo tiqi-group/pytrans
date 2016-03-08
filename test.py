@@ -1,6 +1,7 @@
 import json
 import numpy as np
 import matplotlib.pyplot as plt
+import mpl_toolkits.mplot3d
 import scipy.io as sio
 import scipy.signal as ssig
 import pdb
@@ -152,9 +153,15 @@ if __name__ == "__main__":
                 indices.append(ind[np.argmax(tf)])
             except IndexError:
                 st()
-            trap_freqs.append(tf.max)
+            trap_freqs.append(tf.max())
 
-        plt.plot3d(wfms, indices)
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        # ax = fig.add_subplot(111)
+        st()
+        ax.plot(np.array(wfms, dtype='float64'),
+                np.array(indices,dtype='float64'),
+                np.array(trap_freqs,dtype='float64'))
         plt.show()
 
     well_search()
