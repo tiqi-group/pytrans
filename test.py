@@ -14,7 +14,8 @@ physical_electrodes = 15
 
 class Moments:
     def __init__(self,
-                 path="/media/sf_Scratch/Waveform Generator 3D-trap/moments file/DanielTrapMomentsTransport.mat"
+                 # path="/media/sf_Scratch/Waveform Generator 3D-trap/moments file/DanielTrapMomentsTransport.mat"
+                 path = "c:/Scratch/wav_gen/moments_file/DanielTrapMomentsTransport.mat"
                  ):
         self.data = sio.loadmat(path, struct_as_record=False)['DATA'][0][0]
         self.reduce_data()
@@ -82,7 +83,8 @@ class WavPotential:
         if not ax:
             fig = plt.figure()
             ax = fig.add_subplot(1,1,1)
-        ax.pcolormesh(px, py, self.potentials, cmap='gray')
+        pcm = ax.pcolormesh(px, py, self.potentials, cmap='gray')
+        fig.colorbar(pcm)
         ax.set_xlabel('timestep')
         ax.set_ylabel('trap z axis (um)')
         # ax.colorbar()
@@ -133,44 +135,63 @@ def calculate_potentials(moments, waveform, real_electrodes=physical_electrodes)
     mom_trunc = moments.potentials[:,:real_electrodes]
     waveform_trunc = waveform.samples[:real_electrodes,:]
     return WavPotential(np.dot(mom_trunc, waveform_trunc), moments.transport_axis, 39.962591)
+
+def plot_td_voltages(waveform, electrodes_to_use=None, real_electrodes=physical_electrodes):
+    """ Plot time-dependent voltages of a waveform w.r.t. electrodes as"""
+    td_wfms = waveform.samples.T
+    if electrodes_to_use:
+        td_wfms = td_wfms[electrodes_to_use]
+        leg = tuple(str(k+1) for k in electrodes_to_use)
+    else:
+        leg = tuple(str(k+1) for k in range(real_electrodes))
+        
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.plot(td_wfms)
+    ax.legend(leg)
+    plt.show()
     
 if __name__ == "__main__":
 
     mom = Moments()
     
-    wf = WaveformFile('waveform_files/splitting_zone_Ts_70_vn_2016_01_29_v01.dwc.json')        
-    wf_load = wf.get_waveform(7)
+    # wf = WaveformFile('waveform_files/splitting_zone_Ts_70_vn_2016_01_29_v01.dwc.json')
+    wf = WaveformFile('c:/scratch/wav_gen/waveforms_for_experiment/splitting_zone_Ts_620_vn_2016_03_16_v01.dwc.json')
+    test_wf = wf.get_waveform(9)
 
-    pot_load = calculate_potentials(mom, wf_load)
+    pot_test = calculate_potentials(mom, test_wf)
 
     def well_search():
         indices = []
         trap_freqs = []
-        wfms = np.arange(2000)
-        for k in wfms:
-            ind, _, tf = pot_load.find_wells(k)
+        samples = np.arange(2000) # assume max number of samples in a waveform is 2000
+        for k in samples:
+            try:
+                ind, _, tf = pot_test.find_wells(k)
+                trap_freqs.append(tf.max())                
+            except IndexError:
+                samples = np.arange(k)
+                break
             try:
                 indices.append(ind[np.argmax(tf)])
             except IndexError:
                 st()
-            trap_freqs.append(tf.max())
 
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
         # ax = fig.add_subplot(111)
-        st()
-        ax.plot(np.array(wfms, dtype='float64'),
+        ax.plot(np.array(samples, dtype='float64'),
                 np.array(indices,dtype='float64'),
                 np.array(trap_freqs,dtype='float64'))
         plt.show()
 
-    well_search()
+    # well_search()
             
-    # pot_load.find_wells(0)
-    
-    # plt.plot(pot_load.potentials[:,990])
-    # plt.show()
-    # pot_load.plot()
-    # plt.show()
-    
-    
+    # pot_test.find_wells(0)
+    plot_td_voltages(test_wf)
+
+    # Plot the potential of every 10th timestep
+    plt.plot(pot_test.potentials[:,::10])
+    plt.show()
+    pot_test.plot()
+    plt.show()
