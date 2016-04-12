@@ -14,7 +14,7 @@ physical_electrodes = 15
 
 class Moments:
     def __init__(self,
-                 path="/media/sf_Scratch/Waveform Generator 3D-trap/moments file/DanielTrapMomentsTransport.mat"
+                 path="/media/sf_Scratch/wav_gen/moments_file/DanielTrapMomentsTransport.mat"
                  ):
         self.data = sio.loadmat(path, struct_as_record=False)['DATA'][0][0]
         self.reduce_data()
@@ -87,6 +87,16 @@ class WavPotential:
         ax.set_ylabel('trap z axis (um)')
         # ax.colorbar()
 
+    def plot_one_wfm(self, idx, ax=None):
+        """ ax: Matplotlib axes """
+        if not ax:
+            fig = plt.figure()
+            ax = fig.add_subplot(1,1,1)
+        ax.plot(self.trap_axis*1e6, self.potentials[:,idx])
+        ax.set_xlabel('trap location (um)')
+        ax.set_ylabel('potential (V)')
+        return ax
+
     def find_wells(self, wfm_idx):
         """For a given waveform index, return the minima and their
         curvatures"""
@@ -122,6 +132,7 @@ class WaveformFile:
         elif type(num) is int:
             idx = num-1
 
+        assert idx >= 0, "Cannot access negative waveforms. Supply a 1-indexed string or number."
         return self.waveforms[idx]
 
 def calculate_potentials(moments, waveform, real_electrodes=physical_electrodes):
@@ -138,15 +149,27 @@ if __name__ == "__main__":
 
     mom = Moments()
     
-    wf = WaveformFile('waveform_files/splitting_zone_Ts_70_vn_2016_01_29_v01.dwc.json')        
-    wf_load = wf.get_waveform(7)
+    wf = WaveformFile('waveform_files/Ca_trans_load_open_Ca_Be_Transport_scan_freq_and_offset_pos_0_um.dwc.json')
 
-    pot_load = calculate_potentials(mom, wf_load)
+    wf_load_54 = wf.get_waveform('wav54')
+    pot_load_54 = calculate_potentials(mom, wf_load_54)
+
+    wf_load_62 = wf.get_waveform('wav62')
+    pot_load_62 = calculate_potentials(mom, wf_load_62)
+
+    wf_load_104 = wf.get_waveform('wav104')
+    pot_load_104 = calculate_potentials(mom, wf_load_104)    
+    
+    wf2 = WaveformFile('waveform_files/loading_and_constant_settings_Ts_620_2016_04_07_v02.dwc.json')
+
+    wfms = (16, 25, 133) # or (17, 
+    wfms_new = tuple(wf2.get_waveform(k) for k in wfms)
+    pot_loads = tuple(calculate_potentials(mom, wf) for wf in wfms_new)
 
     def well_search():
         indices = []
         trap_freqs = []
-        wfms = np.arange(2000)
+        wfms = np.arange(500)
         for k in wfms:
             ind, _, tf = pot_load.find_wells(k)
             try:
@@ -164,13 +187,23 @@ if __name__ == "__main__":
                 np.array(trap_freqs,dtype='float64'))
         plt.show()
 
-    well_search()
+    # well_search()
             
     # pot_load.find_wells(0)
+
+    axa = pot_load_54.plot_one_wfm(0)
+    pot_load_62.plot_one_wfm(0, axa)
+    pot_load_104.plot_one_wfm(0, axa)    
+    # pot_load.plot_one_wfm(-1, axa)
+
+    for pl in pot_loads:
+        pl.plot_one_wfm(0, axa)
+    #pot_load2.plot_one_wfm(0, axa)
+#    pot_load2.plot_one_wfm(-1, axa)    
     
     # plt.plot(pot_load.potentials[:,990])
     # plt.show()
     # pot_load.plot()
-    # plt.show()
+    plt.show()
     
     
