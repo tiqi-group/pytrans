@@ -18,7 +18,8 @@ physical_electrode_transform = [0,2,4,6,8,10,12,16,18,20,22,24,26,28,14]
 
 class Moments:
     def __init__(self,
-                 path="/media/sf_Scratch/wav_gen/moments_file/DanielTrapMomentsTransport.mat"
+                 # path="/media/sf_Scratch/Waveform Generator 3D-trap/moments file/DanielTrapMomentsTransport.mat"
+                 path = "c:/Scratch/wav_gen/moments_file/DanielTrapMomentsTransport.mat"
                  ):
         self.data = sio.loadmat(path, struct_as_record=False)['DATA'][0][0]
         self.reduce_data()
@@ -86,7 +87,8 @@ class WavPotential:
         if not ax:
             fig = plt.figure()
             ax = fig.add_subplot(1,1,1)
-        ax.pcolormesh(px, py, self.potentials, cmap='gray')
+        pcm = ax.pcolormesh(px, py, self.potentials, cmap='gray')
+        fig.colorbar(pcm)
         ax.set_xlabel('timestep')
         ax.set_ylabel('trap z axis (um)')
         # ax.colorbar()
@@ -148,19 +150,32 @@ def calculate_potentials(moments, waveform,
     waveform: Waveform class containing the voltage samples array
     """
     mom_trunc = moments.potentials[:,:len(real_electrode_idxes)]
-
-    #waveform_trunc = waveform.samples[:15,:]
     waveform_trunc = waveform.samples[real_electrode_idxes,:]
-    st()
+    
     return WavPotential(np.dot(mom_trunc, waveform_trunc), moments.transport_axis, 39.962591)
+
+def plot_td_voltages(waveform, electrodes_to_use=None, real_electrodes=physical_electrodes):
+    """ Plot time-dependent voltages of a waveform w.r.t. electrodes as"""
+    td_wfms = waveform.samples.T
+    if electrodes_to_use:
+        td_wfms = td_wfms[electrodes_to_use]
+        leg = tuple(str(k+1) for k in electrodes_to_use)
+    else:
+        leg = tuple(str(k+1) for k in range(real_electrodes))
+        
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.plot(td_wfms)
+    ax.legend(leg)
+    plt.show()
     
 if __name__ == "__main__":
     stationary_comparison_with_old = False
     check_splitting_waveform = True
+    
+    mom = Moments()
 
     if (stationary_comparison_with_old):
-        mom = Moments()
-
         wf = WaveformFile('waveform_files/Ca_trans_load_open_Ca_Be_Transport_scan_freq_and_offset_pos_0_um.dwc.json')
 
         wf_load_54 = wf.get_waveform('wav54')
@@ -200,7 +215,8 @@ if __name__ == "__main__":
             plt.show()
 
         # well_search()
-
+        test_wf = wf.get_waveform(9)
+        plot_td_voltages(test_wf)
         # pot_load.find_wells(0)
 
         axa = pot_load_54.plot_one_wfm(0)
@@ -219,8 +235,6 @@ if __name__ == "__main__":
         plt.show()
     
     if check_splitting_waveform:
-        mom = Moments()
-
         wf = WaveformFile('waveform_files/splitting_zone_Ts_620_vn_2016_04_14_v01.dwc.json')
 
         wf_all_sections = wf.get_waveform('wav8')
