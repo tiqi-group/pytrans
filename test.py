@@ -10,7 +10,11 @@ st = pdb.set_trace
 electron_charge = 1.60217662e-19 # coulombs
 atomic_mass_unit = 1.66053904e-27 # kg
 
-physical_electrodes = 15
+# old indices of electrodes 0->14
+# physical_electrode_transform = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]
+
+# indices of electrodes 0->14 in the waveform files produced by the system right now
+physical_electrode_transform = [0,2,4,6,8,10,12,16,18,20,22,24,26,28,14]
 
 class Moments:
     def __init__(self,
@@ -135,75 +139,92 @@ class WaveformFile:
         assert idx >= 0, "Cannot access negative waveforms. Supply a 1-indexed string or number."
         return self.waveforms[idx]
 
-def calculate_potentials(moments, waveform, real_electrodes=physical_electrodes):
+def calculate_potentials(moments, waveform,
+                         real_electrode_idxes=physical_electrode_transform,
+                         ):
     """ 
-    Multiplies the moments matrix by the waveform matrix (with suitable truncation based on real_electrodes parameter)
+    Multiplies the moments matrix by the waveform matrix (with suitable truncation based on real_electrode_idxes parameter)
     moments: Moments class containing potential data
     waveform: Waveform class containing the voltage samples array
     """
-    mom_trunc = moments.potentials[:,:real_electrodes]
-    waveform_trunc = waveform.samples[:real_electrodes,:]
+    mom_trunc = moments.potentials[:,:len(real_electrode_idxes)]
+
+    #waveform_trunc = waveform.samples[:15,:]
+    waveform_trunc = waveform.samples[real_electrode_idxes,:]
+    st()
     return WavPotential(np.dot(mom_trunc, waveform_trunc), moments.transport_axis, 39.962591)
     
 if __name__ == "__main__":
+    stationary_comparison_with_old = False
+    check_splitting_waveform = True
 
-    mom = Moments()
-    
-    wf = WaveformFile('waveform_files/Ca_trans_load_open_Ca_Be_Transport_scan_freq_and_offset_pos_0_um.dwc.json')
+    if (stationary_comparison_with_old):
+        mom = Moments()
 
-    wf_load_54 = wf.get_waveform('wav54')
-    pot_load_54 = calculate_potentials(mom, wf_load_54)
+        wf = WaveformFile('waveform_files/Ca_trans_load_open_Ca_Be_Transport_scan_freq_and_offset_pos_0_um.dwc.json')
 
-    wf_load_62 = wf.get_waveform('wav62')
-    pot_load_62 = calculate_potentials(mom, wf_load_62)
+        wf_load_54 = wf.get_waveform('wav54')
+        pot_load_54 = calculate_potentials(mom, wf_load_54)
 
-    wf_load_104 = wf.get_waveform('wav104')
-    pot_load_104 = calculate_potentials(mom, wf_load_104)    
-    
-    wf2 = WaveformFile('waveform_files/loading_and_constant_settings_Ts_620_2016_04_07_v02.dwc.json')
+        wf_load_62 = wf.get_waveform('wav62')
+        pot_load_62 = calculate_potentials(mom, wf_load_62)
 
-    wfms = (16, 25, 133) # or (17, 
-    wfms_new = tuple(wf2.get_waveform(k) for k in wfms)
-    pot_loads = tuple(calculate_potentials(mom, wf) for wf in wfms_new)
+        wf_load_104 = wf.get_waveform('wav104')
+        pot_load_104 = calculate_potentials(mom, wf_load_104)    
 
-    def well_search():
-        indices = []
-        trap_freqs = []
-        wfms = np.arange(500)
-        for k in wfms:
-            ind, _, tf = pot_load.find_wells(k)
-            try:
-                indices.append(ind[np.argmax(tf)])
-            except IndexError:
-                st()
-            trap_freqs.append(tf.max())
+        wf2 = WaveformFile('waveform_files/loading_and_constant_settings_Ts_620_2016_04_07_v02.dwc.json')
 
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-        # ax = fig.add_subplot(111)
-        st()
-        ax.plot(np.array(wfms, dtype='float64'),
-                np.array(indices,dtype='float64'),
-                np.array(trap_freqs,dtype='float64'))
+        wfms = (16, 25, 133) # or (17, 
+        wfms_new = tuple(wf2.get_waveform(k) for k in wfms)
+        pot_loads = tuple(calculate_potentials(mom, wf) for wf in wfms_new)
+
+        def well_search():
+            indices = []
+            trap_freqs = []
+            wfms = np.arange(500)
+            for k in wfms:
+                ind, _, tf = pot_load.find_wells(k)
+                try:
+                    indices.append(ind[np.argmax(tf)])
+                except IndexError:
+                    st()
+                trap_freqs.append(tf.max())
+
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            # ax = fig.add_subplot(111)
+            st()
+            ax.plot(np.array(wfms, dtype='float64'),
+                    np.array(indices,dtype='float64'),
+                    np.array(trap_freqs,dtype='float64'))
+            plt.show()
+
+        # well_search()
+
+        # pot_load.find_wells(0)
+
+        axa = pot_load_54.plot_one_wfm(0)
+        pot_load_62.plot_one_wfm(0, axa)
+        pot_load_104.plot_one_wfm(0, axa)    
+        # pot_load.plot_one_wfm(-1, axa)
+
+        for pl in pot_loads:
+            pl.plot_one_wfm(0, axa)
+        #pot_load2.plot_one_wfm(0, axa)
+    #    pot_load2.plot_one_wfm(-1, axa)    
+
+        # plt.plot(pot_load.potentials[:,990])
+        # plt.show()
+        # pot_load.plot()
         plt.show()
-
-    # well_search()
-            
-    # pot_load.find_wells(0)
-
-    axa = pot_load_54.plot_one_wfm(0)
-    pot_load_62.plot_one_wfm(0, axa)
-    pot_load_104.plot_one_wfm(0, axa)    
-    # pot_load.plot_one_wfm(-1, axa)
-
-    for pl in pot_loads:
-        pl.plot_one_wfm(0, axa)
-    #pot_load2.plot_one_wfm(0, axa)
-#    pot_load2.plot_one_wfm(-1, axa)    
     
-    # plt.plot(pot_load.potentials[:,990])
-    # plt.show()
-    # pot_load.plot()
-    plt.show()
-    
-    
+    if check_splitting_waveform:
+        mom = Moments()
+
+        wf = WaveformFile('waveform_files/splitting_zone_Ts_620_vn_2016_04_14_v01.dwc.json')
+
+        wf_all_sections = wf.get_waveform('wav8')
+        pot_all_sections = calculate_potentials(mom, wf_all_sections)
+
+        pot_all_sections.plot()
+        plt.show()
