@@ -14,12 +14,13 @@ atomic_mass_unit = 1.66053904e-27 # kg
 # physical_electrode_transform = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]
 
 # indices of electrodes 0->14 in the waveform files produced by the system right now
-physical_electrode_transform = [0,2,4,6,8,10,12,16,18,20,22,24,26,28,14]
+# physical_electrode_transform = [0,2,4,6,8,10,12,16,18,20,22,24,26,28,14]
+physical_electrode_transform = [0,4,8,2,6,10,14,12,  22,26,30,16,20,24,13]
 
 class Moments:
     def __init__(self,
-                 # path="/media/sf_Scratch/Waveform Generator 3D-trap/moments file/DanielTrapMomentsTransport.mat"
-                 path = "c:/Scratch/wav_gen/moments_file/DanielTrapMomentsTransport.mat"
+                 path="/media/sf_Scratch/wav_gen/moments_file/DanielTrapMomentsTransport.mat"
+                 # path = "c:/Scratch/wav_gen/moments_file/DanielTrapMomentsTransport.mat"
                  ):
         self.data = sio.loadmat(path, struct_as_record=False)['DATA'][0][0]
         self.reduce_data()
@@ -154,7 +155,7 @@ def calculate_potentials(moments, waveform,
     
     return WavPotential(np.dot(mom_trunc, waveform_trunc), moments.transport_axis, 39.962591)
 
-def plot_td_voltages(waveform, electrodes_to_use=None, real_electrodes=physical_electrodes):
+def plot_td_voltages(waveform, electrodes_to_use=None, real_electrodes=physical_electrode_transform):
     """ Plot time-dependent voltages of a waveform w.r.t. electrodes as"""
     td_wfms = waveform.samples.T
     if electrodes_to_use:
@@ -171,7 +172,8 @@ def plot_td_voltages(waveform, electrodes_to_use=None, real_electrodes=physical_
     
 if __name__ == "__main__":
     stationary_comparison_with_old = False
-    check_splitting_waveform = True
+    check_splitting_waveform = False
+    check_loading_waveform = True
     
     mom = Moments()
 
@@ -187,7 +189,7 @@ if __name__ == "__main__":
         wf_load_104 = wf.get_waveform('wav104')
         pot_load_104 = calculate_potentials(mom, wf_load_104)    
 
-        wf2 = WaveformFile('waveform_files/loading_and_constant_settings_Ts_620_2016_04_07_v02.dwc.json')
+        wf2 = WaveformFile('waveform_files/loading_and_constant_settings_Ts_620_2016_04_25_v01.dwc.json')
 
         wfms = (16, 25, 133) # or (17, 
         wfms_new = tuple(wf2.get_waveform(k) for k in wfms)
@@ -241,4 +243,13 @@ if __name__ == "__main__":
         pot_all_sections = calculate_potentials(mom, wf_all_sections)
 
         pot_all_sections.plot()
+        plt.show()
+    
+    if check_loading_waveform:
+        wf = WaveformFile('waveform_files/loading_and_constant_settings_Ts_620_2016_04_25_v01.dwc.json')
+
+        wf_load_to_exp = wf.get_waveform('wav1')
+        pot_load_to_exp = calculate_potentials(mom, wf_load_to_exp)
+
+        pot_load_to_exp.plot()
         plt.show()
