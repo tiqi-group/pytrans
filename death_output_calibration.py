@@ -98,6 +98,7 @@ if __name__ == "__main__":
             # offset_correction = (65536//20)*(-10*lin_result.slope+lin_result.intercept)
             # offset_correction = (65536//20)*(-lin_result.intercept/lin_result.slope)
 
+    # Output a text snippet suitable for copying'n'pasting into an Ionizer save file
     with open('death_outputs_to_use.txt', 'w') as cal_file:
         for k, vals in enumerate(cal_gains_offsets):
             cal_file.write("{DEATH channel %u gain} = {%u}, 0;\n" %(k, vals[0]))
