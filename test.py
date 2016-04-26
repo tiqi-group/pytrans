@@ -173,7 +173,8 @@ def plot_td_voltages(waveform, electrodes_to_use=None, real_electrodes=physical_
 if __name__ == "__main__":
     stationary_comparison_with_old = False
     check_splitting_waveform = False
-    check_loading_waveform = True
+    check_loading_waveform = False
+    check_conveyor_waveform = True
     
     mom = Moments()
 
@@ -247,6 +248,15 @@ if __name__ == "__main__":
     
     if check_loading_waveform:
         wf = WaveformFile('waveform_files/loading_and_constant_settings_Ts_620_2016_04_25_v01.dwc.json')
+
+        wf_load_to_exp = wf.get_waveform('wav1')
+        pot_load_to_exp = calculate_potentials(mom, wf_load_to_exp)
+
+        pot_load_to_exp.plot()
+        plt.show()
+        
+    if check_conveyor_waveform:
+        wf = WaveformFile('waveform_files/loading_conveyor_Ts620_2016_04_26_v01.dwc.json')
 
         wf_load_to_exp = wf.get_waveform('wav1')
         pot_load_to_exp = calculate_potentials(mom, wf_load_to_exp)
