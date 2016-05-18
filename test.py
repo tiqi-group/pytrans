@@ -19,8 +19,7 @@ physical_electrode_transform = [0,4,8,2,6,10,14,12,  22,26,30,16,20,24,13]
 
 class Moments:
     def __init__(self,
-                 path="/media/sf_Scratch/wav_gen/moments_file/DanielTrapMomentsTransport.mat"
-                 # path = "c:/Scratch/wav_gen/moments_file/DanielTrapMomentsTransport.mat"
+                 path="moments_file/DanielTrapMomentsTransport.mat"
                  ):
         self.data = sio.loadmat(path, struct_as_record=False)['DATA'][0][0]
         self.reduce_data()
