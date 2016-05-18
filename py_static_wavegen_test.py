@@ -49,7 +49,7 @@ MinElectrodeVoltage = - MaxElectrodeVoltage
 u = cvy.Variable(30,1)
 cost = cvy.sum_squares(mom.potentials[InsideROIIndices,:]*u-v_desired)
 cost += cvy.sum_squares(.005*u)
-constraints = [-umax <= u, u <= umax]
+constraints = [MinElectrodeVoltage <= u, u <= MaxElectrodeVoltage]
 
 for kk in range(15):
     # symmetry constraints for electrode pairs
