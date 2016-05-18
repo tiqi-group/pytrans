@@ -103,15 +103,30 @@ class WavPotential:
         ax.set_ylabel('potential (V)')
         return ax
 
-    def find_wells(self, wfm_idx):
+    def find_wells(self, wfm_idx, mode='quick', smoothing_ratio=80, polyfit_ratio=80):
         """For a given waveform index, return the minima and their
-        curvatures"""
+        curvatures.
+        smoothing_ratio: fraction of total length of potentials vector to smoothe over [not used?]
+        polyfit_ratio: fraction of total length of potentials vector to fit a polynomial to"""
         pot = self.potentials[:,wfm_idx]
         potg2 = np.gradient(np.gradient(pot))
-        min_indices, = ssig.argrelmin(pot)
-        offsets = pot[min_indices]
-        grads = potg2[min_indices]/(self.pot_resolution**2)
-        trap_freqs = np.sqrt(electron_charge * self.ion_mass / atomic_mass_unit * grads)/2/np.pi
+        # Ad-hoc filtering of the waveform potential with a top-hat
+        # window 1/80th as big
+        potg2_filt = np.convolve(potg2,
+                                 np.ones(pot.size/smoothing_ratio)/(pot.size*smoothing_ratio),
+                                 mode='same')
+        #st()
+        min_indices, = ssig.argrelmin(pot) # relative minima
+        if mode is 'quick':
+            # numerically evaluate from the raw data (noisy)
+            offsets = pot[min_indices]
+            grads = potg2_filt[min_indices]/(self.pot_resolution**2)
+            trap_freqs = np.sqrt(electron_charge * self.ion_mass / atomic_mass_unit * grads)/2/np.pi
+        elif mode is 'precise':
+            # fit quadratics to the regions of interest            
+            for mi in min_indices:
+                pot_roi = pot[mi-pot.size//(polyfit_ratio*2):mi+pot.size//(polyfit_ratio*2)]
+            st() # polyfit etc here
 
         return min_indices, offsets, trap_freqs
 
@@ -171,13 +186,14 @@ def plot_td_voltages(waveform, electrodes_to_use=None, real_electrodes=physical_
     
 if __name__ == "__main__":
     stationary_comparison_with_old = False
-    check_splitting_waveform = False
+    check_splitting_waveform = True
     check_loading_waveform = False
-    check_conveyor_waveform = True
+    check_conveyor_waveform = False
+    check_trap_modes = False
     
     mom = Moments()
 
-    if (stationary_comparison_with_old):
+    if stationary_comparison_with_old:
         wf = WaveformFile('waveform_files/Ca_trans_load_open_Ca_Be_Transport_scan_freq_and_offset_pos_0_um.dwc.json')
 
         wf_load_54 = wf.get_waveform('wav54')
@@ -237,7 +253,7 @@ if __name__ == "__main__":
         plt.show()
     
     if check_splitting_waveform:
-        wf = WaveformFile('waveform_files/splitting_zone_Ts_620_vn_2016_04_14_v01.dwc.json')
+        wf = WaveformFile('waveform_files/splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json')
 
         wf_all_sections = wf.get_waveform('wav8')
         pot_all_sections = calculate_potentials(mom, wf_all_sections)
@@ -262,3 +278,13 @@ if __name__ == "__main__":
 
         pot_load_to_exp.plot()
         plt.show()
+
+    if check_trap_modes:
+        wf_all = WaveformFile('waveform_files/loading_and_constant_settings_Ts_620_2016_04_25_v01.dwc.json')
+        wf_to_try = 'wav105'
+        wf = wf_all.get_waveform(wf_to_try)
+
+        pot = calculate_potentials(mom, wf)
+        print(pot.find_wells(2, 'precise'))
+        # pot.plot()
+        # plt.show()
