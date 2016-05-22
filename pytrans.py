@@ -46,7 +46,7 @@ class Moments:
             self.shim_moments.append(self.data.electrode[0,q].moments)
 
         d = self.data
-        self.transport_axis = d.transport_axis
+        self.transport_axis = d.transport_axis.flatten()
         self.rf_pondpot = d.RF_pondpot
         self.amu = d.amu[0][0]
         self.w_t = d.w_t[0][0]
@@ -60,19 +60,132 @@ class Moments:
 
         # Higher-res potential data [don't need for now]
 
+trap_mom = Moments() # Global trap moments
+
+class WavDesired:
+    """ Specifications describing potential wells to solve for"""
+    def __init__(self,
+                 potentials, # list of arrays; each array is a potential for a timestep; volts
+                 roi_idx, # Element indices for global trap axis position array; dims must match potentials
+                 Ts=100*ns,
+                 mass=39.962591,
+                 num_electrodes=30):
+        self.potentials = potentials
+        self.roi_idx = roi_idx
+        self.Ts = Ts
+        self.mass = mass
+        self.num_electrodes = num_electrodes
+
+class WavDesiredWells(WavDesired):
+    def __init__(self,
+                 positions, # array
+                 freqs, # array, same length as positions
+                 offsets, # array, same length as above
+                 Ts=100*ns,
+                 mass=39.962591, # AMU
+                 num_electrodes=30):
+
+        potentials, roi_idx = self.desiredPotentials(positions, freqs, offsets, mass)
+        
+        super().__init__(potentials, roi_idx, Ts, mass, num_electrodes)
+
+    def desiredPotentials(self, pos, freq, off, mass):
+        pot = []
+        roi = []
+        energy_threshold = 200*meV
+        for po, fr, of in zip(pos, freq, off):
+            a = (2*np.pi*fr)**2 * (mass * atomic_mass_unit) / (2*electron_charge)
+            v_desired = a * (trap_mom.transport_axis - po)**2 + of
+            relevant_idx = np.argwhere(v_desired < of + energy_threshold).flatten()
+            pot.append(v_desired[relevant_idx])
+            roi.append(relevant_idx)
+
+        return pot, roi
+
 class Waveform:
     """Waveform storage class. Convert an input list into a numpy array
-    and store various details about it.
-    """
-    def __init__(self, desc, uid, samples, generated):
-        self.desc = desc
-        self.uid = uid
-        self.generated = generated
-        self.samples = np.array(samples)
-        self.channels, self.length = self.samples.shape
+    and store various details about it, or solve given a set of
+    constraints and the global trap potentials.
 
+    """
+    def __init__(self, *args, **kwargs):
+        if len(args) is 4:
+            # Directly create Waveform from [desc, uid, samples, generated]
+            self.desc = args[0]
+            self.uid = args[1]
+            self.generated = args[2]
+            self.samples = np.array(args[3])
+            self.channels, self.length = self.samples.shape
+        elif isinstance(args[0],  WavDesired): # check if a child of WavDesired
+            wdp = args[0]
+            self.samples = self.solve_potentials(wdp)
+        else:
+            assert False, "Need some arguments in __init__."
+
+    def solve_potentials(self, wdp):
+        """ Convert a desired set of potentials and ROIs into waveform samples"""
+        # max_elec_voltages copied from config_local.h in ionpulse_sdk
+        max_elec_voltages = np.ones(wdp.num_electrodes)*9.0
+        min_elec_voltages = -max_elec_voltages
+        max_slew_rate = 5 / us # (volts / s)
+
+        # Cost function parameters
+        r0 = 1e-4 # punishes deviations from r0_u_ss. Can be used to guide 
+        r1 = 1e-3 # punishes the first derivative of u, thus limiting the slew rate
+        r2 = 1e-4 # punishes the second derivative of u, thus enforcing smoothness
+
+        # default voltage for the electrodes. any deviations from this will be punished, weighted by r0 and r0_u_weights        
+        r0_u_ss = np.ones(wdp.num_electrodes) 
+        r0_u_weights = np.ones(wdp.num_electrodes) # use this to put different weights on outer electrodes
+
+        N = len(wdp.potentials)
+
+        ## Setup and solve optimisation problem
+        u = cvy.Variable(wdp.num_electrodes, N)
+        states = [] # lists?
+
+        for kk, (pot, roi) in enumerate(zip(wdp.potentials, wdp.roi_idx)):
+            # Cost term capturing how accurately we generate the desired potential well            
+            cost = cvy.sum_squares(trap_mom.potentials[roi, :]*u[:,kk] - pot)
+            cost += r0 * cvy.sum_squares(r0_u_weights * (u[:,kk] - r0_u_ss))
+            
+            # Absolute voltage constraints
+            constr = [min_elec_voltages <= u[:,kk], u[:,kk] <= max_elec_voltages]
+
+            assert (N < 2) or (N > 3), "Cannot have this number of timesteps, due to finite-diff approximations"
+            if N > 3: # time-dependent constraints require at least 4 samples
+
+                # Approximate costs on first and second derivative of u with finite differences
+                # Here, we use 2nd order approximations. For a table with coefficients see 
+                # https://en.wikipedia.org/wiki/Finite_difference_coefficient
+                if ( kk != 0 and kk != N-1 ):
+                    # Middle: Use central finite difference approximation of derivatives
+                    cost += r1*cvy.sum_squares(0.5*(u[:,kk+1]-u[:,kk-1]) )
+                    cost += r2*cvy.sum_squares(u[:,kk+1] - 2*u[:,kk] + u[:,kk-1])
+                elif kk == 0:
+                    # Start: Use forward finite difference approximation of derivatives
+                    cost += r1*cvy.sum_squares(-0.5*u[:,kk+2] + 2*u[:,kk+1] - 1.5*u[:,kk])
+                    cost += r2*cvy.sum_squares(-u[:,kk+3] + 4*u[:,kk+2] - 5*u[:,kk+1] + 2*u[:,kk])
+                elif kk == N-1: 
+                    # End: Use backward finite difference approximation of derivatives
+                    cost += r1*cvy.sum_squares(1.5*u[:,kk] - 2*u[:,kk-1] + 0.5*u[:,kk-2])
+                    cost += r2*cvy.sum_squares(2*u[:,kk] - 5*u[:,kk-1] + 4*u[:,kk-2] - u[:,kk-3]) 
+
+                # Slew rate constraints    
+                if (kk != N-1):
+                    constr += [ -max_slew_rate*wdp.Ts <= u[:,kk+1] - u[:,kk] , u[:,kk+1] - u[:,kk] <= max_slew_rate*wdp.Ts ]
+
+            states.append( cvy.Problem(cvy.Minimize(cost), constr) )
+
+        prob = sum(states)
+
+        # ECOS is faster than CVXOPT, but can crash for larger problems
+        prob.solve(solver='ECOS', verbose=False)
+
+        
+        
 class WavPotential:
-    """ Electric potential along the trap axis 
+    """ Electric potential along the trap axis (after solver!)
 
     TODO: include radial aspects too"""
     def __init__(self, potentials, trap_axis, ion_mass):
@@ -160,10 +273,20 @@ class WavPotential:
 class WaveformSet:
     """Waveform set handler, both for pre-generated JSON waveform files
     and waveform sets dynamically generated in Python"""
-    def __init__(self, file_path=None):
-        if file_path:
-            """ Create WaveformSet from existing JSON file """
-            with open(file_path) as fp:
+    def __init__(self, *args, **kwargs):
+        """Can be used in several modes.
+
+        The first is to generate a WaveformSet from an existing
+        waveform file; the keyword argument waveform_file must have
+        the filepath of the file to read.
+
+        The second is to supply a list of existing Waveforms. These
+        will be sorted by their names and checked for consistency.
+        """
+
+        if 'waveform_file' in kwargs.keys():
+            # Create WaveformSet from existing JSON file
+            with open(kwargs['waveform_file']) as fp:
                 self.json_data = json.load(fp)
                 waveform_num = len(self.json_data.keys())
                 self.waveforms = [] # zero-indexed, unlike Matlab and Ionizer
@@ -175,6 +298,16 @@ class WaveformSet:
                         generated = jd['generated'],
                         samples = jd['samples']
                     ))
+                    
+        elif type(args[0]) is Waveform:
+            # Use existing list of Waveforms (no transfer of ownership for now!)
+            for k, wf in enumerate(args[0]):
+                assert wf.desc is 'wav'+str(k+1), "Waveforms are not ordered. TODO: auto-order them"
+            self.waveforms = args[0]
+            
+        else:
+            # Nothing could be understood
+            pass
 
     def write(self, file_path):
         with open(file_path, 'w') as fp:
@@ -199,8 +332,13 @@ class WaveformSet:
         return self.waveforms[idx]        
 
 if __name__ == "__main__":
-    # Debugging stuff
-    wf = WaveformSet("waveform_files/splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
-#    wf.write("waveform_files/test_splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
-#    wf = WaveformSet("waveform_files/test_splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
-    wf.write("waveform_files/test2_splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
+    # Debugging stuff -- write unit tests from the below at some point
+#    wfs = WaveformSet(waveform_file="waveform_files/splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
+#    wfs.write("waveform_files/test_splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
+#    wfs = WaveformSet("waveform_files/test_splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
+#    wfs.write("waveform_files/test2_splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
+    wdp = WavDesiredWells(
+        np.array([0,10,20,30,40])*um,
+        np.ones(5)*1.8*MHz,
+        np.ones(5)*1500*meV)
+    wf1 = Waveform(wdp)

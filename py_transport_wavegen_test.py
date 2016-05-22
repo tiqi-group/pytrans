@@ -50,7 +50,7 @@ r0_u_weights = np.ones(num_electrodes) # use this to put different weights on ou
 # Transport specifications
 Ts = 5000*ns
 TransportDuration = 100*us
-N = math.ceil(TransportDuration/Ts + 1) # Number of timesteps
+N = np.ceil(TransportDuration/Ts + 1).astype(int) # Number of timesteps
 position = np.linspace(-500*um,500*um,N)
 
 
@@ -58,34 +58,39 @@ position = np.linspace(-500*um,500*um,N)
 
 u = cvy.Variable(num_electrodes,N)
 states = [] # empty
+
 for kk in range(N):
     # Cost term capturing how accurately we generate the desired potential well
     v_desired, InsideROIIndices = DesiredPotential(position[kk], frequency, offset)
+
     cost = cvy.sum_squares(mom.potentials[InsideROIIndices,:]*u[:,kk]-v_desired)
     cost += r0*cvy.sum_squares( r0_u_weights*(u[:,kk]-r0_u_ss) )
-    
-    # Approximate costs on first and second derivative of u with finite differences
-    # Here, we use 2nd order approximations. For a table with coefficients see 
-    # https://en.wikipedia.org/wiki/Finite_difference_coefficient
-    if ( kk != 0 and kk != N-1 ):
-        # Middle: Use central finite difference approximation of derivatives
-        cost += r1*cvy.sum_squares(0.5*(u[:,kk+1]-u[:,kk-1]) )
-        cost += r2*cvy.sum_squares(u[:,kk+1] - 2*u[:,kk] + u[:,kk-1])
-    elif kk == 0:
-        # Start: Use forward finite difference approximation of derivatives
-        cost += r1*cvy.sum_squares(-0.5*u[:,kk+2] + 2*u[:,kk+1] - 1.5*u[:,kk])
-        cost += r2*cvy.sum_squares(-u[:,kk+3] + 4*u[:,kk+2] - 5*u[:,kk+1] + 2*u[:,kk])
-    elif kk == N-1: 
-        # End: Use backward finite difference approximation of derivatives
-        cost += r1*cvy.sum_squares(1.5*u[:,kk] - 2*u[:,kk-1] + 0.5*u[:,kk-2])
-        cost += r2*cvy.sum_squares(2*u[:,kk] - 5*u[:,kk-1] + 4*u[:,kk-2] - u[:,kk-3]) 
-        
+
     # Absolute voltage constraints
     constr = [MinElectrodeVoltage <= u[:,kk], u[:,kk] <= MaxElectrodeVoltage]
 
-    # Slew rate constraints    
-    if (kk != N-1):
-        constr += [ -MaxSlewrate*Ts <= u[:,kk+1] - u[:,kk] , u[:,kk+1] - u[:,kk] <= MaxSlewrate*Ts ]
+    assert (N < 2) or (N > 3), "Cannot have this number of timesteps, due to finite-diff approximations"
+    
+    if N > 3: # time-dependent constraints require at least 4 samples
+        # Approximate costs on first and second derivative of u with finite differences
+        # Here, we use 2nd order approximations. For a table with coefficients see 
+        # https://en.wikipedia.org/wiki/Finite_difference_coefficient
+        if ( kk != 0 and kk != N-1 ):
+            # Middle: Use central finite difference approximation of derivatives
+            cost += r1*cvy.sum_squares(0.5*(u[:,kk+1]-u[:,kk-1]) )
+            cost += r2*cvy.sum_squares(u[:,kk+1] - 2*u[:,kk] + u[:,kk-1])
+        elif kk == 0:
+            # Start: Use forward finite difference approximation of derivatives
+            cost += r1*cvy.sum_squares(-0.5*u[:,kk+2] + 2*u[:,kk+1] - 1.5*u[:,kk])
+            cost += r2*cvy.sum_squares(-u[:,kk+3] + 4*u[:,kk+2] - 5*u[:,kk+1] + 2*u[:,kk])
+        elif kk == N-1: 
+            # End: Use backward finite difference approximation of derivatives
+            cost += r1*cvy.sum_squares(1.5*u[:,kk] - 2*u[:,kk-1] + 0.5*u[:,kk-2])
+            cost += r2*cvy.sum_squares(2*u[:,kk] - 5*u[:,kk-1] + 4*u[:,kk-2] - u[:,kk-3]) 
+
+        # Slew rate constraints    
+        if (kk != N-1):
+            constr += [ -MaxSlewrate*Ts <= u[:,kk+1] - u[:,kk] , u[:,kk+1] - u[:,kk] <= MaxSlewrate*Ts ]
     
     states.append( cvy.Problem(cvy.Minimize(cost), constr) )
 
@@ -99,7 +104,7 @@ fig = plt.figure()
 ax = fig.add_subplot(1,1,1)
 ax.set_xlabel('trap axis z (um)')
 
-for kk in range(0,N,math.ceil(N/5)):
+for kk in range(0,N,np.ceil(N/5).astype(int)):
     v_desired, InsideROIIndices = DesiredPotential(position[kk], frequency, offset)
     ax.plot(mom.transport_axis[InsideROIIndices]*1e6, v_desired,label="desired",color='black')
     ax.plot(mom.transport_axis[InsideROIIndices]*1e6, mom.potentials[InsideROIIndices,:]*u.value[:,kk],label="actual")

@@ -38,7 +38,7 @@ if __name__ == "__main__":
     mom = Moments()
 
     if stationary_comparison_with_old:
-        wf = WaveformSet('waveform_files/Ca_trans_load_open_Ca_Be_Transport_scan_freq_and_offset_pos_0_um.dwc.json')
+        wf = WaveformSet(waveform_file='waveform_files/Ca_trans_load_open_Ca_Be_Transport_scan_freq_and_offset_pos_0_um.dwc.json')
 
         wf_load_54 = wf.get_waveform('wav54')
         pot_load_54 = calculate_potentials(mom, wf_load_54)
@@ -49,7 +49,7 @@ if __name__ == "__main__":
         wf_load_104 = wf.get_waveform('wav104')
         pot_load_104 = calculate_potentials(mom, wf_load_104)    
 
-        wf2 = WaveformSet('waveform_files/loading_and_constant_settings_Ts_620_2016_04_25_v01.dwc.json')
+        wf2 = WaveformSet(waveform_file='waveform_files/loading_and_constant_settings_Ts_620_2016_04_25_v01.dwc.json')
 
         wfms = (16, 25, 133) # or (17, 
         wfms_new = tuple(wf2.get_waveform(k) for k in wfms)
@@ -97,7 +97,7 @@ if __name__ == "__main__":
         plt.show()
     
     if check_splitting_waveform:
-        wf = WaveformSet('waveform_files/splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json')
+        wf = WaveformSet(waveform_file='waveform_files/splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json')
 
         wf_all_sections = wf.get_waveform('wav8')
         pot_all_sections = calculate_potentials(mom, wf_all_sections)
@@ -106,7 +106,7 @@ if __name__ == "__main__":
         plt.show()
     
     if check_loading_waveform:
-        wf = WaveformSet('waveform_files/loading_and_constant_settings_Ts_620_2016_04_25_v01.dwc.json')
+        wf = WaveformSet(waveform_file='waveform_files/loading_and_constant_settings_Ts_620_2016_04_25_v01.dwc.json')
 
         wf_load_to_exp = wf.get_waveform('wav1')
         pot_load_to_exp = calculate_potentials(mom, wf_load_to_exp)
@@ -115,7 +115,7 @@ if __name__ == "__main__":
         plt.show()
         
     if check_conveyor_waveform:
-        wf = WaveformSet('waveform_files/loading_conveyor_Ts620_2016_04_26_v01.dwc.json')
+        wf = WaveformSet(waveform_file='waveform_files/loading_conveyor_Ts620_2016_04_26_v01.dwc.json')
 
         wf_load_to_exp = wf.get_waveform('wav1')
         pot_load_to_exp = calculate_potentials(mom, wf_load_to_exp)
@@ -124,7 +124,7 @@ if __name__ == "__main__":
         plt.show()
 
     if check_trap_modes:
-        wf_all = WaveformSet('waveform_files/loading_and_constant_settings_Ts_620_2016_04_25_v01.dwc.json')
+        wf_all = WaveformSet(waveform_file='waveform_files/loading_and_constant_settings_Ts_620_2016_04_25_v01.dwc.json')
         wf_to_try = 'wav133'
         wf = wf_all.get_waveform(wf_to_try)
 
