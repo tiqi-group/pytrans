@@ -22,6 +22,10 @@ meV = 1e-3
 # indices of electrodes 0->14 in the waveform files produced by the system right now
 physical_electrode_transform = [0,4,8,2,6,10,14,12,  22,26,30,16,20,24,13]
 
+# indices of electrodes to be used for each DAC channel (0 -> 31)
+dac_channel_transform = [0,0,3,3,1,1,4,4,2,2,5,5,-7,14,6,6,
+                         11,11,7,7,12,12,8,8,13,13,9,9,-7,14,10,10]
+
 class Moments:
     """Spatial potential moments of the electrodes; used for calculations
     involving the trap"""
@@ -69,12 +73,18 @@ class WavDesired:
                  roi_idx, # Element indices for global trap axis position array; dims must match potentials
                  Ts=100*ns,
                  mass=39.962591,
-                 num_electrodes=30):
+                 num_electrodes=30,
+                 desc=None):
+        self.desc = desc
         self.potentials = potentials
         self.roi_idx = roi_idx
         self.Ts = Ts
         self.mass = mass
         self.num_electrodes = num_electrodes
+        if desc:
+            self.desc = desc
+        else:
+            self.desc = "No description specified"
 
 class WavDesiredWells(WavDesired):
     def __init__(self,
@@ -83,11 +93,12 @@ class WavDesiredWells(WavDesired):
                  offsets, # array, same length as above
                  Ts=100*ns,
                  mass=39.962591, # AMU
-                 num_electrodes=30):
+                 num_electrodes=30,    
+                 desc=None):
 
         potentials, roi_idx = self.desiredPotentials(positions, freqs, offsets, mass)
         
-        super().__init__(potentials, roi_idx, Ts, mass, num_electrodes)
+        super().__init__(potentials, roi_idx, Ts, mass, num_electrodes, desc)
 
     def desiredPotentials(self, pos, freq, off, mass):
         pot = []
@@ -118,7 +129,14 @@ class Waveform:
             self.channels, self.length = self.samples.shape
         elif isinstance(args[0],  WavDesired): # check if a child of WavDesired
             wdp = args[0]
-            self.samples = self.solve_potentials(wdp)
+            raw_samples = self.solve_potentials(wdp) # ordered by electrode
+            rssh = raw_samples.shape
+            self.samples = np.zeros((rssh[0]+2,rssh[1]))
+            self.samples[:,:] = raw_samples[list(abs(k) for k in dac_channel_transform),:]
+
+            self.desc = wdp.desc
+            self.uid = np.random.randint(0, 2**32)
+            self.generated = ""
         else:
             assert False, "Need some arguments in __init__."
 
@@ -135,22 +153,27 @@ class Waveform:
         r2 = 1e-4 # punishes the second derivative of u, thus enforcing smoothness
 
         # default voltage for the electrodes. any deviations from this will be punished, weighted by r0 and r0_u_weights        
-        r0_u_ss = np.ones(wdp.num_electrodes) 
+        r0_u_ss = np.ones(wdp.num_electrodes)*0.5
         r0_u_weights = np.ones(wdp.num_electrodes) # use this to put different weights on outer electrodes
 
         N = len(wdp.potentials)
 
         ## Setup and solve optimisation problem
-        u = cvy.Variable(wdp.num_electrodes, N)
+        uopt = cvy.Variable(wdp.num_electrodes, N)
         states = [] # lists?
 
         for kk, (pot, roi) in enumerate(zip(wdp.potentials, wdp.roi_idx)):
             # Cost term capturing how accurately we generate the desired potential well            
-            cost = cvy.sum_squares(trap_mom.potentials[roi, :]*u[:,kk] - pot)
-            cost += r0 * cvy.sum_squares(r0_u_weights * (u[:,kk] - r0_u_ss))
+            cost = cvy.sum_squares(trap_mom.potentials[roi, :]*uopt[:,kk] - pot)
+            cost += r0 * cvy.sum_squares(r0_u_weights * (uopt[:,kk] - r0_u_ss))
             
             # Absolute voltage constraints
-            constr = [min_elec_voltages <= u[:,kk], u[:,kk] <= max_elec_voltages]
+            constr = [min_elec_voltages <= uopt[:,kk], uopt[:,kk] <= max_elec_voltages]
+
+            # Absolute symmetry constraints
+            for m in range(15):
+                # symmetry constraints for electrode pairs
+                constr += [uopt[m,kk] == uopt[m+15,kk]]
 
             assert (N < 2) or (N > 3), "Cannot have this number of timesteps, due to finite-diff approximations"
             if N > 3: # time-dependent constraints require at least 4 samples
@@ -160,29 +183,27 @@ class Waveform:
                 # https://en.wikipedia.org/wiki/Finite_difference_coefficient
                 if ( kk != 0 and kk != N-1 ):
                     # Middle: Use central finite difference approximation of derivatives
-                    cost += r1*cvy.sum_squares(0.5*(u[:,kk+1]-u[:,kk-1]) )
-                    cost += r2*cvy.sum_squares(u[:,kk+1] - 2*u[:,kk] + u[:,kk-1])
+                    cost += r1*cvy.sum_squares(0.5*(uopt[:,kk+1]-uopt[:,kk-1]) )
+                    cost += r2*cvy.sum_squares(uopt[:,kk+1] - 2*uopt[:,kk] + uopt[:,kk-1])
                 elif kk == 0:
                     # Start: Use forward finite difference approximation of derivatives
-                    cost += r1*cvy.sum_squares(-0.5*u[:,kk+2] + 2*u[:,kk+1] - 1.5*u[:,kk])
-                    cost += r2*cvy.sum_squares(-u[:,kk+3] + 4*u[:,kk+2] - 5*u[:,kk+1] + 2*u[:,kk])
+                    cost += r1*cvy.sum_squares(-0.5*uopt[:,kk+2] + 2*uopt[:,kk+1] - 1.5*uopt[:,kk])
+                    cost += r2*cvy.sum_squares(-uopt[:,kk+3] + 4*uopt[:,kk+2] - 5*uopt[:,kk+1] + 2*uopt[:,kk])
                 elif kk == N-1: 
                     # End: Use backward finite difference approximation of derivatives
-                    cost += r1*cvy.sum_squares(1.5*u[:,kk] - 2*u[:,kk-1] + 0.5*u[:,kk-2])
-                    cost += r2*cvy.sum_squares(2*u[:,kk] - 5*u[:,kk-1] + 4*u[:,kk-2] - u[:,kk-3]) 
-
+                    cost += r1*cvy.sum_squares(1.5*uopt[:,kk] - 2*uopt[:,kk-1] + 0.5*uopt[:,kk-2])
+                    cost += r2*cvy.sum_squares(2*uopt[:,kk] - 5*uopt[:,kk-1] + 4*uopt[:,kk-2] - uopt[:,kk-3]) 
                 # Slew rate constraints    
                 if (kk != N-1):
-                    constr += [ -max_slew_rate*wdp.Ts <= u[:,kk+1] - u[:,kk] , u[:,kk+1] - u[:,kk] <= max_slew_rate*wdp.Ts ]
+                    constr += [ -max_slew_rate*wdp.Ts <= uopt[:,kk+1] - uopt[:,kk] , uopt[:,kk+1] - uopt[:,kk] <= max_slew_rate*wdp.Ts ]
 
             states.append( cvy.Problem(cvy.Minimize(cost), constr) )
 
-        prob = sum(states)
-
         # ECOS is faster than CVXOPT, but can crash for larger problems
+        prob = sum(states)
         prob.solve(solver='ECOS', verbose=False)
 
-        
+        return uopt.value
         
 class WavPotential:
     """ Electric potential along the trap axis (after solver!)
@@ -270,6 +291,19 @@ class WavPotential:
                 plt.show() 
         return min_indices, offsets, trap_freqs
 
+def calculate_potentials(moments, waveform,
+                         real_electrode_idxes=physical_electrode_transform,
+                         ):
+    """ 
+    Multiplies the moments matrix by the waveform matrix (with suitable truncation based on real_electrode_idxes parameter)
+    moments: Moments class containing potential data
+    waveform: Waveform class containing the voltage samples array
+    """
+    mom_trunc = moments.potentials[:,:len(real_electrode_idxes)]
+    waveform_trunc = waveform.samples[real_electrode_idxes,:]
+    
+    return WavPotential(np.dot(mom_trunc, waveform_trunc), moments.transport_axis, 39.962591)
+    
 class WaveformSet:
     """Waveform set handler, both for pre-generated JSON waveform files
     and waveform sets dynamically generated in Python"""
@@ -293,21 +327,21 @@ class WaveformSet:
                 for k in range(1, waveform_num + 1):
                     jd = self.json_data['wav'+str(k)]
                     self.waveforms.append(Waveform(
-                        desc = jd['description'],
-                        uid = int(jd['uid'], 16),
-                        generated = jd['generated'],
-                        samples = jd['samples']
+                        jd['description'],
+                        int(jd['uid'], 16),
+                        jd['generated'],
+                        jd['samples']
                     ))
                     
-        elif type(args[0]) is Waveform:
+        elif type(args[0][0]) is Waveform:
             # Use existing list of Waveforms (no transfer of ownership for now!)
-            for k, wf in enumerate(args[0]):
-                assert wf.desc is 'wav'+str(k+1), "Waveforms are not ordered. TODO: auto-order them"
+            # for k, wf in enumerate(args[0]):
+            #     assert wf.desc is 'wav'+str(k+1), "Waveforms are not ordered. TODO: auto-order them"
             self.waveforms = args[0]
             
         else:
             # Nothing could be understood
-            pass
+            assert False, "Couldn't parse input args"
 
     def write(self, file_path):
         with open(file_path, 'w') as fp:
@@ -333,12 +367,24 @@ class WaveformSet:
 
 if __name__ == "__main__":
     # Debugging stuff -- write unit tests from the below at some point
-#    wfs = WaveformSet(waveform_file="waveform_files/splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
-#    wfs.write("waveform_files/test_splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
-#    wfs = WaveformSet("waveform_files/test_splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
-#    wfs.write("waveform_files/test2_splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
+    # wfs = WaveformSet(waveform_file="waveform_files/splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
+    # wfs.write("waveform_files/test_splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
+    #    wfs = WaveformSet(waveform_file="waveform_files/test_splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
+    #    wfs.write("waveform_files/test2_splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
+    n_load = 500;
     wdp = WavDesiredWells(
-        np.array([0,10,20,30,40])*um,
-        np.ones(5)*1.8*MHz,
-        np.ones(5)*1500*meV)
+        np.linspace(-1870,0,n_load)*um,
+        np.linspace(1.1,1.3,n_load)*MHz,
+        np.linspace(600,1000,n_load)*meV,
+        desc="Load -> exp test")
     wf1 = Waveform(wdp)
+    pot_test = calculate_potentials(trap_mom, wf1)
+#    print(pot_test.find_wells(0))
+    pot_test.plot()
+    plt.show()
+
+    wfs = WaveformSet([wf1])
+    wfs.write("waveform_files/loading_py_2016_05_22")
+
+    
+    
