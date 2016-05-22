@@ -103,7 +103,7 @@ class WavDesiredWells(WavDesired):
     def desiredPotentials(self, pos, freq, off, mass):
         pot = []
         roi = []
-        energy_threshold = 200*meV
+        energy_threshold = 400*meV
         for po, fr, of in zip(pos, freq, off):
             a = (2*np.pi*fr)**2 * (mass * atomic_mass_unit) / (2*electron_charge)
             v_desired = a * (trap_mom.transport_axis - po)**2 + of
@@ -371,20 +371,34 @@ if __name__ == "__main__":
     # wfs.write("waveform_files/test_splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
     #    wfs = WaveformSet(waveform_file="waveform_files/test_splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
     #    wfs.write("waveform_files/test2_splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
-    n_load = 500;
-    wdp = WavDesiredWells(
-        np.linspace(-1870,0,n_load)*um,
-        np.linspace(1.1,1.3,n_load)*MHz,
-        np.linspace(600,1000,n_load)*meV,
-        desc="Load -> exp test")
-    wf1 = Waveform(wdp)
-    pot_test = calculate_potentials(trap_mom, wf1)
-#    print(pot_test.find_wells(0))
-    pot_test.plot()
-    plt.show()
 
-    wfs = WaveformSet([wf1])
-    wfs.write("waveform_files/loading_py_2016_05_22")
+    if False:
+        # Generate loading waveform
+        n_load = 1000;
+        wdp = WavDesiredWells(
+            np.linspace(-1870,0,n_load)*um,
+            np.linspace(1.1,1.3,n_load)*MHz,
+            np.linspace(600,1000,n_load)*meV,
+            desc="Load -> exp test")
+        wf1 = Waveform(wdp)
+        pot_test = calculate_potentials(trap_mom, wf1)
+    #    print(pot_test.find_wells(0))
+    #    pot_test.plot()
+    #    plt.show()
 
+        wfs = WaveformSet([wf1])
+        wfs.write("waveform_files/loading_py_2016_05_22_v02.dwc.json")
+
+        pot_test.plot_one_wfm(0)
+        pot_test.plot_one_wfm(-1)        
+        plt.show()
+
+    if True:
+        # Plot the above-generated waveform
+        wfs = WaveformSet(waveform_file="waveform_files/loading_py_2016_05_22_v02.dwc.json")
+        pot_test = calculate_potentials(trap_mom, wfs.get_waveform(1))
+        pot_test.plot_one_wfm(0)
+        pot_test.plot_one_wfm(-1)        
+        plt.show()
     
     
