@@ -12,25 +12,14 @@ to investigate this further.
 """
 
 #%% 
-import math
-import numpy as np
-from test import * # import pytrans functionality
-import cvxpy as cvy
-
-# Convenient definition
-um = 1e-6
-us = 1e-6
-MHz = 1e6
-kHz = 1e3
-meV = 1e-3
-ns = 1e-9
+from pytrans import *
 
 # Load moments file
 mom = Moments()
 num_electrodes = 30
 
 # Specify properties of desired potential well
-Ca_amu = 40 # (amu)
+Ca_amu = 39.962591 # (amu)
 frequency = 1.8*MHz # (MHz)
 offset = 1500*meV # (meV)
 
