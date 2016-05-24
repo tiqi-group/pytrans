@@ -156,7 +156,7 @@ class Waveform:
             self.samples[:,:] = raw_samples[list(abs(k) for k in dac_channel_transform),:]
 
             self.desc = wdp.desc
-            self.uid = np.random.randint(0, 2**32)
+            self.uid = np.random.randint(0, 2**31)
             self.generated = ""
         else:
             assert False, "Need some arguments in __init__."
