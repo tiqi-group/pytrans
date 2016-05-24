@@ -6,6 +6,7 @@ import mpl_toolkits.mplot3d
 import scipy.io as sio
 import scipy.signal as ssig
 import cvxpy as cvy
+import os
 import pdb
 st = pdb.set_trace
 
@@ -30,7 +31,7 @@ class Moments:
     """Spatial potential moments of the electrodes; used for calculations
     involving the trap"""
     def __init__(self,
-                 path="moments_file/DanielTrapMomentsTransport.mat"
+                 path=os.path.join(os.path.dirname(__file__), "moments_file", "DanielTrapMomentsTransport.mat")
                  ):
         self.data = sio.loadmat(path, struct_as_record=False)['DATA'][0][0]
         self.reduce_data()
@@ -74,7 +75,8 @@ class WavDesired:
                  Ts=100*ns,
                  mass=39.962591,
                  num_electrodes=30,
-                 desc=None):
+                 desc=None,
+                 solver_weights=None):
         self.desc = desc
         self.potentials = potentials
         self.roi_idx = roi_idx
@@ -85,25 +87,44 @@ class WavDesired:
             self.desc = desc
         else:
             self.desc = "No description specified"
+        self.solver_weights = {
+            # Cost function parameters
+            'r0': 1e-4, # punishes deviations from r0_u_ss. Can be used to guide 
+            'r1': 1e-3, # punishes the first derivative of u, thus limiting the slew rate
+            'r2': 1e-4, # punishes the second derivative of u, thus enforcing smoothness
+
+            # default voltage for the electrodes. any deviations from
+            # this will be punished, weighted by r0 and r0_u_weights
+            'r0_u_ss': np.ones(num_electrodes)*0.5,
+            'r0_u_weights': np.ones(num_electrodes) # use this to put different weights on outer electrodes
+            }
+        if solver_weights:
+            # non-default solver parameters
+            self.solver_weights.update(solver_weights)
 
 class WavDesiredWells(WavDesired):
     def __init__(self,
                  positions, # array
                  freqs, # array, same length as positions
                  offsets, # array, same length as above
+                 desired_potential_params=None,
                  Ts=100*ns,
                  mass=39.962591, # AMU
-                 num_electrodes=30,    
-                 desc=None):
-
-        potentials, roi_idx = self.desiredPotentials(positions, freqs, offsets, mass)
+                 num_electrodes=30,
+                 desc=None,
+                 solver_weights=None):
         
-        super().__init__(potentials, roi_idx, Ts, mass, num_electrodes, desc)
+        potentials, roi_idx = self.desiredPotentials(positions, freqs, offsets, mass, desired_potential_params)
+        
+        super().__init__(potentials, roi_idx, Ts, mass, num_electrodes, desc, solver_weights)
 
-    def desiredPotentials(self, pos, freq, off, mass):
+    def desiredPotentials(self, pos, freq, off, mass, des_pot_parm=None):
         pot = []
         roi = []
-        energy_threshold = 400*meV
+        if des_pot_parm is not None:
+            energy_threshold = des_pot_parm['energy_threshold']
+        else:
+            energy_threshold = 400*meV
         for po, fr, of in zip(pos, freq, off):
             a = (2*np.pi*fr)**2 * (mass * atomic_mass_unit) / (2*electron_charge)
             v_desired = a * (trap_mom.transport_axis - po)**2 + of
@@ -148,13 +169,7 @@ class Waveform:
         max_slew_rate = 5 / us # (volts / s)
 
         # Cost function parameters
-        r0 = 1e-4 # punishes deviations from r0_u_ss. Can be used to guide 
-        r1 = 1e-3 # punishes the first derivative of u, thus limiting the slew rate
-        r2 = 1e-4 # punishes the second derivative of u, thus enforcing smoothness
-
-        # default voltage for the electrodes. any deviations from this will be punished, weighted by r0 and r0_u_weights        
-        r0_u_ss = np.ones(wdp.num_electrodes)*0.5
-        r0_u_weights = np.ones(wdp.num_electrodes) # use this to put different weights on outer electrodes
+        sw = wdp.solver_weights
 
         N = len(wdp.potentials)
 
@@ -165,7 +180,7 @@ class Waveform:
         for kk, (pot, roi) in enumerate(zip(wdp.potentials, wdp.roi_idx)):
             # Cost term capturing how accurately we generate the desired potential well            
             cost = cvy.sum_squares(trap_mom.potentials[roi, :]*uopt[:,kk] - pot)
-            cost += r0 * cvy.sum_squares(r0_u_weights * (uopt[:,kk] - r0_u_ss))
+            cost += sw['r0'] * cvy.sum_squares(sw['r0_u_weights'] * (uopt[:,kk] - sw['r0_u_ss']))
             
             # Absolute voltage constraints
             constr = [min_elec_voltages <= uopt[:,kk], uopt[:,kk] <= max_elec_voltages]
@@ -183,16 +198,16 @@ class Waveform:
                 # https://en.wikipedia.org/wiki/Finite_difference_coefficient
                 if ( kk != 0 and kk != N-1 ):
                     # Middle: Use central finite difference approximation of derivatives
-                    cost += r1*cvy.sum_squares(0.5*(uopt[:,kk+1]-uopt[:,kk-1]) )
-                    cost += r2*cvy.sum_squares(uopt[:,kk+1] - 2*uopt[:,kk] + uopt[:,kk-1])
+                    cost += sw['r1']*cvy.sum_squares(0.5*(uopt[:,kk+1]-uopt[:,kk-1]) )
+                    cost += sw['r2']*cvy.sum_squares(uopt[:,kk+1] - 2*uopt[:,kk] + uopt[:,kk-1])
                 elif kk == 0:
                     # Start: Use forward finite difference approximation of derivatives
-                    cost += r1*cvy.sum_squares(-0.5*uopt[:,kk+2] + 2*uopt[:,kk+1] - 1.5*uopt[:,kk])
-                    cost += r2*cvy.sum_squares(-uopt[:,kk+3] + 4*uopt[:,kk+2] - 5*uopt[:,kk+1] + 2*uopt[:,kk])
+                    cost += sw['r1']*cvy.sum_squares(-0.5*uopt[:,kk+2] + 2*uopt[:,kk+1] - 1.5*uopt[:,kk])
+                    cost += sw['r2']*cvy.sum_squares(-uopt[:,kk+3] + 4*uopt[:,kk+2] - 5*uopt[:,kk+1] + 2*uopt[:,kk])
                 elif kk == N-1: 
                     # End: Use backward finite difference approximation of derivatives
-                    cost += r1*cvy.sum_squares(1.5*uopt[:,kk] - 2*uopt[:,kk-1] + 0.5*uopt[:,kk-2])
-                    cost += r2*cvy.sum_squares(2*uopt[:,kk] - 5*uopt[:,kk-1] + 4*uopt[:,kk-2] - uopt[:,kk-3]) 
+                    cost += sw['r1']*cvy.sum_squares(1.5*uopt[:,kk] - 2*uopt[:,kk-1] + 0.5*uopt[:,kk-2])
+                    cost += sw['r2']*cvy.sum_squares(2*uopt[:,kk] - 5*uopt[:,kk-1] + 4*uopt[:,kk-2] - uopt[:,kk-3]) 
                 # Slew rate constraints    
                 if (kk != N-1):
                     constr += [ -max_slew_rate*wdp.Ts <= uopt[:,kk+1] - uopt[:,kk] , uopt[:,kk+1] - uopt[:,kk] <= max_slew_rate*wdp.Ts ]
@@ -352,7 +367,7 @@ class WaveformSet:
                     'uid':hex(wf.uid), # cut off 0x to suit ionizer
                     'generated':wf.generated,
                     'samples':wf.samples.tolist()}
-            json.dump(wfm_dict, fp)
+            json.dump(wfm_dict, fp, indent="", sort_keys=True)
 
     def get_waveform(self, num):
         """ Return the 1-indexed waveform. Accepts strings ('wav2') or
@@ -367,14 +382,14 @@ class WaveformSet:
 
 if __name__ == "__main__":
     # Debugging stuff -- write unit tests from the below at some point
-    # wfs = WaveformSet(waveform_file="waveform_files/splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
     # wfs.write("waveform_files/test_splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
-    #    wfs = WaveformSet(waveform_file="waveform_files/test_splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
-    #    wfs.write("waveform_files/test2_splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
+    if True:
+        wfs = WaveformSet(waveform_file="waveform_files/splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
+        wfs.write("waveform_files/test2_splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
 
-    if False:
+    if True:
         # Generate loading waveform
-        n_load = 1000;
+        n_load = 1000
         wdp = WavDesiredWells(
             np.linspace(-1870,0,n_load)*um,
             np.linspace(1.1,1.3,n_load)*MHz,
@@ -387,7 +402,7 @@ if __name__ == "__main__":
     #    plt.show()
 
         wfs = WaveformSet([wf1])
-        wfs.write("waveform_files/loading_py_2016_05_22_v02.dwc.json")
+        wfs.write("waveform_files/loading_py_2016_05_23_v01.dwc.json")
 
         pot_test.plot_one_wfm(0)
         pot_test.plot_one_wfm(-1)        
@@ -395,7 +410,7 @@ if __name__ == "__main__":
 
     if True:
         # Plot the above-generated waveform
-        wfs = WaveformSet(waveform_file="waveform_files/loading_py_2016_05_22_v02.dwc.json")
+        wfs = WaveformSet(waveform_file="waveform_files/loading_py_2016_05_23_v01.dwc.json")
         pot_test = calculate_potentials(trap_mom, wfs.get_waveform(1))
         pot_test.plot_one_wfm(0)
         pot_test.plot_one_wfm(-1)        
