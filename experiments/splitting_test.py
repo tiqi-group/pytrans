@@ -40,16 +40,11 @@ if __name__ == "__main__":
         
         # wd = WavDesired(y, roi_idxes, solver_weights={
         #     'r0_u_weights':np.zeros(30)})
-        wd = WavDesiredWells([[0]],[[1.0*MHz]],[[-800*meV]],
-                             desired_potential_params={'energy_threshold':100*meV})# ,
-                             # solver_weights={
-                             #     'r0':0,
-                             #     # 'r1':0,
-                             #     # 'r2':0,
-                             #     'r0_u_ss':np.zeros(30)})
+        wd = WavDesiredWells([[-850*um,0*um, 850*um]],[[1.0*MHz,1.3*MHz, 1.5*MHz]],[[-800*meV,0*meV, -840*meV]],
+                             desired_potential_params={'energy_threshold':100*meV})
         ax = wd.plot(trap_mom.transport_axis)
         wf = Waveform(wd)
-        st()
         wfp = calculate_potentials(trap_mom, wf)
         wfp.plot_one_wfm(0, ax)
+        print(wfp.find_wells(0,'precise'))
         plt.show()
