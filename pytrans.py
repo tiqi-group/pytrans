@@ -102,6 +102,16 @@ class WavDesired:
             # non-default solver parameters
             self.solver_weights.update(solver_weights)
 
+    def plot(self, trap_axis, ax=None):
+        """ ax: Matplotlib axes """
+        if not ax:
+            fig = plt.figure()
+            ax = fig.add_subplot(1,1,1)
+        ax.plot(trap_axis[self.roi_idx]/um, self.potentials)
+        ax.set_xlabel('trap location (um)')
+        ax.set_ylabel('potential (V)')
+        return ax
+
 class WavDesiredWells(WavDesired):
     def __init__(self,
                  positions, # array
@@ -119,20 +129,37 @@ class WavDesiredWells(WavDesired):
         super().__init__(potentials, roi_idx, Ts, mass, num_electrodes, desc, solver_weights)
 
     def desiredPotentials(self, pos, freq, off, mass, des_pot_parm=None):
+        # lists as a function of timestep [STILL ASSUMING ONE WELL PER POTENTIAL]
         pot = []
         roi = []
         if des_pot_parm is not None:
             energy_threshold = des_pot_parm['energy_threshold']
         else:
             energy_threshold = 400*meV
-        for po, fr, of in zip(pos, freq, off):
-            a = (2*np.pi*fr)**2 * (mass * atomic_mass_unit) / (2*electron_charge)
-            v_desired = a * (trap_mom.transport_axis - po)**2 + of
-            relevant_idx = np.argwhere(v_desired < of + energy_threshold).flatten()
-            pot.append(v_desired[relevant_idx])
-            roi.append(relevant_idx)
+        for po, fr, of in zip(pos, freq, off): # iterate over timesteps
+            assert len(po) is not 0, "Desired wells supplied in incorrect format: must be list of lists or 2D array"
+            pot_l = np.empty(0)
+            roi_l = np.empty(0, dtype='int')
+            for po_l, fr_l, of_l in zip(po, fr, of): # iterate over discrete wells
+                a = (2*np.pi*fr_l)**2 * (mass * atomic_mass_unit) / (2*electron_charge)
+                v_desired = a * (trap_mom.transport_axis - po_l)**2 + of_l
+                relevant_idx = np.argwhere(v_desired < of_l + energy_threshold).flatten()
+                pot_l = np.hstack((pot_l, v_desired[relevant_idx])) # TODO: make more efficient
+                roi_l = np.hstack((roi_l, relevant_idx))
 
+            pot.append(pot_l)
+            roi.append(roi_l)
         return pot, roi
+
+    def plot(self, trap_axis, ax=None):
+        """ ax: Matplotlib axes """
+        if not ax:
+            fig = plt.figure()
+            ax = fig.add_subplot(1,1,1)
+        ax.plot(trap_axis[np.concatenate(self.roi_idx)]/um, np.concatenate(self.potentials))
+        ax.set_xlabel('trap location (um)')
+        ax.set_ylabel('potential (V)')
+        return ax
 
 class Waveform:
     """Waveform storage class. Convert an input list into a numpy array
