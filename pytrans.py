@@ -113,13 +113,13 @@ class WavDesired:
             self.desc = "No description specified"
         self.solver_weights = {
             # Cost function parameters
-            'r0': 1e-4, # punishes deviations from r0_u_ss. Can be used to guide 
+            'r0': 1e-4, # punishes deviations from r0_u_ss. Can be used to set default voltages for irrelevant electrodes.
             'r1': 1e-3, # punishes the first derivative of u, thus limiting the slew rate
-            'r2': 1e-4, # punishes the second derivative of u, thus enforcing smoothness
+            'r2': 1e-4, # punishes the second derivative of u, thus further enforcing smoothness
 
             # default voltage for the electrodes. any deviations from
             # this will be punished, weighted by r0 and r0_u_weights
-            'r0_u_ss': np.ones(num_electrodes)*0.5,
+            'r0_u_ss': np.ones(num_electrodes)*0.5, # default voltages for the electrodes
             'r0_u_weights': np.ones(num_electrodes) # use this to put different weights on outer electrodes
             }
         if solver_weights:
@@ -200,11 +200,12 @@ class Waveform:
             self.samples = np.array(args[3])
             self.channels, self.length = self.samples.shape
         elif isinstance(args[0],  WavDesired): # check if a child of WavDesired
+			# Create waveform based on WavDesired by setting up and solving an optimal control problem
             wdp = args[0]
             raw_samples = self.solve_potentials(wdp) # ordered by electrode
-            rssh = raw_samples.shape
-            self.samples = np.zeros((rssh[0]+2,rssh[1]))
-            self.samples[:,:] = raw_samples[list(abs(k) for k in dac_channel_transform),:]
+            num_elec, num_timesteps = raw_samples.shape
+            self.samples = np.zeros((num_elec+2,num_timesteps)) # Add two DEATH monitor channels
+            self.samples[:,:] = raw_samples[list(abs(k) for k in dac_channel_transform),:] # Transform as required
 
             self.desc = wdp.desc
             self.uid = np.random.randint(0, 2**31)
