@@ -28,9 +28,9 @@ def load_to_exp():
         n_load = 101
         # Desired constraints
         w_load = WavDesiredWells(
-            np.linspace(-1870,0,n_load)*um,
-            np.linspace(1.1,1.3,n_load)*MHz,
-            np.linspace(600,1000,n_load)*meV,
+            [np.linspace(-1870,0,n_load)*um],
+            [np.linspace(1.1,1.3,n_load)*MHz],
+            [np.linspace(600,1000,n_load)*meV],
             solver_weights={'energy_threshold':200*meV,
              'r0_u_weights':np.ones(30)*3e-2,
              'r0_u_ss':np.ones(30)*8},

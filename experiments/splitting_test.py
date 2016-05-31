@@ -40,11 +40,26 @@ if __name__ == "__main__":
         
         # wd = WavDesired(y, roi_idxes, solver_weights={
         #     'r0_u_weights':np.zeros(30)})
-        wd = WavDesiredWells([[-850*um,0*um, 850*um]],[[1.0*MHz,1.3*MHz, 1.5*MHz]],[[-800*meV,0*meV, -840*meV]],
-                             desired_potential_params={'energy_threshold':100*meV})
-        ax = wd.plot(trap_mom.transport_axis)
+        # wd = WavDesiredWells([[-850*um],[0*um], [850*um]],[[1.0*MHz],[1.3*MHz], [1.5*MHz]],[[-800*meV],[0*meV], [-840*meV]],
+        #                      desired_potential_params={'energy_threshold':100*meV})
+        steps = 10
+        
+        wd = WavDesiredWells([np.linspace(-500,-300,steps)*um,np.linspace(300,500,steps)*um],
+                             [np.linspace(1,1.5,steps)*MHz,np.linspace(1.5,1,steps)*MHz],
+                             [np.linspace(-800,100,steps)*meV,np.linspace(-500,0,steps)*meV],
+                             
+                             desired_potential_params={'energy_threshold':100*meV},
+                             solver_weights={'r1':0, 'r2':0})
+                
         wf = Waveform(wd)
         wfp = calculate_potentials(trap_mom, wf)
+
+        # Generates a lot of figures
+        ax = wd.plot(0, trap_mom.transport_axis)
         wfp.plot_one_wfm(0, ax)
-        print(wfp.find_wells(0,'precise'))
+        for k in range(1,steps):
+            wd.plot(k, trap_mom.transport_axis, ax)
+            wfp.plot_one_wfm(k, ax)
+
         plt.show()
+        print(wfp.find_wells(0,'precise'))

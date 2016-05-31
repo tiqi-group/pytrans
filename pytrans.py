@@ -138,9 +138,10 @@ class WavDesired:
 
 class WavDesiredWells(WavDesired):
     def __init__(self,
-                 positions, # array
-                 freqs, # array, same length as positions
-                 offsets, # array, same length as above
+                 # array or list of arrays/lists (can be single-element) of each position as a fn of timestep
+                 positions, 
+                 freqs, # array, same dimensions as positions
+                 offsets, # array, same dimensions as positions
                  desired_potential_params=None,
                  Ts=100*ns,
                  mass=39.962591, # AMU
@@ -160,10 +161,20 @@ class WavDesiredWells(WavDesired):
             energy_threshold = des_pot_parm['energy_threshold']
         else:
             energy_threshold = 400*meV
-        for po, fr, of in zip(pos, freq, off): # iterate over timesteps
+
+        assert type(pos) is type(freq) is type(off), "Input types inconsistent"
+        if type(pos) is list:
+            # Construct 2D matrices from lists: columns of each are
+            # the timesteps, rows of each are the discrete wells
+            pos = np.vstack(pos).T
+            freq = np.vstack(freq).T
+            off = np.vstack(off).T
+
+        for po, fr, of in zip(pos,freq,off): # iterate over timesteps
             assert len(po) is not 0, "Desired wells supplied in incorrect format: must be list of lists or 2D array"
             pot_l = np.empty(0)
             roi_l = np.empty(0, dtype='int')
+
             for po_l, fr_l, of_l in zip(po, fr, of): # iterate over discrete wells
                 a = (2*np.pi*fr_l)**2 * (mass * atomic_mass_unit) / (2*electron_charge)
                 v_desired = a * (trap_mom.transport_axis - po_l)**2 + of_l
@@ -175,12 +186,13 @@ class WavDesiredWells(WavDesired):
             roi.append(roi_l)
         return pot, roi
 
-    def plot(self, trap_axis, ax=None):
+    def plot(self, idx, trap_axis, ax=None):
         """ ax: Matplotlib axes """
         if not ax:
             fig = plt.figure()
             ax = fig.add_subplot(1,1,1)
-        ax.plot(trap_axis[np.concatenate(self.roi_idx)]/um, np.concatenate(self.potentials))
+            #st()
+        ax.plot(trap_axis[self.roi_idx[idx]]/um, self.potentials[idx])
         ax.set_xlabel('trap location (um)')
         ax.set_ylabel('potential (V)')
         return ax
