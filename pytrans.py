@@ -20,12 +20,36 @@ MHz = 1e6
 kHz = 1e3
 meV = 1e-3
 
-# indices of electrodes 0->14 in the waveform files produced by the system right now
-physical_electrode_transform = [0,4,8,2,6,10,14,12,  22,26,30,16,20,24,13]
+# Indexing convention:
+# Electrodes T1 = 0, T2 = 1, ... T15 = 14; B1 = 15, B2 = 16, ... B15 = 29
+# DEATH channels (top-right downwards, leftwards; bottom DEATHs 0->15, top DEATHs 16->31
 
-# indices of electrodes to be used for each DAC channel (0 -> 31)
-dac_channel_transform = [0,0,3,3,1,1,4,4,2,2,5,5,-7,14,6,6,
-                         11,11,7,7,12,12,8,8,13,13,9,9,-7,14,10,10]
+# indices of which electrode each DEATH output drives, from 0->31
+dac_channel_transform = [0, 15,3,18, 1,16,4,19,   2,17,5,20,-7,14, 6,21,
+                         11,26,7,22,12,27,8,23,  13,28,9,24,-22,29,10,25]
+
+
+# locations of electrode voltages in the waveform files produced by
+# the system right now (0 -> 29) (i.e. which DEATH output drives each
+# electrode, from 0 -> 29)
+physical_electrode_transform = [0,4,8,2,  6,10,14,18,  22,26,30,16,  20,24,13,
+                                1,5,9,3,  7,11,15,19,  23,27,31,17,  21,25,29]
+
+# indices of electrodes to be used for each DAC channel in the waveform file (0 -> 31)
+# (i.e. which electrodes does each DEATH channel drive)
+
+# Example: there are 6 DEATH channels, and 4 physical
+# electrodes. DEATH channel 1 connects to Electrode 3, DEATH channel 2
+# connects to Electrode 4, DEATH channel 3 monitors (produces the same
+# output as) Electrode 1, and DEATH channel 4 monitors Electrode
+# 2. DEATH channels 5 and 6 connect to Electrodes 1 and 2
+# respectively.
+#
+# For this arrangement, the mapping would be (negative == monitoring;
+# zero-indexed)
+# dac_channel_transform = [2,4,-0,-1,0,1] 
+# physical_electrode_transform = [4, 5, 0, 1]
+
 
 class Moments:
     """Spatial potential moments of the electrodes; used for calculations
@@ -89,24 +113,35 @@ class WavDesired:
             self.desc = "No description specified"
         self.solver_weights = {
             # Cost function parameters
-            'r0': 1e-4, # punishes deviations from r0_u_ss. Can be used to guide 
+            'r0': 1e-4, # punishes deviations from r0_u_ss. Can be used to set default voltages for irrelevant electrodes.
             'r1': 1e-3, # punishes the first derivative of u, thus limiting the slew rate
-            'r2': 1e-4, # punishes the second derivative of u, thus enforcing smoothness
+            'r2': 1e-4, # punishes the second derivative of u, thus further enforcing smoothness
 
             # default voltage for the electrodes. any deviations from
             # this will be punished, weighted by r0 and r0_u_weights
-            'r0_u_ss': np.ones(num_electrodes)*0.5,
+            'r0_u_ss': np.ones(num_electrodes)*0.5, # default voltages for the electrodes
             'r0_u_weights': np.ones(num_electrodes) # use this to put different weights on outer electrodes
             }
         if solver_weights:
             # non-default solver parameters
             self.solver_weights.update(solver_weights)
 
+    def plot(self, trap_axis, ax=None):
+        """ ax: Matplotlib axes """
+        if not ax:
+            fig = plt.figure()
+            ax = fig.add_subplot(1,1,1)
+        ax.plot(trap_axis[self.roi_idx]/um, self.potentials)
+        ax.set_xlabel('trap location (um)')
+        ax.set_ylabel('potential (V)')
+        return ax
+
 class WavDesiredWells(WavDesired):
     def __init__(self,
-                 positions, # array
-                 freqs, # array, same length as positions
-                 offsets, # array, same length as above
+                 # array or list of arrays/lists (can be single-element) of each position as a fn of timestep
+                 positions, 
+                 freqs, # array, same dimensions as positions
+                 offsets, # array, same dimensions as positions
                  desired_potential_params=None,
                  Ts=100*ns,
                  mass=39.962591, # AMU
@@ -119,20 +154,48 @@ class WavDesiredWells(WavDesired):
         super().__init__(potentials, roi_idx, Ts, mass, num_electrodes, desc, solver_weights)
 
     def desiredPotentials(self, pos, freq, off, mass, des_pot_parm=None):
+        # lists as a function of timestep [STILL ASSUMING ONE WELL PER POTENTIAL]
         pot = []
         roi = []
         if des_pot_parm is not None:
             energy_threshold = des_pot_parm['energy_threshold']
         else:
             energy_threshold = 400*meV
-        for po, fr, of in zip(pos, freq, off):
-            a = (2*np.pi*fr)**2 * (mass * atomic_mass_unit) / (2*electron_charge)
-            v_desired = a * (trap_mom.transport_axis - po)**2 + of
-            relevant_idx = np.argwhere(v_desired < of + energy_threshold).flatten()
-            pot.append(v_desired[relevant_idx])
-            roi.append(relevant_idx)
 
+        assert type(pos) is type(freq) is type(off), "Input types inconsistent"
+        if type(pos) is list:
+            # Construct 2D matrices from lists: columns of each are
+            # the timesteps, rows of each are the discrete wells
+            pos = np.vstack(pos).T
+            freq = np.vstack(freq).T
+            off = np.vstack(off).T
+
+        for po, fr, of in zip(pos,freq,off): # iterate over timesteps
+            assert len(po) is not 0, "Desired wells supplied in incorrect format: must be list of lists or 2D array"
+            pot_l = np.empty(0)
+            roi_l = np.empty(0, dtype='int')
+
+            for po_l, fr_l, of_l in zip(po, fr, of): # iterate over discrete wells
+                a = (2*np.pi*fr_l)**2 * (mass * atomic_mass_unit) / (2*electron_charge)
+                v_desired = a * (trap_mom.transport_axis - po_l)**2 + of_l
+                relevant_idx = np.argwhere(v_desired < of_l + energy_threshold).flatten()
+                pot_l = np.hstack((pot_l, v_desired[relevant_idx])) # TODO: make more efficient
+                roi_l = np.hstack((roi_l, relevant_idx))
+
+            pot.append(pot_l)
+            roi.append(roi_l)
         return pot, roi
+
+    def plot(self, idx, trap_axis, ax=None):
+        """ ax: Matplotlib axes """
+        if not ax:
+            fig = plt.figure()
+            ax = fig.add_subplot(1,1,1)
+            #st()
+        ax.plot(trap_axis[self.roi_idx[idx]]/um, self.potentials[idx])
+        ax.set_xlabel('trap location (um)')
+        ax.set_ylabel('potential (V)')
+        return ax
 
 class Waveform:
     """Waveform storage class. Convert an input list into a numpy array
@@ -149,11 +212,12 @@ class Waveform:
             self.samples = np.array(args[3])
             self.channels, self.length = self.samples.shape
         elif isinstance(args[0],  WavDesired): # check if a child of WavDesired
+			# Create waveform based on WavDesired by setting up and solving an optimal control problem
             wdp = args[0]
             raw_samples = self.solve_potentials(wdp) # ordered by electrode
-            rssh = raw_samples.shape
-            self.samples = np.zeros((rssh[0]+2,rssh[1]))
-            self.samples[:,:] = raw_samples[list(abs(k) for k in dac_channel_transform),:]
+            num_elec, num_timesteps = raw_samples.shape
+            self.samples = np.zeros((num_elec+2,num_timesteps)) # Add two DEATH monitor channels
+            self.samples[:,:] = raw_samples[list(abs(k) for k in dac_channel_transform),:] # Transform as required
 
             self.desc = wdp.desc
             self.uid = np.random.randint(0, 2**31)
@@ -304,15 +368,20 @@ class WavPotential:
                 for p in polys:
                     plt.plot(self.trap_axis, p(self.trap_axis),'b')
                 plt.show() 
-        return min_indices, offsets, trap_freqs
+        return {'min_indices':min_indices, 'offsets':offsets, 'freqs':trap_freqs}
 
 def calculate_potentials(moments, waveform,
                          real_electrode_idxes=physical_electrode_transform,
                          ):
-    """ 
-    Multiplies the moments matrix by the waveform matrix (with suitable truncation based on real_electrode_idxes parameter)
+    """Multiplies the moments matrix by the waveform matrix
+    (with suitable transformation based on real_electrode_idxes parameter)
+    
+    Note: watch out for scaling issues if real_electrode_indices is
+    not equal to the number of electrodes
+    
     moments: Moments class containing potential data
     waveform: Waveform class containing the voltage samples array
+
     """
     mom_trunc = moments.potentials[:,:len(real_electrode_idxes)]
     waveform_trunc = waveform.samples[real_electrode_idxes,:]

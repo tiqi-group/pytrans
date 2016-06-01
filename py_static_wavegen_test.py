@@ -24,7 +24,7 @@ mom = Moments()
 
 # Specify properties of desired potential well
 Ca_amu = 40 # [amu]
-position = -1500*um # [um]
+position =  0*um # [um]
 frequency = 1.8*MHz # [MHz]
 offset = 1500*meV # [meV]
 
@@ -32,7 +32,7 @@ offset = 1500*meV # [meV]
 def DesiredPotential(position,frequency,offset):
     a = (2*np.pi*frequency)**2*(Ca_amu*atomic_mass_unit)/(2*electron_charge)
     v_desired = a*(mom.transport_axis-position)**2 + offset # v = a*(z-z0)^2 + b, harmonic well
-    EnergyThreshold = 1000*meV
+    EnergyThreshold = 200*meV
     InsideROIIndices = (v_desired < offset + EnergyThreshold).nonzero()[0]
     return v_desired[InsideROIIndices],InsideROIIndices
 
