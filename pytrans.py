@@ -2,6 +2,7 @@
 import json
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 import mpl_toolkits.mplot3d
 import scipy.io as sio
 import scipy.signal as ssig
@@ -25,15 +26,15 @@ meV = 1e-3
 # DEATH channels (top-right downwards, leftwards; bottom DEATHs 0->15, top DEATHs 16->31
 
 # indices of which electrode each DEATH output drives, from 0->31
-dac_channel_transform = [0, 15,3,18, 1,16,4,19,   2,17,5,20,-7,14, 6,21,
-                         11,26,7,22,12,27,8,23,  13,28,9,24,-22,29,10,25]
+dac_channel_transform = np.array([0, 15,3,18, 1,16,4,19,   2,17,5,20,-7,14, 6,21,
+                                  11,26,7,22,12,27,8,23,  13,28,9,24,-22,29,10,25])
 
 
 # locations of electrode voltages in the waveform files produced by
 # the system right now (0 -> 29) (i.e. which DEATH output drives each
 # electrode, from 0 -> 29)
-physical_electrode_transform = [0,4,8,2,  6,10,14,18,  22,26,30,16,  20,24,13,
-                                1,5,9,3,  7,11,15,19,  23,27,31,17,  21,25,29]
+physical_electrode_transform = np.array([0,4,8,2,  6,10,14,18,  22,26,30,16,  20,24,13,
+                                         1,5,9,3,  7,11,15,19,  23,27,31,17,  21,25,29])
 
 # indices of electrodes to be used for each DAC channel in the waveform file (0 -> 31)
 # (i.e. which electrodes does each DEATH channel drive)
@@ -50,6 +51,15 @@ physical_electrode_transform = [0,4,8,2,  6,10,14,18,  22,26,30,16,  20,24,13,
 # dac_channel_transform = [2,4,-0,-1,0,1] 
 # physical_electrode_transform = [4, 5, 0, 1]
 
+## Electrode starts and ends, ordered from Electrode 0 -> 29
+electrode_coords = np.array([[-2535,-1535],[-1515,-1015],[-995,-695],[-675,-520],[-500,-345],[-325,-170],[-150,150],[170,325],[345,500],[520,675],[695,995],[1015,1515],[1535,2535],[-2535,-1535],[-1515,-1015],[-995,-695],[-675,-520],[-500,-345],[-325,-170],[-150,150],[170,325],[345,500],[520,675],[695,995],[1015,1515],[1535,2535]])
+
+## Utility functions
+
+def vlinspace(start_vec, end_vec, npts, lin_fn = np.linspace):
+    """ Linspace on column vectors specifying the starts and ends"""
+    assert start_vec.shape[1] == end_vec.shape[1] == 1, "Need to input column vectors"
+    return np.vstack(list(lin_fn(sv, ev, npts) for sv, ev in zip(start_vec, end_vec)))
 
 class Moments:
     """Spatial potential moments of the electrodes; used for calculations
@@ -96,7 +106,7 @@ class WavDesired:
     def __init__(self,
                  potentials, # list of arrays; each array is a potential for a timestep; volts
                  roi_idx, # Element indices for global trap axis position array; dims must match potentials
-                 Ts=100*ns,
+                 Ts=10*ns, # slowdown of 0 -> 10 ns/step, slowdown of 30 (typical) -> (10*(30+1)) = 310 ns/step
                  mass=39.962591,
                  num_electrodes=30,
                  desc=None,
@@ -160,7 +170,7 @@ class WavDesiredWells(WavDesired):
         if des_pot_parm is not None:
             energy_threshold = des_pot_parm['energy_threshold']
         else:
-            energy_threshold = 400*meV
+            energy_threshold = 150*meV
 
         assert type(pos) is type(freq) is type(off), "Input types inconsistent"
         if type(pos) is list:
@@ -282,11 +292,16 @@ class Waveform:
         prob = sum(states)
         prob.solve(solver='ECOS', verbose=False)
 
+        if False:
+            # DEBUGGING ONLY
+            plt.plot(trap_mom.transport_axis, trap_mom.potentials*uopt.value[:,0])
+            plt.plot(trap_mom.transport_axis[wdp.roi_idx[0]], wdp.potentials[0],'--')
+        
         return uopt.value
         
 class WavPotential:
     """ Electric potential along the trap axis (after solver!)
-
+    Generally to be used for analysing and plotting existing waveforms
     TODO: include radial aspects too"""
     def __init__(self, potentials, trap_axis, ion_mass):
         """ potentials: (points along trap z axis) x (timesteps)
@@ -326,6 +341,30 @@ class WavPotential:
         ax.set_ylabel('potential (V)')
         return ax
 
+    def plot_electrodes(self, idx, ax=None):
+        """ ax: Matplotlib axes """
+        if not ax:
+            fig = plt.figure()
+            ax = fig.add_subplot(1,1,1)
+        # finish later
+
+    def plot_range_of_wfms(self, timesteps, ax=None):
+        """ ax: Matplotlib axes """
+        if not ax:
+            fig = plt.figure()
+            ax = fig.add_subplot(1,1,1)
+        if type(timesteps) is int:
+            # integer, specifying number of points
+            idces = np.linspace(0, self.potentials.shape[1]-1, timesteps, dtype='int')
+        else:
+            # iterable
+            idces = timesteps
+        for idx in idces:
+            ax.plot(self.trap_axis/um, self.potentials[:,idx])
+        ax.set_xlabel('trap location (um)')
+        ax.set_ylabel('potential (V)')
+        return ax
+
     def find_wells(self, wfm_idx, mode='quick', smoothing_ratio=80, polyfit_ratio=60):
         """For a given waveform index, return the minima and their
         curvatures.
@@ -351,6 +390,7 @@ class WavPotential:
             offsets = []
             polys = []
             trap_freqs = []
+            trap_locs = []
             for mi in min_indices:
                 idx1 = mi-pot.size//(polyfit_ratio*2)
                 idx2 = mi+pot.size//(polyfit_ratio*2)
@@ -363,12 +403,13 @@ class WavPotential:
                 offsets.append(-poly[1]**2/4/poly[2]+poly[0])
                 grad = poly.deriv().deriv() # in eV
                 trap_freqs.append(np.sqrt(electron_charge * grad / (self.ion_mass * atomic_mass_unit))/2/np.pi)
+                trap_locs.append(-poly[1]/2/poly[2])
             if False:
                 plt.plot(self.trap_axis, pot,'r')            
                 for p in polys:
                     plt.plot(self.trap_axis, p(self.trap_axis),'b')
                 plt.show() 
-        return {'min_indices':min_indices, 'offsets':offsets, 'freqs':trap_freqs}
+        return {'min_indices':min_indices, 'offsets':offsets, 'freqs':trap_freqs, 'locs':trap_locs}
 
 def calculate_potentials(moments, waveform,
                          real_electrode_idxes=physical_electrode_transform,
