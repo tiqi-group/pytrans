@@ -390,6 +390,7 @@ class WavPotential:
             offsets = []
             polys = []
             trap_freqs = []
+            trap_locs = []
             for mi in min_indices:
                 idx1 = mi-pot.size//(polyfit_ratio*2)
                 idx2 = mi+pot.size//(polyfit_ratio*2)
@@ -397,18 +398,18 @@ class WavPotential:
                 pot_z = self.trap_axis[idx1:idx2].flatten()
                 #pfit = np.polyfit(pot_roi, pot_z, 2)
                 pfit = np.polyfit(pot_z, pot_roi, 2)
-                st()
                 poly = np.poly1d(pfit)
                 polys.append(poly)
                 offsets.append(-poly[1]**2/4/poly[2]+poly[0])
                 grad = poly.deriv().deriv() # in eV
                 trap_freqs.append(np.sqrt(electron_charge * grad / (self.ion_mass * atomic_mass_unit))/2/np.pi)
+                trap_locs.append(-poly[1]/2/poly[2])
             if False:
                 plt.plot(self.trap_axis, pot,'r')            
                 for p in polys:
                     plt.plot(self.trap_axis, p(self.trap_axis),'b')
                 plt.show() 
-        return {'min_indices':min_indices, 'offsets':offsets, 'freqs':trap_freqs}
+        return {'min_indices':min_indices, 'offsets':offsets, 'freqs':trap_freqs, 'locs':trap_locs}
 
 def calculate_potentials(moments, waveform,
                          real_electrode_idxes=physical_electrode_transform,

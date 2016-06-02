@@ -6,9 +6,15 @@ from pytrans import *
 
 def single_waveform():
     wf_path = os.path.join(os.pardir, "waveform_files", "single_test_waveform.dwc.json")
+<<<<<<< HEAD
     w_desired = WavDesiredWells(np.array([0])*um,
                                 np.array([2.0])*MHz,
                                 np.array([800])*meV,
+=======
+    w_desired = WavDesiredWells(np.array([[0]])*um,
+                                np.array([[1.5]])*MHz,
+                                np.array([[800]])*meV,
+>>>>>>> 268a9b7334d312ccd80412e9ec00747567c693bc
                                 solver_weights={'energy_threshold':200*meV,
                                                 'r0_u_weights':np.ones(30)*3e-2,
                                                 'r0_u_ss':np.ones(30)*8},
