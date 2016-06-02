@@ -16,7 +16,7 @@ def plotting_test():
     # Copied and pasted from experiments/loading_conveyor.py
     wdw = WavDesiredWells(
         [linspace_fn(-1870, 0, 101)*um],
-        [linspace_fn(1.1, 1.3, 101)*MHz],
+        [linspace_fn(0.7, 1.3, 101)*MHz],
         [linspace_fn(600, 1000, 101)*meV],
         solver_weights=local_weights,
         desired_potential_params={'energy_threshold':10*meV},

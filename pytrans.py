@@ -51,7 +51,14 @@ physical_electrode_transform = np.array([0,4,8,2,  6,10,14,18,  22,26,30,16,  20
 # dac_channel_transform = [2,4,-0,-1,0,1] 
 # physical_electrode_transform = [4, 5, 0, 1]
 
-## Electrode starts and ends, ordered from Electrode 0 -> 29
+## DEATH channel max voltage outputs
+max_elec_voltages = np.zeros(30)+9.0
+max_death_voltages = max_elec_voltages[dac_channel_transform]
+
+min_elec_voltages = -max_elec_voltages
+min_death_voltages = -max_death_voltages
+
+## Electrode starts and ends in um, ordered from Electrode 0 -> 29
 electrode_coords = np.array([[-2535,-1535],[-1515,-1015],[-995,-695],[-675,-520],[-500,-345],[-325,-170],[-150,150],[170,325],[345,500],[520,675],[695,995],[1015,1515],[1535,2535],[-2535,-1535],[-1515,-1015],[-995,-695],[-675,-520],[-500,-345],[-325,-170],[-150,150],[170,325],[345,500],[520,675],[695,995],[1015,1515],[1535,2535]])
 
 ## Utility functions
@@ -106,7 +113,7 @@ class WavDesired:
     def __init__(self,
                  potentials, # list of arrays; each array is a potential for a timestep; volts
                  roi_idx, # Element indices for global trap axis position array; dims must match potentials
-                 Ts=10*ns, # slowdown of 0 -> 10 ns/step, slowdown of 30 (typical) -> (10*(30+1)) = 310 ns/step
+                 Ts=100*ns, # slowdown of 0 -> 10 ns/step, slowdown of 30 (typical) -> (10*(30+1)) = 310 ns/step
                  mass=39.962591,
                  num_electrodes=30,
                  desc=None,
@@ -124,8 +131,8 @@ class WavDesired:
         self.solver_weights = {
             # Cost function parameters
             'r0': 1e-4, # punishes deviations from r0_u_ss. Can be used to set default voltages for irrelevant electrodes.
-            'r1': 1e-3, # punishes the first derivative of u, thus limiting the slew rate
-            'r2': 1e-4, # punishes the second derivative of u, thus further enforcing smoothness
+            'r1': 1e-3, # punishes the first time derivative of u, thus limiting the slew rate
+            'r2': 1e-4, # punishes the second time derivative of u, thus further enforcing smoothness
 
             # default voltage for the electrodes. any deviations from
             # this will be punished, weighted by r0 and r0_u_weights
@@ -220,7 +227,6 @@ class Waveform:
             self.uid = args[1]
             self.generated = args[2]
             self.samples = np.array(args[3])
-            self.channels, self.length = self.samples.shape
         elif isinstance(args[0],  WavDesired): # check if a child of WavDesired
 			# Create waveform based on WavDesired by setting up and solving an optimal control problem
             wdp = args[0]
@@ -230,16 +236,17 @@ class Waveform:
             self.samples[:,:] = raw_samples[list(abs(k) for k in dac_channel_transform),:] # Transform as required
 
             self.desc = wdp.desc
-            self.uid = np.random.randint(0, 2**31)
+            self.set_new_uid()
             self.generated = ""
         else:
             assert False, "Need some arguments in __init__."
 
     def solve_potentials(self, wdp):
         """ Convert a desired set of potentials and ROIs into waveform samples"""
-        # max_elec_voltages copied from config_local.h in ionpulse_sdk
-        max_elec_voltages = np.ones(wdp.num_electrodes)*9.0
-        min_elec_voltages = -max_elec_voltages
+        # TODO: make this more flexible, i.e. arbitrary-size voltages
+        # max_elec_voltages should be copied from config_local.h in ionpulse_sdk
+        # max_elec_voltages = np.ones(wdp.num_electrodes)*9.0 
+        # min_elec_voltages = -max_elec_voltages
         max_slew_rate = 5 / us # (volts / s)
 
         # Cost function parameters
@@ -298,6 +305,15 @@ class Waveform:
             plt.plot(trap_mom.transport_axis[wdp.roi_idx[0]], wdp.potentials[0],'--')
         
         return uopt.value
+
+    def set_new_uid(self):
+        self.uid = np.random.randint(0, 2**31)
+
+    def voltage_limits_exceeded(self):
+        for column in self.samples.T:
+            if np.any(column > max_death_voltages) or np.any(column < min_death_voltages):
+                return True
+        return False
         
 class WavPotential:
     """ Electric potential along the trap axis (after solver!)
