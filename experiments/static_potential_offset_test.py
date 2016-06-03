@@ -33,6 +33,8 @@ def single_waveform():
         for ec_l, eo_l in zip(ec, eo):
             wf2.desc += "{:.2f} V offset on Elec {:d}, ".format(eo_l, ec_l)
         wf2.samples[physical_electrode_transform[ec]] += np.array([eo]).T
+        if (wf2.voltage_limits_exceeded()):
+            print("Error in electrode " + str(ec))        
         wf_list.append(wf2)
                 
     wfs = WaveformSet(wf_list)
@@ -57,6 +59,8 @@ def analyze_waveform(num_of_cases):
     off_des_q = []
     off_des_p = []
 
+    starting_f = None
+    
     for i in range(num_of_cases+1): # +1 here is to account for the first potential for which no voltages have been altered
         pot = calculate_potentials(trap_mom, wfs.get_waveform(i+1))
         pot.plot_one_wfm(0, ax)
@@ -66,17 +70,22 @@ def analyze_waveform(num_of_cases):
         indices = tuple(k['min_indices'] for k in calc_freq)
         offsets = tuple(k['offsets'] for k in calc_freq)
         freqs = tuple(k['freqs'] for k in calc_freq)
+        locs = tuple(k['locs'] for k in calc_freq)
 
-        for index_q, index_p, offset_q, offset_p, freq_q, freq_p in zip(indices[0], indices[1], offsets[0], offsets[1], freqs[0], freqs[1]):
-            
-            if freq_q > 1e6: # a statement that we would like to be true
-                           # is used in this case since any comparison
-                           # with a 'nan' value will return False
-                           # (there are some minima for wich the
-                           # frequency returns a 'nan' value, but we
-                           # do not need those values for the purposes
-                           # of this code)
+        for index_q, index_p, offset_q, offset_p, freq_q, freq_p, locs_q, locs_p in zip(indices[0], indices[1], offsets[0], offsets[1], freqs[0], freqs[1], locs[0], locs[1]):
+            if -20*um<locs_q<20*um:
+            # if freq_q > 1e6: # a statement that we would like to be true
+            #                # is used in this case since any comparison
+            #                # with a 'nan' value will return False
+            #                # (there are some minima for wich the
+            #                # frequency returns a 'nan' value, but we
+            #                # do not need those values for the purposes
+            #                # of this code)
                 f_desired_q.append(freq_q)
+                if not starting_f:
+                    starting_f = freq_q
+                if (freq_q - starting_f) < -100*kHz:
+                    st()
                 f_desired_p.append(freq_p)                
                 ind_des_q.append(index_q)
                 ind_des_p.append(index_p)                

@@ -401,7 +401,7 @@ class WavPotential:
             grads = potg2[min_indices]/(self.pot_resolution**2)
             #trap_freqs = np.sqrt(electron_charge * self.ion_mass / atomic_mass_unit * grads)/2/np.pi
             trap_freqs = np.sqrt(electron_charge * grads / (self.ion_mass * atomic_mass_unit))/2/np.pi
-            trap_locs = []
+            trap_locs = trap_mom.transport_axis[min_indices]
         elif mode is 'precise':
             # fit quadratics to the regions of interest
             offsets = []
