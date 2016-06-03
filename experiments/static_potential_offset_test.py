@@ -39,6 +39,16 @@ def single_waveform():
     electrode_combos = [1,2,3,4, 5,6,7,8, 9,10,11,12, 13,14,15,
                         16,17,18,19, 20,21,22,23, 24,25,26,27, 28,29,30]
 
+    electrode_combos = [[1,2],[5],[7]]
+    electrode_offsets = [[0.5,1.76],[5],[-4]]
+
+    import copy as cp
+
+    for ec, eo in zip(electrode_combos, electrode_offsets):
+        wf2 = cp.deepcopy(wf)
+        # wf2.
+        wf2.samples[ec] += np.array(eo)
+    
     # find the number of cases:
     ec_sort = electrode_combos
     ec_sort.sort
@@ -46,12 +56,12 @@ def single_waveform():
 
     for case in range(1, cases+1):
         wf = Waveform(w_desired)
-        for set in range(11): # create a set of voltage potentials in 10 steps going from positive to negative voltage (or vice versa depending on the initial signs of the assigned voltages)
+        for vset in range(11): # create a set of voltage potentials in 10 steps going from positive to negative voltage (or vice versa depending on the initial signs of the assigned voltages)
             # This next step is not the most efficient since we only really need the voltages of the electrodes in this set
-            incremental_electrode_shifts = tuple(des - des*set/5 for des in desired_electrode_shifts[:])
+            incremental_electrode_shifts = tuple(des - des*vset/5 for des in desired_electrode_shifts[:])
             for pet,ies,ec in zip(physical_electrode_transform, incremental_electrode_shifts, electrode_combos):
                 if ec == case:
-                    wf.samples[pet,set] = wf.samples[pet,set] + ies
+                    wf.samples[pet,0] = wf.samples[pet,0] + ies
         wf_list.append(wf)
 
             
