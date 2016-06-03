@@ -4,6 +4,8 @@ import sys
 sys.path.append("../")
 from pytrans import *
 
+import copy as cp
+
 def single_waveform():
     wf_path = os.path.join(os.pardir, "waveform_files", "single_test_waveform.dwc.json")
     w_desired = WavDesiredWells([np.array([0])*um],
@@ -17,58 +19,26 @@ def single_waveform():
     wf = Waveform(w_desired)
     wf_list.append(wf)
 
-    # Same as in pytrans.py
-    physical_electrode_transform = [0,4,8,2,  6,10,14,18,  22,26,30,16,  20,24,13,
-                                    1,5,9,3,  7,11,15,19,  23,27,31,17,  21,25,29]
+    electrode_offsets = [[-10],[-10],[-10],[10],[10],[5],[1.5],[0.5],[1.5],[5],[10],[10],[-10],[-10],[-10],
+                         [-10],[-10],[-10],[10],[10],[5],[1.5],[0.5],[1.5],[5],[10],[10],[-10],[-10],[-10]]
 
-    # Here you enter the voltage shifts you would like to apply
-    desired_electrode_shifts = [10,10,10,10, 10,5,1.5,0.5, 1.5,5,10,10, 10,10,10,
-                                10,10,10,10, 10,5,1.5,0.5, 1.5,5,10,10, 10,10,10]
-
-    # Here you enter the combinations of electrode shifts you would
-    # like to apply simultaneously or individually. e.g. if there were
-    # 8 electrodes, and you wanted to apply the first and last at the
-    # same time, the second and before last at the same time, and the
-    # rest individually, you could write electrode_combos =
-    # [1,2,3,4,5,6,2,1]. In this example we had 6 cases. Note that
-    # data will be output in the order that the numdering of the cases
-    # is written in electrode_combos. Numbering starts at 1, and don't
-    # skip any numbers, since this will result in saving additional
-    # trivial cases for the skipped numbers.
-
-    electrode_combos = [1,2,3,4, 5,6,7,8, 9,10,11,12, 13,14,15,
-                        16,17,18,19, 20,21,22,23, 24,25,26,27, 28,29,30]
-
-    electrode_combos = [[1,2],[5],[7]]
-    electrode_offsets = [[0.5,1.76],[5],[-4]]
-
-    import copy as cp
+    electrode_combos = [[0],[1],[2],[3],[4],[5],[6],[7],[8],[9],[10],[11],[12],[13],[14],
+                        [15],[16],[17],[18],[19],[20],[21],[22],[23],[24],[25],[26],[27],[28],[29]]
 
     for ec, eo in zip(electrode_combos, electrode_offsets):
+        assert len(ec) == len(eo), "Different number of electrodes and offsets requested!"
         wf2 = cp.deepcopy(wf)
-        # wf2.
-        wf2.samples[ec] += np.array(eo)
-    
-    # find the number of cases:
-    ec_sort = electrode_combos
-    ec_sort.sort
-    cases = ec_sort[29]
-
-    for case in range(1, cases+1):
-        wf = Waveform(w_desired)
-        for vset in range(11): # create a set of voltage potentials in 10 steps going from positive to negative voltage (or vice versa depending on the initial signs of the assigned voltages)
-            # This next step is not the most efficient since we only really need the voltages of the electrodes in this set
-            incremental_electrode_shifts = tuple(des - des*vset/5 for des in desired_electrode_shifts[:])
-            for pet,ies,ec in zip(physical_electrode_transform, incremental_electrode_shifts, electrode_combos):
-                if ec == case:
-                    wf.samples[pet,0] = wf.samples[pet,0] + ies
-        wf_list.append(wf)
-
-            
+        wf2.set_new_uid()
+        wf2.desc = ""
+        for ec_l, eo_l in zip(ec, eo):
+            wf2.desc += "{:.2f} V offset on Elec {:d}, ".format(eo_l, ec_l)
+        wf2.samples[physical_electrode_transform[ec]] += np.array([eo]).T
+        wf_list.append(wf2)
+                
     wfs = WaveformSet(wf_list)
     wfs.write(wf_path)
 
-    return cases
+    return len(electrode_combos)
 
 def analyze_waveform(num_of_cases):
     wf_path = os.path.join(os.pardir, "waveform_files", "single_test_waveform.dwc.json")
@@ -81,7 +51,7 @@ def analyze_waveform(num_of_cases):
     calc_freq_list = [ ( pot.find_wells(0, mode='quick'), pot.find_wells(0, mode='precise') ) ]
 
     f_desired_q = []
-    f_desired_p = []    
+    f_desired_p = []
     ind_des_q = []
     ind_des_p = []
     off_des_q = []

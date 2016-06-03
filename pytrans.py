@@ -213,7 +213,7 @@ class WavDesiredWells(WavDesired):
         ax.set_xlabel('trap location (um)')
         ax.set_ylabel('potential (V)')
         return ax
-
+    
 class Waveform:
     """Waveform storage class. Convert an input list into a numpy array
     and store various details about it, or solve given a set of
@@ -401,6 +401,7 @@ class WavPotential:
             grads = potg2[min_indices]/(self.pot_resolution**2)
             #trap_freqs = np.sqrt(electron_charge * self.ion_mass / atomic_mass_unit * grads)/2/np.pi
             trap_freqs = np.sqrt(electron_charge * grads / (self.ion_mass * atomic_mass_unit))/2/np.pi
+            trap_locs = []
         elif mode is 'precise':
             # fit quadratics to the regions of interest
             offsets = []
