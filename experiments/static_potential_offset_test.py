@@ -6,24 +6,35 @@ from pytrans import *
 
 import copy as cp
 
+local_weights = {'r0':1e-6,
+                 'r0_u_weights':np.ones(30)*1e-4,
+                 'r0_u_ss':np.ones(30)*8,
+                 'r1':1e-6,'r2':1e-7}
+
+local_potential_params={'energy_threshold':10*meV}
+
+wf_path = os.path.join(os.pardir, "waveform_files", "static_potential_offsets_05_06_2016_v01.dwc.json")
+
 def single_waveform():
-    wf_path = os.path.join(os.pardir, "waveform_files", "single_test_waveform.dwc.json")
     w_desired = WavDesiredWells([np.array([0])*um],
-                                [np.array([1.5])*MHz],
-                                [np.array([800])*meV],
-                                solver_weights={'energy_threshold':200*meV,
-                                                'r0_u_weights':np.ones(30)*3e-2,
-                                                'r0_u_ss':np.ones(30)*8},
+                                [np.array([1.6])*MHz],
+                                [np.array([70])*meV],
+                                
+                                solver_weights=local_weights,
+                                desired_potential_params=local_potential_params,                                
+                                
                                 desc="Single waveform test")
     wf_list = []
     wf = Waveform(w_desired)
     wf_list.append(wf)
 
-    electrode_offsets = [[-10],[-10],[-10],[10],[10],[5],[1.5],[0.5],[1.5],[5],[10],[10],[-10],[-10],[-10],
-                         [-10],[-10],[-10],[10],[10],[5],[1.5],[0.5],[1.5],[5],[10],[10],[-10],[-10],[-10]]
+    # electrode_offsets = [[-10],[-10],[-10],[10],[10],[5],[1.5],[0.5],[1.5],[5],[10],[10],[-10],[-10],[-10],
+    #                      [-10],[-10],[-10],[10],[10],[5],[1.5],[0.5],[1.5],[5],[10],[10],[-10],[-10],[-10]]
 
-    electrode_combos = [[0],[1],[2],[3],[4],[5],[6],[7],[8],[9],[10],[11],[12],[13],[14],
-                        [15],[16],[17],[18],[19],[20],[21],[22],[23],[24],[25],[26],[27],[28],[29]]
+    # electrode_combos = [[0],[1],[2],[3],[4],[5],[6],[7],[8],[9],[10],[11],[12],[13],[14],
+    #                     [15],[16],[17],[18],[19],[20],[21],[22],[23],[24],[25],[26],[27],[28],[29]]
+    electrode_offsets = [[-0.1]]
+    electrode_combos = [[7]]
 
     for ec, eo in zip(electrode_combos, electrode_offsets):
         assert len(ec) == len(eo), "Different number of electrodes and offsets requested!"
@@ -43,8 +54,6 @@ def single_waveform():
     return len(electrode_combos)
 
 def analyze_waveform(num_of_cases):
-    wf_path = os.path.join(os.pardir, "waveform_files", "single_test_waveform.dwc.json")
-
     fig = plt.figure()
     ax = fig.add_subplot(1,1,1)
     wfs = WaveformSet(waveform_file=wf_path)
