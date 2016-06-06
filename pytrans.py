@@ -83,7 +83,7 @@ class Moments:
         num_electrodes = 30
         num_shims = 20
         self.electrode_moments = []
-        self.shim_moments = []        
+        self.shim_moments = []
         
         for q in range(num_electrodes):
             self.electrode_moments.append(self.data.electrode[0,q].moments)
@@ -410,6 +410,8 @@ class WavPotential:
             trap_locs = []
             for mi in min_indices:
                 idx1 = mi-pot.size//(polyfit_ratio*2)
+                if idx1 < 0:
+                    idx1 = 0
                 idx2 = mi+pot.size//(polyfit_ratio*2)
                 pot_roi = pot[idx1:idx2]
                 pot_z = self.trap_axis[idx1:idx2].flatten()
@@ -542,5 +544,3 @@ if __name__ == "__main__":
         pot_test.plot_one_wfm(0)
         pot_test.plot_one_wfm(-1)        
         plt.show()
-    
-    

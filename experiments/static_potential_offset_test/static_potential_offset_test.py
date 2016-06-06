@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
-sys.path.append("../")
+sys.path.append("../../")
 from pytrans import *
 
 import copy as cp
@@ -13,7 +13,7 @@ local_weights = {'r0':1e-6,
 
 local_potential_params={'energy_threshold':10*meV}
 
-wf_path = os.path.join(os.pardir, "waveform_files", "static_potential_offsets_05_06_2016_v01.dwc.json")
+wf_path = os.path.join(os.pardir, os.pardir, "waveform_files", "static_potential_offsets_05_06_2016_v01.dwc.json")
 
 def single_waveform():
     w_desired = WavDesiredWells([np.array([0])*um],
@@ -33,8 +33,36 @@ def single_waveform():
 
     # electrode_combos = [[0],[1],[2],[3],[4],[5],[6],[7],[8],[9],[10],[11],[12],[13],[14],
     #                     [15],[16],[17],[18],[19],[20],[21],[22],[23],[24],[25],[26],[27],[28],[29]]
-    electrode_offsets = [[-0.1]]
-    electrode_combos = [[7]]
+    # electrode_offsets = [[-0.15], [+0.15]]
+    # electrode_combos = [[7],[7]]
+
+    electrode_offsets = [[-0.4], [+0.4], [-0.4], [0.4],
+                         [-1], [1], [-1], [1], 
+                         [-4],[4],[-4],[4],
+                         [-8.5],[8.5],[-8.5],[8.5],
+                         [-0.4], [+0.4], [-0.4], [0.4],
+                         [-1], [1], [-1], [1], 
+                         [-4],[4],[-4],[4],
+                         [-8.5],[8.5],[-8.5],[8.5],
+                         # end electrodes, need strong voltages
+                         [-8.5,-8.5,-8.5],[8.5,8.5,8.5],
+                         [-8.5,-8.5,-8.5],[8.5,8.5,8.5],
+                         [-8.5,-8.5,-8.5],[8.5,8.5,8.5],
+                         [-8.5,-8.5,-8.5],[8.5,8.5,8.5]]
+    
+    electrode_combos = [[6],[6], [8],[8],
+                        [5],[5], [9],[9],
+                        [4],[4],[10],[10],
+                        [3],[3],[11],[11],
+                        [21],[21], [23],[23],
+                        [20],[20], [24],[24],
+                        [19],[19],[25],[25],
+                        [18],[18],[26],[26],
+                        # end electrodes, need strong voltages
+                        [0,1,2],[0,1,2],
+                        [12,13,14],[12,13,14],
+                        [15,16,17],[15,16,17],
+                        [27,28,29],[27,28,29]]
 
     for ec, eo in zip(electrode_combos, electrode_offsets):
         assert len(ec) == len(eo), "Different number of electrodes and offsets requested!"
@@ -42,10 +70,18 @@ def single_waveform():
         wf2.set_new_uid()
         wf2.desc = ""
         for ec_l, eo_l in zip(ec, eo):
-            wf2.desc += "{:.2f} V offset on Elec {:d}, ".format(eo_l, ec_l)
+            try:
+                v_str = ""
+                elec_str = ""
+                for ec_ll, eo_ll in zip(ec_l, eo_l):
+                    v_str += "{:d}".format(ec_ll)
+                    elec_str += "{:.2f}".format(eo_ll)
+                wf2.desc += v_str + " V offset on Elec " + elec_str
+            except TypeError:
+                wf2.desc += "{:.2f} V offset on Elec {:d}, ".format(eo_l, ec_l)
         wf2.samples[physical_electrode_transform[ec]] += np.array([eo]).T
         if (wf2.voltage_limits_exceeded()):
-            print("Error in electrode " + str(ec))        
+            print("Error in electrode " + str(ec))
         wf_list.append(wf2)
                 
     wfs = WaveformSet(wf_list)
@@ -111,10 +147,8 @@ def analyze_waveform(num_of_cases):
 
     plt.show()
     # print(calc_freq_list)
-    for fq, fp, dfq, dfp, dsfqp  in zip(f_desired_q, f_desired_p, delta_f_q, delta_f_p, discrep_f_qp):
+    for fq, fp, dfq, dfp, dsfqp  in zip(f_desired_q[1:], f_desired_p[1:], delta_f_q, delta_f_p, discrep_f_qp[1:]):
         print("f desir q: {:.3f} kHz, f desir p: {:.3f} kHz, delta f q: {:.3f} kHz, delta f p: {:.3f} kHz, discrep f p - q: {:.3f}".format(fq/1e3,fp[0]/1e3,dfq/1e3,dfp[0]/1e3,dsfqp[0]/1e3))
-
-    st()
 
 if __name__ == "__main__":
     # load_to_exp()
