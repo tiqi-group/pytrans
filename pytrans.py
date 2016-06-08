@@ -78,10 +78,20 @@ class Moments:
         self.reduce_data()
 
     def reduce_data(self):
-        """ Based on reduced_data_ludwig.m """
+        """ Based on reduced_data_ludwig.m, reconstructed here.
+        Extracts and stores the potentials along the trap axis due to the various electrodes,
+        as well as the first few spatial derivatives with respect to the trap axis. """
+        
         starting_shim_electrode = 30
         num_electrodes = 30
         num_shims = 20
+        
+        # The electrode moments store the potential of the respective electrode 
+        # along the trap axis, as well as the first few derivatives. E.g.
+        # V(z) = electrode_moments[:,0]
+        # V'(z) = electrode_moments[:,1]
+        # etc. up to V(5)(z) = electrode_moments[:,5]
+        # However, for V'''(z) and higher derivatives the data becomes increasingly noisy.
         self.electrode_moments = []
         self.shim_moments = []
         
@@ -94,9 +104,9 @@ class Moments:
         d = self.data
         self.transport_axis = d.transport_axis.flatten()
         self.rf_pondpot = d.RF_pondpot
-        self.amu = d.amu[0][0]
-        self.w_t = d.w_t[0][0]
-        self.rf_v = d.RF_V[0][0]
+        self.amu = d.amu[0][0] # mass of the ion (amu)
+        self.w_t = d.w_t[0][0] # trap RF drive freq (MHz)
+        self.rf_v = d.RF_V[0][0] # trap RF drive voltage (V)
 
         # More complete potential data
         # Organised as (number of z locations) * (number of electrodes) (different from Matlab)
@@ -393,7 +403,7 @@ class WavPotential:
         potg2_filt = np.convolve(potg2,
                                  np.ones(pot.size/smoothing_ratio)/(pot.size*smoothing_ratio),
                                  mode='same')
-        min_indices, = ssig.argrelmin(pot) # relative minima
+        min_indices, = ssig.argrelmin(pot, order=5) # relative minima. order=5 to suppress detecting spurious minima
         if mode is 'quick':
             # numerically evaluate from the raw data (noisy)
             offsets = pot[min_indices]
@@ -410,9 +420,12 @@ class WavPotential:
             trap_locs = []
             for mi in min_indices:
                 idx1 = mi-pot.size//(polyfit_ratio*2)
+                idx2 = mi+pot.size//(polyfit_ratio*2)
+                # Prevent out of bound errors
                 if idx1 < 0:
                     idx1 = 0
-                idx2 = mi+pot.size//(polyfit_ratio*2)
+                if idx2 > (pot.shape[0]-1):
+                    idx2 = pot.shape[0]-1
                 pot_roi = pot[idx1:idx2]
                 pot_z = self.trap_axis[idx1:idx2].flatten()
                 #pfit = np.polyfit(pot_roi, pot_z, 2)
