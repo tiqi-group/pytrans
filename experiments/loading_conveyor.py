@@ -3,6 +3,7 @@
 import sys
 sys.path.append("../")
 from pytrans import *
+from reorder import *
 
 local_weights = {'r0':1e-6,
                  'r0_u_weights':np.ones(30)*1e-4,
@@ -24,14 +25,10 @@ def plot_selection(pot):
     plt.legend(legends)
     plt.show()
 
-    # pot.plot_range_of_wfms(np.linspace(930,1000,20, dtype='int'))
-    # pot.plot_range_of_wfms(np.linspace(149,199,50, dtype='int'))
-    #plt.show()
-
-def static_waveform(pos, freq, offs, wfm_desc):
+def static_waveform(pos, freq, offs, wfm_desc, solv_wghts=local_weights):
     wdw = WavDesiredWells([pos*um],[freq*MHz],[offs*meV],
 
-                          solver_weights=local_weights,
+                          solver_weights=solv_wghts,
                           desired_potential_params=local_potential_params,
 
                           desc=wfm_desc+", {:.3f} MHz, {:.1f} meV".format(freq, offs)
@@ -137,18 +134,22 @@ def reordering_waveform(pos, freq, offs, timesteps, push_v, twist_v, wfm_desc):
     
     return wf
     
-def loading_conveyor(analyse_wfms=False):
-    wf_path = os.path.join(os.pardir, "waveform_files", "loading_conveyor_2016_06_02_v01.dwc.json")
+def loading_conveyor(add_reordering=True, analyse_wfms=False):
+    wf_path = os.path.join(os.pardir, "waveform_files", "loading_2016_06_09_v01.dwc.json")
 
     # If file exists already, just load it to save time
     try:
-        # raise FileNotFoundError # uncomment to always regenerate file for debugging
+        raise FileNotFoundError # uncomment to always regenerate file for debugging
         wfs_load = WaveformSet(waveform_file=wf_path)
         print("Loaded waveform ",wf_path)
     except FileNotFoundError:
         print("Generating waveform ",wf_path)
         n_load = 1001
         n_freq_change = 200
+
+        # List of experimental-zone setting tuples
+        exp_settings = [(1.6,-500)]
+        
         wf_load = transport_waveform(
             [-1870, 0], [0.7, 1.3], [600, 1000], n_load, "Load -> exp")
         wf_load_conveyor = conveyor_waveform(
@@ -157,16 +158,27 @@ def loading_conveyor(analyse_wfms=False):
             0, 1.3, 1000, "static")
         wf_exp_shallow_13 = transport_waveform(
             [0, 0], [1.3, 0.3], [1000, 0], n_freq_change, "shallow")
-        wf_exp_static_16 = static_waveform(
-            0, 1.6, 70, "exp")
-        wf_exp_shallow_16 = transport_waveform(
-            [0, 0], [1.6, 0.3], [70, 0], n_freq_change, "shallow")
         wf_list = [wf_load, wf_load_conveyor,
-                   wf_exp_static_13, wf_exp_shallow_13,
-                   wf_exp_static_16, wf_exp_shallow_16]
+                   wf_exp_static_13, wf_exp_shallow_13]
         
-        wf_reorder = reordering_waveform(0, 1.6, 70, n_load, 0.3, 0.5, "reorder")
-        wf_list.append(wf_reorder)
+        for freq, offs in exp_settings:
+            wf_exp_static = static_waveform(
+                0, freq, offs, "exp")        
+            wf_exp_shallow = transport_waveform(
+                [0, 0], [freq, 0.3], [offs, 0], n_freq_change, "shallow")
+
+            deep_weights=dict(local_weights)
+            deep_weights['r0'] = 1e-3
+            wf_exp_static_deep = static_waveform(
+                0, freq, offs, "exp", solv_wghts=deep_weights)
+
+            wf_list += [wf_exp_static, wf_exp_shallow, wf_exp_static_deep]
+
+        if add_reordering:
+            wf_list += generate_reorder_wfms(wf_exp_static,
+                                             [0.4,0.5,0.6,0.7,0.8],
+                                             [0.4,0.5,0.6,0.7,0.8],
+                                             100)
         
         wfs_load = WaveformSet(wf_list)
         wfs_load.write(wf_path)
@@ -175,7 +187,7 @@ def loading_conveyor(analyse_wfms=False):
         pot = calculate_potentials(trap_mom, wfs_load.get_waveform(2))
         plot_selection(pot)
         print(pot.find_wells(0, mode='precise'))
-        print(pot.find_wells(100, mode='precise'))
+        print(pot.find_wells(100, mode='precise'))        
 
 if __name__ == "__main__":
     loading_conveyor(analyse_wfms=True)

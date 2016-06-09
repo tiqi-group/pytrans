@@ -5,13 +5,6 @@ sys.path.append("../")
 from pytrans import *
 import copy as cp
 
-local_weights = {'r0':1e-6,
-                 'r0_u_weights':np.ones(30)*1e-4,
-                 'r0_u_ss':np.ones(30)*8,
-                 'r1':1e-6,'r2':1e-7}
-
-local_potential_params={'energy_threshold':10*meV}
-
 # This script can be used to append multiple reorder operations to an existing waveform file
 
 def offset_voltages(elec_wfm, electrodes, offsets):
@@ -51,12 +44,15 @@ def generate_reorder_wfms(wf, push_v_vec=[0.3], twist_v_vec=[0.5], timesteps=100
     return new_wfs
             
 if __name__ == "__main__":
-    wf_path_conveyor = os.path.join(os.pardir, "waveform_files", "loading_conveyor_2016_06_02_v01.dwc.json")
+    wf_path_conveyor = os.path.join(os.pardir, "waveform_files", "loading_conveyor_2016_06_08_v01.dwc.json")
     wfs = WaveformSet(waveform_file=wf_path_conveyor)
     wf = wfs.get_waveform(5) # should be a static waveform
 
     # Generate a bunch of new reordering waveforms
     wfs.waveforms += generate_reorder_wfms(wf, [0.1,0.4,0.7,1.0,1.5,2.3,3,4], [0.1,0.4,0.7,1.0,1.5,2.3,3,4], 100)
 
-    wf_path_conveyor_new = os.path.join(os.pardir, "waveform_files", "loading_conveyor_reorder_2016_06_02_v01.dwc.json")
+    # Combine several waveforms into one
+    # wfs.waveforms += combine_recovery_wfms(wfs.get_waveform
+
+    wf_path_conveyor_new = os.path.join(os.pardir, "waveform_files", "loading_conveyor_reorder_2016_06_08_v01.dwc.json")
     wfs.write(wf_path_conveyor_new)
