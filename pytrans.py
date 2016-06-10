@@ -9,6 +9,8 @@ import scipy.signal as ssig
 import cvxpy as cvy
 import os
 import pdb
+import pickle
+import warnings
 st = pdb.set_trace
 
 # Unit definitions, all in SI
@@ -25,6 +27,10 @@ meV = 1e-3
 # Electrodes T1 = 0, T2 = 1, ... T15 = 14; B1 = 15, B2 = 16, ... B15 = 29
 # DEATH channels (top-right downwards, leftwards; bottom DEATHs 0->15, top DEATHs 16->31
 
+# Electrode mapping of the trap simulations: 
+# DCCc(n) corresponds to T(n+1) = Index n
+# DCCa(n) corresponds to B(n+1) = Index n+15, i.e. DCCa14 corresponds to B15 = Index 29
+                  
 # indices of which electrode each DEATH output drives, from 0->31
 dac_channel_transform = np.array([0, 15,3,18, 1,16,4,19,   2,17,5,20,-7,14, 6,21,
                                   11,26,7,22,12,27,8,23,  13,28,9,24,-22,29,10,25])
@@ -48,7 +54,7 @@ physical_electrode_transform = np.array([0,4,8,2,  6,10,14,18,  22,26,30,16,  20
 #
 # For this arrangement, the mapping would be (negative == monitoring;
 # zero-indexed)
-# dac_channel_transform = [2,4,-0,-1,0,1] 
+# dac_channel_transform = [2,3,-0,-1,0,1] 
 # physical_electrode_transform = [4, 5, 0, 1]
 
 ## DEATH channel max voltage outputs
@@ -67,24 +73,33 @@ def vlinspace(start_vec, end_vec, npts, lin_fn = np.linspace):
     """ Linspace on column vectors specifying the starts and ends"""
     assert start_vec.shape[1] == end_vec.shape[1] == 1, "Need to input column vectors"
     return np.vstack(list(lin_fn(sv, ev, npts) for sv, ev in zip(start_vec, end_vec)))
-
+    
 class Moments:
     """Spatial potential moments of the electrodes; used for calculations
     involving the trap"""
     def __init__(self,
-                 path=os.path.join(os.path.dirname(__file__), "moments_file", "DanielTrapMomentsTransport.mat")
+                 moments_path = os.path.join(os.path.dirname(__file__), "moments_file", "DanielTrapMomentsTransport.mat"),
+                potential_path = os.path.join(os.path.dirname(__file__), "moments_file", "trap_exp.pickle"),
+                #f_rf_drive = 115*MHz, # trap rf drive frequency (Hz)
+                #v_rf = 415 # trap rf drive voltage (Volts)
                  ):
-        self.data = sio.loadmat(path, struct_as_record=False)['DATA'][0][0]
-        self.reduce_data()
+        
+        #self.f_rf_drive = f_rf_drive
+        #self.v_rf = v_rf
+        
+        self.load_trap_axis_potential_data(moments_path)
+        self.load_3d_potential_data(potential_path)
 
-    def reduce_data(self):
+    def load_trap_axis_potential_data(self, moments_path):
         """ Based on reduced_data_ludwig.m, reconstructed here.
         Extracts and stores the potentials along the trap axis due to the various electrodes,
         as well as the first few spatial derivatives with respect to the trap axis. """
         
+        data = sio.loadmat(moments_path, struct_as_record=False)['DATA'][0][0]
+        
         starting_shim_electrode = 30
-        num_electrodes = 30
-        num_shims = 20
+        num_electrodes = 30 # Control electrodes DCCa0 to DCCa14 and DCCa0 to DCCa14
+        num_shims = 20 # Shim electrodes DCS[a,b,c,d][1,2,3,4,5] e.g. DCSa1
         
         # The electrode moments store the potential of the respective electrode 
         # along the trap axis, as well as the first few derivatives. E.g.
@@ -96,17 +111,13 @@ class Moments:
         self.shim_moments = []
         
         for q in range(num_electrodes):
-            self.electrode_moments.append(self.data.electrode[0,q].moments)
+            self.electrode_moments.append(data.electrode[0,q].moments)
 
         for q in range(starting_shim_electrode, num_shims+starting_shim_electrode):
-            self.shim_moments.append(self.data.electrode[0,q].moments)
+            self.shim_moments.append(data.electrode[0,q].moments)
 
-        d = self.data
-        self.transport_axis = d.transport_axis.flatten()
-        self.rf_pondpot = d.RF_pondpot
-        self.amu = d.amu[0][0] # mass of the ion (amu)
-        self.w_t = d.w_t[0][0] # trap RF drive freq (MHz)
-        self.rf_v = d.RF_V[0][0] # trap RF drive voltage (V)
+        self.transport_axis = data.transport_axis.flatten()
+        self.rf_pondpot = data.RF_pondpot # Potential due to RF electrodes along trap axis. Needs to be scaled with rf freq, voltage and ion mass.
 
         # More complete potential data
         # Organised as (number of z locations) * (number of electrodes) (different from Matlab)
@@ -115,7 +126,50 @@ class Moments:
             self.potentials[:,k] = self.electrode_moments[k][:,0]
 
         # Higher-res potential data [don't need for now]
+    
+    def load_3d_potential_data(self, potential_path):
+        """ Loads the potentials in 3d due to the individual trap electrodes as 
+        obtained from simulations performed with the NIST BEM software. 
+        The current data covers +-100um in the trap direction, and +-11um in the
+        radial directions and is primarily used to calculate the radial frequencies
+        and principal axes within the experimental zone. 
+        """
+        
+        with open(potential_path, 'rb') as f:
+            potentials, origin, spacing, dimensions, x, y, z, xx, yy, zz, coordinates = pickle.load(f)
+            
+        # Add up the contributions of the shim segments and add to dictionary
+        V_DCsa = potentials['DCSa1'] + potentials['DCSa2'] + potentials['DCSa3'] + potentials['DCSa4'] + potentials['DCSa5']
+        V_DCsb = potentials['DCSb1'] + potentials['DCSb2'] + potentials['DCSb3'] + potentials['DCSb4'] + potentials['DCSb5']
+        V_DCsc = potentials['DCSc1'] + potentials['DCSc2'] + potentials['DCSc3'] + potentials['DCSc4'] + potentials['DCSc5']
+        V_DCsd = potentials['DCSd1'] + potentials['DCSd2'] + potentials['DCSd3'] + potentials['DCSd4'] + potentials['DCSd5']
 
+        potentials.update( {'DCSa' : V_DCsa} )
+        potentials.update( {'DCSb' : V_DCsb} )
+        potentials.update( {'DCSc' : V_DCsc} )
+        potentials.update( {'DCSd' : V_DCsd} )
+            
+        # Define dummy class to use similar to a C struct in order to bundle 
+        # the 3d potential data into a single object.
+        class potentials_3d:
+            pass
+            
+        pot3d = potentials_3d()            
+        pot3d.potentials = potentials # dictionary containing the potentials of all the control & shim & rf electrodes
+        pot3d.origin = origin # origin of the mesh
+        pot3d.spacing = spacing # spacing of the mesh along the various axes
+        pot3d.dimensions = dimensions # number of points in the mesh along the various axes
+        pot3d.x = x # vector containing the points along a single axis
+        pot3d.y = y # i.e. y = [-11, -9, ..., 9, 11]*um
+        pot3d.z = z
+        pot3d.xx = xx # vector with the x coordinates for all the mesh points
+        pot3d.yy = yy # i.e. potentials['ElectrodeName'][ind] = V(xx[ind],yy[ind],zz[ind])
+        pot3d.zz = zz
+        pot3d.coordinates = coordinates # = [xx, yy, zz]
+        pot3d.fit_coord = np.column_stack( (xx**2, yy**2, zz**2, xx*yy, xx*zz, yy*zz, xx, yy, zz, np.ones_like(xx)) )
+        
+        self.pot3d = pot3d
+        
 trap_mom = Moments() # Global trap moments
 
 class WavDesired:
@@ -329,18 +383,33 @@ class WavPotential:
     """ Electric potential along the trap axis (after solver!)
     Generally to be used for analysing and plotting existing waveforms
     TODO: include radial aspects too"""
-    def __init__(self, potentials, trap_axis, ion_mass):
+    def __init__(self, waveform, ion_mass = 39.962591, rf_v = 415, rf_freq = 115, shim_alpha = 0, shim_beta = 0):
         """ potentials: (points along trap z axis) x (timesteps)
-        trap_axis: physical coordinates of potentials along trap axis
         ion mass: the ion's mass in AMU (for certain calculations)
         """
-        self.potentials = potentials
-        self.trap_axis = trap_axis
-        self.ion_mass = ion_mass
+        
+        # TODO: VN, please check if I handle this correctly.
+        # Also, probably not very robust atm.
+        mom_trunc = trap_mom.potentials[:,:len(physical_electrode_transform)]
+        waveform_samples_trunc = waveform.samples[physical_electrode_transform,:]
+
+        # Assign arguments
+        self.waveform_samples = waveform_samples_trunc
+        self.potentials = np.dot(mom_trunc, waveform_samples_trunc) # Potentials along trap axis for all timesteps
+        self.trap_axis = trap_mom.transport_axis
+        self.ion_mass = ion_mass # (amu)
+        self.rf_v = rf_v # (Volts)
+        self.rf_freq = rf_freq # (MHz)
+        self.shim_alpha = shim_alpha # (Volts)
+        self.shim_beta = shim_beta # (Volts)
+        
         self.pot_resolution = self.trap_axis[1]-self.trap_axis[0]
 
+    ### Functions analyzing/plotting the potential along the trap axis
+
     def plot(self, ax=None):
-        """ ax: Matplotlib axes """
+        """ Plot the whole waveform.
+        ax: Matplotlib axes """
         trap_axis_spacing = self.trap_axis[1]-self.trap_axis[0]
         # Since plot is showing quadrilaterals
         trap_axis_pts = np.append(self.trap_axis, self.trap_axis[-1] + trap_axis_spacing) \
@@ -358,7 +427,9 @@ class WavPotential:
         # ax.colorbar()
 
     def plot_one_wfm(self, idx, ax=None):
-        """ ax: Matplotlib axes """
+        """ Plot the trapping well along the trap axis at a single time-step.
+        idx: time-step
+        ax: Matplotlib axes """
         if not ax:
             fig = plt.figure()
             ax = fig.add_subplot(1,1,1)
@@ -368,14 +439,20 @@ class WavPotential:
         return ax
 
     def plot_electrodes(self, idx, ax=None):
-        """ ax: Matplotlib axes """
+        """ Plot the potential along the trap axis due to individual electrodes.
+        idx: index of the electrode(s) to plot
+        ax: Matplotlib axes """
         if not ax:
             fig = plt.figure()
             ax = fig.add_subplot(1,1,1)
-        # finish later
+        
+        for id in [idx]:
+            ax.plot(trap_mom.potentials[:,id])
 
     def plot_range_of_wfms(self, timesteps, ax=None):
-        """ ax: Matplotlib axes """
+        """ Plot the potential along the trap axis at various timesteps.
+        timesteps: int or iterable. Int: Number of timesteps, Iterable: desired timesteps
+        ax: Matplotlib axes """
         if not ax:
             fig = plt.figure()
             ax = fig.add_subplot(1,1,1)
@@ -391,19 +468,20 @@ class WavPotential:
         ax.set_ylabel('potential (V)')
         return ax
 
-    def find_wells(self, wfm_idx, mode='quick', smoothing_ratio=80, polyfit_ratio=60):
-        """For a given waveform index, return the minima and their
-        curvatures.
-        smoothing_ratio: fraction of total length of potentials vector to smoothe over [not used?]
+    def find_wells(self, idx, mode='quick', smoothing_ratio=80, polyfit_ratio=60):
+        """For a given timestep, return the location of the minima, their offsets and curvatures.
+        idx: Desired timestep to analyze
+        mode: 'quick' or 'precise'.
+        smoothing_ratio: fraction of total length of potentials vector to smoothe over (not used atm?!)
         polyfit_ratio: fraction of total length of potentials vector to fit a polynomial to"""
-        pot = self.potentials[:,wfm_idx]
+        pot = self.potentials[:,idx]
         potg2 = np.gradient(np.gradient(pot))#self.pot_resolution**2
         # Ad-hoc filtering of the waveform potential with a top-hat
         # window 1/80th as big
         potg2_filt = np.convolve(potg2,
                                  np.ones(pot.size/smoothing_ratio)/(pot.size*smoothing_ratio),
                                  mode='same')
-        min_indices, = ssig.argrelmin(pot, order=5) # relative minima. order=5 to suppress detecting spurious minima
+        min_indices, = ssig.argrelmin(pot, order=20) # relative minima. order=x to suppress detecting spurious minima
         if mode is 'quick':
             # numerically evaluate from the raw data (noisy)
             offsets = pot[min_indices]
@@ -443,6 +521,130 @@ class WavPotential:
                 plt.show() 
         return {'min_indices':min_indices, 'offsets':offsets, 'freqs':trap_freqs, 'locs':trap_locs}
 
+    ### Functions analyzing/plotting the potential in 2d (radials), and 3d (axial+radials)
+    
+    def find_radials_2d(self, ):
+        """Calculate the two trapping frequencies and orthonormal directions given by the potential v(y,z)"""
+
+        # See find_radials_3d for a detailed description.
+        # Notation:
+        # V(y,z) = ay^2 + bz^2 + c*yz + d*y + e*z + f
+        
+        
+    def add_potentials_3d(self, time_idx):
+        """Calculates the potential in the experimental zone of the trap due to all the electrodes (RF, control, shims) """
+        # Add potential due to RF electrodes
+        rf_scaling = self.rf_v**2/(self.ion_mass*self.rf_freq**2)
+        potential_3d = trap_mom.pot3d.potentials['RF_pondpot_1V1MHz1amu']*rf_scaling
+        
+        # Add potential due to DC control electrodes
+        for el_idx in range(len(physical_electrode_transform)):
+            # Get electrode name
+            assert (0 <= el_idx) and (el_idx <= 29), "Electrode index out of bounds"
+            if el_idx < 15:
+                # Top electrode, thus DCCc (see comment at the top)
+                electrode_name = 'DCCc' + str(el_idx)
+            else:
+                # Bottom electrode, thus DCCa
+                electrode_name = 'DCCa' + str(el_idx-15)
+
+            potential_3d += self.waveform_samples[el_idx, time_idx]*trap_mom.pot3d.potentials[electrode_name]
+
+        # Add potential due to shims
+        Vsa = self.shim_alpha/4 + self.shim_beta/4;
+        Vsb = -self.shim_alpha/4 + self.shim_beta/4;
+        Vsc = self.shim_alpha/4 - self.shim_beta/4;
+        Vsd = -self.shim_alpha/4 - self.shim_beta/4;
+        
+        potential_3d +=  Vsa*trap_mom.pot3d.potentials['DCSa'] + \
+                         Vsb*trap_mom.pot3d.potentials['DCSb'] + \
+                         Vsc*trap_mom.pot3d.potentials['DCSc'] + \
+                         Vsd*trap_mom.pot3d.potentials['DCSd']
+        
+        return potential_3d
+        
+    def find_radials_3d(self,time_idx):
+        """Calculate the three trapping frequencies and orthonormal directions given by the potential V(x,y,z)"""
+    
+        # Outline: Assume that the potential V(x,y,z) is quadratic in all directions.
+        # If the axes of the coordinate system coincide with the principal axes of 
+        # the potential and it is centered at the origin, we have
+        # V(x,y,z) = a0*x^2 + b0*y^2 + c0*z^2
+        # Upon allowing a rotation of the axes, and a translation of the origin, we have
+        # (1) V(r) = (r-r0)'*A*(r-r0) 
+        # where r0 corresponds to the translation and A is a symmetric positive definite matrix.
+        # Rewriting (1) in terms of (x,y,z), we get
+        # (2) V(x,y,z)  = a*x^2 + b*y^2 + c*z^2 + d*xy + e*xz + f*yz + g*x + h*y + i*z + j
+        # Here, we do linear least squares fit to get p = (a,b,...,i,j) and then extract
+        # the various properties of the potential from p.
+    
+        V = self.add_potentials_3d(time_idx)
+        
+        # Linear least squares fit
+        # pot3d.fit_coord = np.column_stack( x**2, y**2, z**2, x*y, x*z, y*z, x, y, z, np.ones_like(x)) )
+        p = np.linalg.lstsq(trap_mom.pot3d.fit_coord,V)[0]
+        a,b,c,d,e,f,g,h,i,j = p
+        
+        # Extract the trapping frequencies and corresponding axes:
+        # Idea: Expanding (1), we get V(r) = (r-r0)'*A*(r-r0) = r'*A*r + ... 
+        # The term r'*A*r corresponds to the terms
+        # a*x^2 + b*y^2 + c*z^2 + d*xy + e*xz + f*yz from (2)
+        # We can thus read off A from (a, ... ,f)
+        # Calculating the eigenvalues and eigenvectors of A then gives us the trap
+        # strengths and their associated axes.
+        A = np.array( [ [a, d/2, e/2], [d/2, b, f/2 ], [e/2, f/2, c] ] )
+        eigenvalues, axes =  np.linalg.eig(A) # each column of axes corresponds to one eigenvector
+        omegas = np.sqrt(eigenvalues*2*electron_charge / (self.ion_mass*atomic_mass_unit) )/(2*np.pi) # Freq in Hz
+        
+        if any(w < 0 for w in omegas):
+            warnings.warn('Potential is anti-confining.')        
+        
+        # Extract the trapping location by solving for the point where grad V = 0:
+        # dV/dx = 2*a*x + d*y + e*z + g = 0
+        # dV/dy = d*x + 2*b*y + f*z + h = 0
+        # dV/dz = e*x + f*y + 2*c*z + i = 0
+        # A2 = [2a d e; d 2b f; e f 2c], b = -[g; h; i]
+        # A2*[x;y;z] = b2    
+        A2 = np.array( [ [2*a, d, e], [d, 2*b, f], [e, f, 2*c] ] )
+        b2 = -p[6:9] # h i j
+        r0 = np.linalg.lstsq(A2,b2)[0] # Solve Ax = b
+        
+        # Overall offset
+        offset = p[-1] # j
+    
+        return omegas, axes, r0, offset, V
+        
+    def plot_radials_3d(self,time_idx, ax=None):
+        """ WASD ESDF """ # TODO: 
+        if not ax:
+            fig = plt.figure()
+            ax = fig.add_subplot(1,1,1)
+        
+        omegas_3d, axes_3d, r0_3d, offset_3d, V = self.find_radials_3d(time_idx)
+        
+        V = V.reshape(41,12,12,order='F')
+        V = V[20,:,:] # TODO: Look up index
+        
+        
+        V = V.T
+        V = np.flipud(V)
+        
+        res = ax.imshow(V, extent=[-12, 12, -12, 12], interpolation='none')
+        plt.colorbar(res, fraction=0.046, pad=0.04)
+        ax.plot(r0_3d[1]/um,r0_3d[2]/um,'r.',markersize=20)
+        soa =np.array( [ [r0_3d[1]/um, r0_3d[2]/um, axes_3d[1,1],axes_3d[2,1]], [r0_3d[1]/um,r0_3d[2]/um,axes_3d[1,2],axes_3d[2,2]] ])
+        X,Y,U,V = zip(*soa)
+        ax.quiver(X,Y,U,V,scale_units='xy',scale=.1)
+        
+        ax.set_xlabel('y (um)')
+        ax.set_ylabel('z (um)')
+        plt.xticks(trap_mom.pot3d.y/um)
+        plt.yticks(trap_mom.pot3d.z/um)
+        ax.set_xlim([-12,12])
+        ax.set_ylim([-12,12])
+
+# RO: TODO: Eliminate calculate_potentials?! Seems to be a glorified wrapper for
+# the WavPotential init function.
 def calculate_potentials(moments, waveform,
                          real_electrode_idxes=physical_electrode_transform,
                          ):
@@ -459,7 +661,8 @@ def calculate_potentials(moments, waveform,
     mom_trunc = moments.potentials[:,:len(real_electrode_idxes)]
     waveform_trunc = waveform.samples[real_electrode_idxes,:]
     
-    return WavPotential(np.dot(mom_trunc, waveform_trunc), moments.transport_axis, 39.962591)
+    # RO: TODO: Ca mass probably does not belong here!
+    return WavPotential(waveform.samples, np.dot(mom_trunc, waveform_trunc), moments.transport_axis, 39.962591)
     
 class WaveformSet:
     """Waveform set handler, both for pre-generated JSON waveform files
@@ -525,11 +728,11 @@ class WaveformSet:
 if __name__ == "__main__":
     # Debugging stuff -- write unit tests from the below at some point
     # wfs.write("waveform_files/test_splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
-    if True:
+    if False:
         wfs = WaveformSet(waveform_file="waveform_files/splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
         wfs.write("waveform_files/test2_splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
 
-    if True:
+    if False:
         # Generate loading waveform
         n_load = 1000
         wdp = WavDesiredWells(
@@ -550,7 +753,7 @@ if __name__ == "__main__":
         pot_test.plot_one_wfm(-1)        
         plt.show()
 
-    if True:
+    if False:
         # Plot the above-generated waveform
         wfs = WaveformSet(waveform_file="waveform_files/loading_py_2016_05_23_v01.dwc.json")
         pot_test = calculate_potentials(trap_mom, wfs.get_waveform(1))
