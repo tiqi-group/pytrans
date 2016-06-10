@@ -135,7 +135,7 @@ def reordering_waveform(pos, freq, offs, timesteps, push_v, twist_v, wfm_desc):
     return wf
     
 def loading_conveyor(add_reordering=True, analyse_wfms=False):
-    wf_path = os.path.join(os.pardir, "waveform_files", "loading_2016_06_09_v01.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "loading_2016_06_10_v01.dwc.json")
 
     # If file exists already, just load it to save time
     try:
@@ -148,7 +148,19 @@ def loading_conveyor(add_reordering=True, analyse_wfms=False):
         n_freq_change = 200
 
         # List of experimental-zone setting tuples
-        exp_settings = [(1.6,-500)]
+        exp_settings = [(0, 1.6,-450, "exp BeCa"),
+                        (0, 1.6,-310, "exp BeCa"),
+                        (0, 1.6,-200, "exp BeCa"),
+                        (0, 1.6, 960, "exp BeCa"),
+                        (0, 1.6, 1100, "exp BeCa"),
+                        (0, 1.6, 1330, "exp BeCa"),
+#                        (0, 1.6,-500, "exp BeCa",)
+                        (1, 1.6, -500, "exp +1um"),
+                        (2, 1.6, -500, "exp +2um"),
+                        (3, 1.6, -500, "exp +3um"),
+                        (-1, 1.6, -500, "exp -1um"),
+                        (-2, 1.6, -500, "exp -2um"),
+                        (-3, 1.6, -500, "exp -3um")]
         
         wf_load = transport_waveform(
             [-1870, 0], [0.7, 1.3], [600, 1000], n_load, "Load -> exp")
@@ -160,24 +172,27 @@ def loading_conveyor(add_reordering=True, analyse_wfms=False):
             [0, 0], [1.3, 0.3], [1000, 0], n_freq_change, "shallow")
         wf_list = [wf_load, wf_load_conveyor,
                    wf_exp_static_13, wf_exp_shallow_13]
-        
-        for freq, offs in exp_settings:
-            wf_exp_static = static_waveform(
-                0, freq, offs, "exp")        
-            wf_exp_shallow = transport_waveform(
-                [0, 0], [freq, 0.3], [offs, 0], n_freq_change, "shallow")
 
-            deep_weights=dict(local_weights)
-            deep_weights['r0'] = 1e-3
+        # Default waveform, for reordering
+        wf_exp_dual_species = static_waveform(*exp_settings[0])
+        
+        # Create more deeply confining wells (maybe does not help?)
+        deep_weights=dict(local_weights)
+        deep_weights['r0'] = 1e-3        
+        for pos, freq, offs, label in exp_settings:
+            wf_exp_static = static_waveform(
+                pos, freq, offs, label)        
+            wf_exp_shallow = transport_waveform(
+                [pos, pos], [freq, 0.3], [offs, 0], n_freq_change, "shallow")
             wf_exp_static_deep = static_waveform(
-                0, freq, offs, "exp", solv_wghts=deep_weights)
+                pos, freq, offs, label + " deep", solv_wghts=deep_weights)
 
             wf_list += [wf_exp_static, wf_exp_shallow, wf_exp_static_deep]
 
         if add_reordering:
-            wf_list += generate_reorder_wfms(wf_exp_static,
-                                             [0.4,0.5,0.6,0.7,0.8],
-                                             [0.4,0.5,0.6,0.7,0.8],
+            wf_list += generate_reorder_wfms(wf_exp_dual_species,
+                                             [0.4,0.5,0.6,0.7,0.8,1.0,2.0],
+                                             [0.4,0.5,0.6,0.7,0.8,1.0,2.0],
                                              100)
         
         wfs_load = WaveformSet(wf_list)
