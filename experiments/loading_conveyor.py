@@ -135,11 +135,11 @@ def reordering_waveform(pos, freq, offs, timesteps, push_v, twist_v, wfm_desc):
     return wf
     
 def loading_conveyor(add_reordering=True, analyse_wfms=False):
-    wf_path = os.path.join(os.pardir, "waveform_files", "loading_2016_06_10_v01.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "loading_2016_06_12_v01.dwc.json")
 
     # If file exists already, just load it to save time
     try:
-        raise FileNotFoundError # uncomment to always regenerate file for debugging
+        # raise FileNotFoundError # uncomment to always regenerate file for debugging
         wfs_load = WaveformSet(waveform_file=wf_path)
         print("Loaded waveform ",wf_path)
     except FileNotFoundError:
@@ -147,6 +147,7 @@ def loading_conveyor(add_reordering=True, analyse_wfms=False):
         n_load = 1001
         n_freq_change = 200
 
+        exp_dual_species_settings = (0, 1.6, 960, "exp BeCa")
         # List of experimental-zone setting tuples
         exp_settings = [(0, 1.6,-450, "exp BeCa"),
                         (0, 1.6,-310, "exp BeCa"),
@@ -154,13 +155,10 @@ def loading_conveyor(add_reordering=True, analyse_wfms=False):
                         (0, 1.6, 960, "exp BeCa"),
                         (0, 1.6, 1100, "exp BeCa"),
                         (0, 1.6, 1330, "exp BeCa"),
-#                        (0, 1.6,-500, "exp BeCa",)
-                        (1, 1.6, -500, "exp +1um"),
-                        (2, 1.6, -500, "exp +2um"),
-                        (3, 1.6, -500, "exp +3um"),
-                        (-1, 1.6, -500, "exp -1um"),
-                        (-2, 1.6, -500, "exp -2um"),
-                        (-3, 1.6, -500, "exp -3um")]
+                        (0, 1.3, -850, "exp BeCa LF"),
+                        (0, 1.3, -325, "exp BeCa LF"),
+                        (0, 1.3, 960, "exp BeCa LF"),
+                        (0, 1.3, 1580, "exp BeCa LF")]
         
         wf_load = transport_waveform(
             [-1870, 0], [0.7, 1.3], [600, 1000], n_load, "Load -> exp")
@@ -174,7 +172,7 @@ def loading_conveyor(add_reordering=True, analyse_wfms=False):
                    wf_exp_static_13, wf_exp_shallow_13]
 
         # Default waveform, for reordering
-        wf_exp_dual_species = static_waveform(*exp_settings[0])
+        wf_exp_dual_species = static_waveform(*exp_settings[3])
         
         # Create more deeply confining wells (maybe does not help?)
         deep_weights=dict(local_weights)
@@ -192,7 +190,7 @@ def loading_conveyor(add_reordering=True, analyse_wfms=False):
         if add_reordering:
             wf_list += generate_reorder_wfms(wf_exp_dual_species,
                                              [0.4,0.5,0.6,0.7,0.8,1.0,2.0],
-                                             [0.4,0.5,0.6,0.7,0.8,1.0,2.0],
+                                             [0.4,0.5,0.6,0.7,0.8,1.0,1.5,2.0],
                                              100)
         
         wfs_load = WaveformSet(wf_list)

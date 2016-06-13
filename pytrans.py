@@ -662,7 +662,7 @@ def calculate_potentials(moments, waveform,
     waveform_trunc = waveform.samples[real_electrode_idxes,:]
     
     # RO: TODO: Ca mass probably does not belong here!
-    return WavPotential(waveform.samples, np.dot(mom_trunc, waveform_trunc), moments.transport_axis, 39.962591)
+    return WavPotential(waveform, 39.962591)
     
 class WaveformSet:
     """Waveform set handler, both for pre-generated JSON waveform files
