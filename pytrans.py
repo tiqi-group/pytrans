@@ -16,6 +16,7 @@ st = pdb.set_trace
 # Unit definitions, all in SI
 electron_charge = 1.60217662e-19 # coulombs
 atomic_mass_unit = 1.66053904e-27 # kg
+epsilon_0 = 8.854187817e-12 # farad/m
 um = 1e-6
 us = 1e-6
 ns = 1e-9
@@ -316,7 +317,7 @@ class Waveform:
         # Cost function parameters
         sw = wdp.solver_weights
 
-        N = len(wdp.potentials)
+        N = len(wdp.potentials) # timesteps
 
         ## Setup and solve optimisation problem
         uopt = cvy.Variable(wdp.num_electrodes, N)
