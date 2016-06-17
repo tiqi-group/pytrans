@@ -178,7 +178,7 @@ def loading_conveyor(analyse_wfms=False):
 
     if analyse_wfms:
         
-        WavPot = WavPotential( wfs_load.get_waveform(3),shim_beta = 50, shim_alpha = 10)
+        WavPot = WavPotential( wfs_load.get_waveform(3),shim_beta = 20, shim_alpha = -5)
         return WavPot
         #pot = calculate_potentials(trap_mom ,wfs_load.get_waveform(3)) # static
         #plot_selection(pot)
@@ -189,5 +189,13 @@ def loading_conveyor(analyse_wfms=False):
 if __name__ == "__main__":
     WavPot = loading_conveyor(analyse_wfms=True)
     omegas, axes, r0, offset, V = WavPot.find_radials_3d(0)
-    print(r0/um)
-    WavPot.plot_radials_3d(0)
+    #print(r0/um)
+    
+    
+    WavPot.plot_radials(0, mode='2d')
+    WavPot.plot_radials(0, mode='3d')
+    #WavPot.plot_radials(0, mode='2d')
+    #wasd=WavPot.find_wells(0,mode='precise')
+    #wasd2=WavPot.add_potentials_2d(0)
+    
+    #WavPot.plot_radials_2d(0)
