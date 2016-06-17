@@ -80,7 +80,7 @@ class Moments:
     involving the trap"""
     def __init__(self,
                  moments_path = os.path.join(os.path.dirname(__file__), "moments_file", "DanielTrapMomentsTransport.mat"),
-                potential_path = os.path.join(os.path.dirname(__file__), "moments_file", "trap_exp.pickle"),
+                 potential_path = os.path.join(os.path.dirname(__file__), "moments_file", "trap_exp.pickle"),
                 #f_rf_drive = 115*MHz, # trap rf drive frequency (Hz)
                 #v_rf = 415 # trap rf drive voltage (Volts)
                  ):
