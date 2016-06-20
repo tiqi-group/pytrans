@@ -17,11 +17,15 @@ def splitting_constraints_test():
     e2_moment = np.exp(-(z_axis - (0))**2 / 30**2)
 
 def trap_freqs(z_axis, pot):
-    pot += np.random.random(z_axis.size)*1e-10 # to avoid argrelmin getting stuck
+    if len(pot.shape) > 1: # flatten into a 1d array
+        pot = np.ravel(pot)
+    # pot += np.random.random(z_axis.size)*1e-10 # to avoid argrelmin getting stuck
     # Re-implementing stuff in WavPotential class
     pot_resolution=z_axis[1]-z_axis[0]
+    st()
     potg2 = np.gradient(np.gradient(pot))#self.pot_resolution**2
-    min_indices = ssig.argrelmin(pot, order=20)
+    # min_indices = ssig.argrelmin(pot, order=20)
+    min_indices = ssig.argrelextrema(pot, np.less_equal, order=20)
     offsets = potg2[min_indices]
     grads = potg2[min_indices]/pot_resolution**2
     trap_freqs = np.sqrt(electron_charge*grads / (40*atomic_mass_unit))/2/np.pi
