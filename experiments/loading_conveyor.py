@@ -37,6 +37,7 @@ def static_waveform(pos, freq, offs, wfm_desc, solv_wghts=local_weights):
     return wf
     
 def transport_waveform(pos, freq, offs, timesteps, wfm_desc, linspace_fn=np.linspace):
+    # pos, freq, offs: 2-element iterables specifying the start and end, in um, MHz and meV
     wdw = WavDesiredWells(
         [linspace_fn(pos[0], pos[1], timesteps)*um],
         [linspace_fn(freq[0], freq[1], timesteps)*MHz],
@@ -135,7 +136,7 @@ def reordering_waveform(pos, freq, offs, timesteps, push_v, twist_v, wfm_desc):
     return wf
     
 def loading_conveyor(add_reordering=True, analyse_wfms=False):
-    wf_path = os.path.join(os.pardir, "waveform_files", "loading_2016_06_12_v01.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "loading_2016_06_21_v01.dwc.json")
 
     # If file exists already, just load it to save time
     try:
@@ -147,18 +148,8 @@ def loading_conveyor(add_reordering=True, analyse_wfms=False):
         n_load = 1001
         n_freq_change = 200
 
-        exp_dual_species_settings = (0, 1.6, 960, "exp BeCa")
         # List of experimental-zone setting tuples
-        exp_settings = [(0, 1.6,-450, "exp BeCa"),
-                        (0, 1.6,-310, "exp BeCa"),
-                        (0, 1.6,-200, "exp BeCa"),
-                        (0, 1.6, 960, "exp BeCa"),
-                        (0, 1.6, 1100, "exp BeCa"),
-                        (0, 1.6, 1330, "exp BeCa"),
-                        (0, 1.3, -850, "exp BeCa LF"),
-                        (0, 1.3, -325, "exp BeCa LF"),
-                        (0, 1.3, 960, "exp BeCa LF"),
-                        (0, 1.3, 1580, "exp BeCa LF")]
+        exp_settings = [(0, 1.3, 960, "exp BeCa")]
         
         wf_load = transport_waveform(
             [-1870, 0], [0.7, 1.3], [600, 1000], n_load, "Load -> exp")
@@ -172,7 +163,7 @@ def loading_conveyor(add_reordering=True, analyse_wfms=False):
                    wf_exp_static_13, wf_exp_shallow_13]
 
         # Default waveform, for reordering
-        wf_exp_dual_species = static_waveform(*exp_settings[3])
+        wf_exp_dual_species = static_waveform(*exp_settings[0])
         
         # Create more deeply confining wells (maybe does not help?)
         deep_weights=dict(local_weights)
@@ -200,7 +191,7 @@ def loading_conveyor(add_reordering=True, analyse_wfms=False):
         pot = calculate_potentials(trap_mom, wfs_load.get_waveform(2))
         plot_selection(pot)
         print(pot.find_wells(0, mode='precise'))
-        print(pot.find_wells(100, mode='precise'))        
+        print(pot.find_wells(100, mode='precise'))
 
 if __name__ == "__main__":
     loading_conveyor(analyse_wfms=True)

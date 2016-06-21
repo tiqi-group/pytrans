@@ -6,6 +6,7 @@ import matplotlib.patches as patches
 import mpl_toolkits.mplot3d
 import scipy.io as sio
 import scipy.signal as ssig
+import scipy.stats as sstat
 import cvxpy as cvy
 import os
 import pdb
@@ -69,6 +70,12 @@ min_death_voltages = -max_death_voltages
 electrode_coords = np.array([[-2535,-1535],[-1515,-1015],[-995,-695],[-675,-520],[-500,-345],[-325,-170],[-150,150],[170,325],[345,500],[520,675],[695,995],[1015,1515],[1535,2535],[-2535,-1535],[-1515,-1015],[-995,-695],[-675,-520],[-500,-345],[-325,-170],[-150,150],[170,325],[345,500],[520,675],[695,995],[1015,1515],[1535,2535]])
 
 ## Utility functions
+def erfspace(a, b, npts, erf_scaling=2.5):
+    slope = b-a
+    erf_y = sstat.norm.cdf(np.linspace(-erf_scaling, erf_scaling, npts))
+    erf_y_slope = erf_y[-1]-erf_y[0]
+    vout_zc = erf_y*slope/erf_y_slope # scale slope
+    return vout_zc + a - vout_zc[0] # shift range
 
 def vlinspace(start_vec, end_vec, npts, lin_fn = np.linspace):
     """ Linspace on column vectors specifying the starts and ends"""
