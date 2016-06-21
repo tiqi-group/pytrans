@@ -74,6 +74,75 @@ def vlinspace(start_vec, end_vec, npts, lin_fn = np.linspace):
     """ Linspace on column vectors specifying the starts and ends"""
     assert start_vec.shape[1] == end_vec.shape[1] == 1, "Need to input column vectors"
     return np.vstack(list(lin_fn(sv, ev, npts) for sv, ev in zip(start_vec, end_vec)))
+
+def find_wells(potential, pot_resolution, ion_mass, mode='quick', smoothing_ratio=80, polyfit_ratio=60, freq_threshold = 10*kHz, roi_centre=0*um, roi_width=2356*um):
+    """For a given potential, return the location of the potential minima, their offsets and curvatures.
+    potential: spatial potential vector
+    mode: 'quick' or 'precise'.
+    smoothing_ratio: fraction of total length of potentials vector to smoothe over (not used atm?!)
+    polyfit_ratio: fraction of total length of potentials vector to fit a polynomial to
+    freq_threshold: Minimum trapping frequency of the wells to store"""
+
+    assert mode is 'quick' or mode is 'precise', "Input argument 'mode' only supports mode='quick' and mode='precise'"
+
+    # Extract potential within region of interest        
+    roi_l = roi_centre - roi_width
+    roi_r = roi_centre + roi_width
+    roi_idx = (roi_l <= trap_mom.transport_axis) & (trap_mom.transport_axis <= roi_r)
+    pot = np.ravel(potential[roi_idx])
+    trap_axis_roi = trap_mom.transport_axis[roi_idx]
+    trap_axis_idx = np.arange(trap_mom.transport_axis.shape[0])[roi_idx]
+
+    potg2 = np.gradient(np.gradient(pot))
+    # Ad-hoc filtering of the waveform potential with a top-hat
+    # window 1/80th as big
+    #potg2_filt = np.convolve(potg2,
+    #                         np.ones(pot.size/smoothing_ratio)/(pot.size*smoothing_ratio),
+    #                         mode='same')
+    min_indices, = ssig.argrelextrema(pot, np.less_equal, order=20) # find relative minima. order=x to suppress detecting most spurious minima
+
+    # Gather wells
+    min_indices_validated  = []
+    offsets = []
+    polys = []
+    trap_freqs = []
+    trap_locs = []
+    for mi in min_indices: # Loop over candidates
+        if mode is 'quick':
+            # numerically evaluate from the raw data (noisy)
+            grad = potg2[mi]/pot_resolution**2
+            # grads = potg2_filt[mi]/pot_resolution**2
+        elif mode is 'precise':
+            ## Select region of interest
+            idx1 = mi-5
+            idx2 = mi+5
+            # Prevent out of bound errors
+            if idx1 < 0:
+                idx1 = 0
+            if idx2 > (pot.shape[0]-1):
+                idx2 = pot.shape[0]-1
+
+            # Fit quadratic to potential
+            pfit = np.polyfit(trap_axis_roi[idx1:idx2], pot[idx1:idx2], 2)
+            poly = np.poly1d(pfit)
+            grad = 2*poly[2] # in eV
+
+        # Only keep wells that are confining and above the threshold
+        if grad > 0:
+            freq = np.sqrt( electron_charge * grad / (ion_mass * atomic_mass_unit) ) /2/np.pi
+            if freq > freq_threshold:
+                min_indices_validated.append(trap_axis_idx[mi])
+                if mode is 'quick':
+                    offsets.append(pot[mi])
+                    trap_freqs.append(freq)
+                    trap_locs.append(trap_axis_roi[mi])
+                elif mode is 'precise':
+                    polys.append(poly)
+                    offsets.append(-poly[1]**2/4/poly[2]+poly[0])
+                    trap_freqs.append(freq)
+                    trap_locs.append(-poly[1]/2/poly[2])
+
+    return {'min_indices':min_indices_validated, 'offsets':offsets, 'freqs':trap_freqs, 'locs':trap_locs}
     
 class Moments:
     """Spatial potential moments of the electrodes; used for calculations
@@ -473,75 +542,8 @@ class WavPotential:
         ax.set_ylabel('potential (V)')
         return ax
 
-    def find_wells(self, time_idx, mode='quick', smoothing_ratio=80, polyfit_ratio=60, freq_threshold = 10*kHz, roi_center=0*um, roi_width=2356*um):
-        """For a given timestep, return the location of the potential minima, their offsets and curvatures.
-        time_idx: Index of desired timestep
-        mode: 'quick' or 'precise'.
-        smoothing_ratio: fraction of total length of potentials vector to smoothe over (not used atm?!)
-        polyfit_ratio: fraction of total length of potentials vector to fit a polynomial to
-        freq_threshold: Minimum trapping frequency of the wells to store"""
-        
-        assert mode is 'quick' or mode is 'precise', "Input argument 'mode' only supports mode='quick' and mode='precise'"
-        
-        # Extract potential within region of interest        
-        roi_l = roi_center - roi_width
-        roi_r = roi_center + roi_width
-        roi_idx = (roi_l <= trap_mom.transport_axis) & (trap_mom.transport_axis <= roi_r)
-        pot = self.potentials[roi_idx,time_idx]
-        trap_axis_roi = trap_mom.transport_axis[roi_idx]
-        trap_axis_idx = np.arange(trap_mom.transport_axis.shape[0])[roi_idx]
-
-        potg2 = np.gradient(np.gradient(pot))
-        # Ad-hoc filtering of the waveform potential with a top-hat
-        # window 1/80th as big
-        #potg2_filt = np.convolve(potg2,
-        #                         np.ones(pot.size/smoothing_ratio)/(pot.size*smoothing_ratio),
-        #                         mode='same')
-        min_indices, = ssig.argrelmin(pot, order=20) # find relative minima. order=x to suppress detecting most spurious minima
-        
-        # Gather wells
-        min_indices_validated  = []
-        offsets = []
-        polys = []
-        trap_freqs = []
-        trap_locs = []
-        for mi in min_indices: # Loop over candidates
-            if mode is 'quick':
-                # numerically evaluate from the raw data (noisy)
-                grad = potg2[mi]/(self.pot_resolution**2)
-                # grads = potg2_filt[mi]/(self.pot_resolution**2)
-            elif mode is 'precise':
-                ## Select region of interest
-                idx1 = mi-5
-                idx2 = mi+5
-                # Prevent out of bound errors
-                if idx1 < 0:
-                    idx1 = 0
-                if idx2 > (pot.shape[0]-1):
-                    idx2 = pot.shape[0]-1
-                
-                # Fit quadratic to potential
-                pfit = np.polyfit(trap_axis_roi[idx1:idx2], pot[idx1:idx2], 2)
-                poly = np.poly1d(pfit)
-                grad = 2*poly[2] # in eV
-
-            # Only keep wells that are confining and above the threshold
-            if grad > 0:
-                freq = np.sqrt( electron_charge * grad / (self.ion_mass * atomic_mass_unit) ) /2/np.pi
-                if freq > freq_threshold:
-                    min_indices_validated.append(trap_axis_idx[mi])
-                    if mode is 'quick':
-                        offsets.append(pot[mi])
-                        trap_freqs.append(freq)
-                        trap_locs.append(trap_axis_roi[mi])
-                    elif mode is 'precise':
-                        polys.append(poly)
-                        offsets.append(-poly[1]**2/4/poly[2]+poly[0])
-                        trap_freqs.append(freq)
-                        trap_locs.append(-poly[1]/2/poly[2])
-                    
-            
-        return {'min_indices':min_indices_validated, 'offsets':offsets, 'freqs':trap_freqs, 'locs':trap_locs}
+    def find_wells(self, time_idx, mode='quick', smoothing_ratio=80, polyfit_ratio=60, freq_threshold = 10*kHz, roi_centre=0*um, roi_width=2356*um):
+        return find_wells(self.potentials[:,time_idx], self.pot_resolution, self.ion_mass, mode, smoothing_ratio, polyfit_ratio, freq_threshold, roi_centre, roi_width)
 
     ### Functions for analyzing/plotting the potential in 2d (radials), and 3d (axial+radials)
         
@@ -551,7 +553,7 @@ class WavPotential:
         ## Find relevant plane
         
         # Find minimum along trap axis
-        axial_wells = self.find_wells(time_idx,mode='quick',roi_center=0,roi_width=100*um)
+        axial_wells = self.find_wells(time_idx,mode='quick',roi_centre=0,roi_width=100*um)
         
         assert len(axial_wells['locs']) > 0, "Found no trapping well in -100um to +100um"
         assert len(axial_wells['locs']) < 2, "Found more than one trapping well in -100um to +100um"
@@ -599,7 +601,7 @@ class WavPotential:
     def find_radials_2d(self, time_idx):
         """Calculates the axial and radial trap frequencies assuming the axial direction to be along the trap axis, thus
         reducing the calculations required by only having to fit the radials to the potential V(y,z) rather than V(x,y,z).
-        Returns all three trap frequencies, trap center coordinates and axes."""
+        Returns all three trap frequencies, trap centre coordinates and axes."""
         # See find_radials_3d for a detailed description.
         # Notation:
         # V(y,z) = ay^2 + bz^2 + c*yz + d*y + e*z + f
@@ -740,7 +742,7 @@ class WavPotential:
         
     def plot_radials(self,time_idx, ax=None, mode='3d'):
         """ Plots the potential in the radial plane together with the radial directions,
-        well center position, and all frequencies.""" 
+        well centre position, and all frequencies.""" 
         if not ax:
             fig = plt.figure()
             ax = fig.add_subplot(1,1,1)
@@ -772,7 +774,7 @@ class WavPotential:
         ax.text(r0[1]/um + 2, r0[2]/um - 0.5, '{:.2f}'.format(omegas[0]/MHz) + ' MHz', color='white') # Axial freq
         ax.text(r0[1]/um + scalefactor*axes[1,1], r0[2]/um + scalefactor*axes[2,1], '{:.2f}'.format(omegas[1]/MHz) + ' MHz', color='white') # Radial 1
         ax.text(r0[1]/um + scalefactor*axes[1,2], r0[2]/um + scalefactor*axes[2,2], '{:.2f}'.format(omegas[2]/MHz) + ' MHz', color='white') # Radial 2
-        ax.text(r0[1]/um - 4, r0[2]/um - 5, 'x0 = ' + '{:.2f}'.format(r0[0]/um) + ' um\n' + 'y0 = ' + '{:.2f}'.format(r0[1]/um) + ' um\n' + 'z0 = ' + '{:.2f}'.format(r0[2]/um) + ' um', color='white') # Center locations
+        ax.text(r0[1]/um - 4, r0[2]/um - 5, 'x0 = ' + '{:.2f}'.format(r0[0]/um) + ' um\n' + 'y0 = ' + '{:.2f}'.format(r0[1]/um) + ' um\n' + 'z0 = ' + '{:.2f}'.format(r0[2]/um) + ' um', color='white') # Centre locations
                 
         # Format plot
         ax.set_xlabel('y (um)')

@@ -64,11 +64,11 @@ def look_at_wells_manually():
     beta = 2.65e18
 
     def trap_freqs(z_axis, pot):
-        pot += np.random.random(z_axis.size)*1e-10 # to avoid argrelmin getting stuck
+        # pot += np.random.random(z_axis.size)*1e-10 # to avoid argrelmin getting stuck
         # Re-implementing stuff in WavPotential class
         pot_resolution=z_axis[1]-z_axis[0]
         potg2 = np.gradient(np.gradient(pot))#self.pot_resolution**2
-        min_indices = ssig.argrelmin(pot, order=20)
+        min_indices = ssig.argrelextrema(pot, np.less_equal, order=20)
         offsets = potg2[min_indices]
         grads = potg2[min_indices]/pot_resolution**2
         trap_freqs = np.sqrt(electron_charge*grads / (40*atomic_mass_unit))/2/np.pi
@@ -82,7 +82,7 @@ def look_at_wells_manually():
 
     st()
     print(trap_freqs(z_axis, single_pot))
-    print(trap_freqs(z_axis, double_pot))    
+    print(trap_freqs(z_axis, double_pot))
 
 if __name__ == "__main__":
     #reproduce_fig2_home_steane()
