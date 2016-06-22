@@ -51,7 +51,7 @@ if __name__ == "__main__":
 
         wf2 = WaveformSet(waveform_file='waveform_files/loading_and_constant_settings_Ts_620_2016_04_25_v01.dwc.json')
 
-        wfms = (16, 25, 133) # or (17, 
+        wfms = (15, 24, 132) # or (17, 
         wfms_new = tuple(wf2.get_waveform(k) for k in wfms)
         pot_loads = tuple(calculate_potentials(mom, wf) for wf in wfms_new)
 
@@ -77,7 +77,7 @@ if __name__ == "__main__":
             plt.show()
 
         # well_search()
-        test_wf = wf.get_waveform(9)
+        test_wf = wf.get_waveform(8)
         plot_td_voltages(test_wf)
         # pot_load.find_wells(0)
 

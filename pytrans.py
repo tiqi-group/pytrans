@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import mpl_toolkits.mplot3d
+import matplotlib.animation as anim
 import scipy.io as sio
 import scipy.signal as ssig
 import scipy.stats as sstat
@@ -326,7 +327,7 @@ class WavDesiredWells(WavDesired):
             energy_threshold = 150*meV
 
         assert type(pos) is type(freq) is type(off), "Input types inconsistent"
-        if type(pos) is list:
+        if type(pos) is list or tuple:
             # Construct 2D matrices from lists: columns of each are
             # the timesteps, rows of each are the discrete wells
             pos = np.vstack(pos).T
@@ -548,6 +549,26 @@ class WavPotential:
         ax.set_xlabel('trap location (um)')
         ax.set_ylabel('potential (V)')
         return ax
+
+    def animate_wfm(self, decimation=10):
+        Writer = anim.writers['ffmpeg']
+        writer = Writer(fps=30, metadata=dict(artist="vnegnev"), bitrate=1800)
+
+        fig = plt.figure()
+        ax = fig.add_subplot(1,1,1)
+        ax.set_ylim([-4,4])
+
+        line, = ax.plot(self.trap_axis/um, self.potentials[:,0])
+        def update(data):
+            line.set_ydata(data)
+            return line
+
+        def data_gen():
+            for pot in self.potentials.T[::decimation]:
+                yield pot
+
+        im_ani = anim.FuncAnimation(fig, update, data_gen, interval=30)
+        plt.show()
 
     def find_wells(self, time_idx, mode='quick', smoothing_ratio=80, polyfit_ratio=60, freq_threshold = 10*kHz, roi_centre=0*um, roi_width=2356*um):
         return find_wells(self.potentials[:,time_idx], self.pot_resolution, self.ion_mass, mode, smoothing_ratio, polyfit_ratio, freq_threshold, roi_centre, roi_width)
@@ -857,6 +878,8 @@ class WaveformSet:
             assert False, "Couldn't parse input args"
 
     def write(self, file_path):
+        if os.path.isfile(file_path):
+            warnings.warn("File "+file_path+" already exists. Overwriting...")
         with open(file_path, 'w') as fp:
             wfm_dict = {}
             for k, wf in enumerate(self.waveforms):
@@ -868,14 +891,15 @@ class WaveformSet:
             json.dump(wfm_dict, fp, indent="", sort_keys=True)
 
     def get_waveform(self, num):
-        """ Return the 1-indexed waveform. Accepts strings ('wav2') or
-        ints (2)."""
+        """Return the waveform specified by a 1-indexed string or 0-indexed
+        int. Accepts strings ('wav2') or ints (1).
+        """
         if type(num) is str:
             idx = int(num[3:])-1
         elif type(num) is int:
-            idx = num-1
+            idx = num
 
-        assert idx >= 0, "Cannot access negative waveforms. Supply a 1-indexed string or number."
+        # assert idx >= 0, "Cannot access negative waveforms. Supply a 1-indexed string or 0-indexed int."
         return self.waveforms[idx]        
 
 if __name__ == "__main__":
@@ -918,7 +942,7 @@ if __name__ == "__main__":
             wfs_load.write(wf_path)
     
         # Analyze waveform
-        WavPot = WavPotential( wfs_load.get_waveform(1),shim_beta = 0, shim_alpha = 0)
+        WavPot = WavPotential( wfs_load.get_waveform(0),shim_beta = 0, shim_alpha = 0)
         
         WavPot.plot_radials(0, mode='2d')
         WavPot.plot_radials(0, mode='3d')
@@ -951,7 +975,7 @@ if __name__ == "__main__":
     if False:
         # Plot the above-generated waveform
         wfs = WaveformSet(waveform_file="waveform_files/loading_py_2016_05_23_v01.dwc.json")
-        pot_test = calculate_potentials(trap_mom, wfs.get_waveform(1))
+        pot_test = calculate_potentials(trap_mom, wfs.get_waveform(0))
         pot_test.plot_one_wfm(0)
         pot_test.plot_one_wfm(-1)        
         plt.show()

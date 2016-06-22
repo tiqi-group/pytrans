@@ -50,6 +50,20 @@ def transport_waveform(pos, freq, offs, timesteps, wfm_desc, linspace_fn=np.lins
     )
     return Waveform(wdw)
 
+def transport_waveform_multiple(poss, freqs, offsets, timesteps, wfm_desc, linspace_fn = np.linspace):
+    # pos, freq, offs: M x 2-element lists specifying M separate
+    # wells, like in transport_waveform()
+    wdw = WavDesiredWells(
+        tuple(linspace_fn(p[0], p[1], timesteps)*um for p in poss),
+        tuple(linspace_fn(f[0], f[1], timesteps)*MHz for f in freqs),
+        tuple(linspace_fn(o[0], o[1], timesteps)*meV for o in offsets),
+
+        solver_weights=local_weights,
+        desired_potential_params=local_potential_params,
+
+        desc=wfm_desc+" {:d} wells".format(len(poss)))
+    return Waveform(wdw)
+
 def conveyor_waveform(pos, freq, offs, timesteps, wfm_desc, linspace_fn=np.linspace):
     pts_for_new_wfm = timesteps//5
     conveyor_timesteps = timesteps - pts_for_new_wfm

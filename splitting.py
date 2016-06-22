@@ -32,7 +32,6 @@ def scan_alpha_beta():
 
     plt.show()
 
-
 def ion_distance_ab(alpha, beta, d):
     if d<0: # to constrain the solver
         return abs(d)*1e5+1e2
@@ -140,7 +139,7 @@ def solve_scaled_constraints(moments, desired_pot, offset, scale_weight):
     prob.solve(solver='ECOS', verbose=False)
     return uopt.value, vscale.value
 
-def solve_poly_ab(poly_moments, alpha=0, slope_offset=None, dc_offset=None, print_voltages=True):
+def solve_poly_ab(poly_moments, alpha=0, slope_offset=None, dc_offset=None, print_voltages=False):
     # slope_offset: extra slope (electric field) to apply along z
     # direction, in V/m (can read it right off the potential
     # plots)
@@ -192,6 +191,7 @@ def solve_poly_ab(poly_moments, alpha=0, slope_offset=None, dc_offset=None, prin
     ans = uopt.value
     if print_voltages:
         print("Voltages: ", uopt.value[:num_elec//2])
+    assert ans is not None, "cvxpy did not find a solution."
     return ans, np.sum(alph_co*ans)*alph_norm, np.sum(beta_co*ans)*beta_norm
 
 if __name__ == "__main__":
