@@ -139,7 +139,8 @@ def solve_scaled_constraints(moments, desired_pot, offset, scale_weight):
     prob.solve(solver='ECOS', verbose=False)
     return uopt.value, vscale.value
 
-def solve_poly_ab(poly_moments, alpha=0, slope_offset=None, dc_offset=None, print_voltages=False):
+def solve_poly_ab(poly_moments, alpha=0, slope_offset=None, dc_offset=None,
+                  print_voltages=False, enforce_z_symmetry=False):
     # slope_offset: extra slope (electric field) to apply along z
     # direction, in V/m (can read it right off the potential
     # plots)
@@ -177,17 +178,22 @@ def solve_poly_ab(poly_moments, alpha=0, slope_offset=None, dc_offset=None, prin
     for k in range(num_elec//2):
         constr.append(uopt[k] == uopt[k+num_elec//2])
     # Ensure z-symmetric (around splitting zone) pairs of electrodes agree
-    for m in range(num_elec//4):
-        constr.append(uopt[m] == uopt[-m-1])
-    constr.append(cvy.sum_entries(alph_co*uopt)==alpha/alph_norm) # quadratic term
-    if slope_offset:
-        constr.append(cvy.sum_entries(gamm_co*uopt)==slope_offset/gamm_norm) # linear term ~= 0
+    if enforce_z_symmetry:
+        for m in range(num_elec//4):
+            constr.append(uopt[m] == uopt[-m-1])
+    obj = cvy.Maximize(cvy.sum_entries(beta_co*uopt))
+    obj -= 100*cvy.Minimize(cvy.sum_squares(alph_co*uopt - alpha/alph_norm))
+    # constr.append(cvy.sum_entries(alph_co*uopt)==alpha/alph_norm) # quadratic term
     if dc_offset:
         constr.append(cvy.sum_entries(dc_co*uopt)==dc_offset/dc_norm) # linear term ~= 0
-    obj = cvy.Maximize(cvy.sum_entries(beta_co*uopt))        
+    if slope_offset:
+        # obj -= cvy.Minimize(cvy.sum_squares(gamm_co*uopt - slope_offset/gamm_norm))
+        # polyder_moments = np.vstack((np.polyder(k) for k in poly_moments.T)).T
+        obj -= 10*cvy.Minimize(cvy.sum_squares(gamm_co*uopt - slope_offset/gamm_norm))
+        
     # obj = cvy.Maximize(cvy.sum_entries(beta_co*uopt))+cvy.Maximize(-cvy.sum_entries(alph_co*uopt))
     prob = cvy.Problem(obj, constr)
-    prob.solve(solver='CVXOPT', verbose=False)
+    prob.solve(solver='ECOS', verbose=True)
     ans = uopt.value
     if print_voltages:
         print("Voltages: ", uopt.value[:num_elec//2])

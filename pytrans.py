@@ -18,6 +18,7 @@ st = pdb.set_trace
 # Unit definitions, all in SI
 electron_charge = 1.60217662e-19 # coulombs
 atomic_mass_unit = 1.66053904e-27 # kg
+mass_Ca = 39.962591
 epsilon_0 = 8.854187817e-12 # farad/m
 um = 1e-6
 us = 1e-6
@@ -37,7 +38,7 @@ meV = 1e-3
 # indices of which electrode each DEATH output drives, from 0->31
 dac_channel_transform = np.array([0, 15,3,18, 1,16,4,19,   2,17,5,20,-7,14, 6,21,
                                   11,26,7,22,12,27,8,23,  13,28,9,24,-22,29,10,25])
-
+num_elecs = dac_channel_transform.size
 
 # locations of electrode voltages in the waveform files produced by
 # the system right now (0 -> 29) (i.e. which DEATH output drives each
@@ -83,7 +84,16 @@ def vlinspace(start_vec, end_vec, npts, lin_fn = np.linspace):
     assert start_vec.shape[1] == end_vec.shape[1] == 1, "Need to input column vectors"
     return np.vstack(list(lin_fn(sv, ev, npts) for sv, ev in zip(start_vec, end_vec)))
 
-def find_wells(potential, pot_resolution, ion_mass, mode='quick', smoothing_ratio=80, polyfit_ratio=60, freq_threshold = 10*kHz, roi_centre=0*um, roi_width=2356*um):
+def find_wells_from_samples(samples, roi_centre, roi_width):
+    # Convenience function to avoid having to generate a WavPotential
+    # class for every sample (uses identical code)
+    # TODO: extend arguments, get WavPotential to use this too
+    potential = np.dot(trap_mom.potentials[:,:len(physical_electrode_transform)],
+                       samples[physical_electrode_transform])
+    return find_wells(potential, trap_mom.transport_axis, mass_Ca, mode='precise',
+                      roi_centre=roi_centre, roi_width=roi_width)
+
+def find_wells(potential, z_axis, ion_mass, mode='quick', smoothing_ratio=80, polyfit_ratio=60, freq_threshold = 10*kHz, roi_centre=0*um, roi_width=2356*um):
     """For a given potential, return the location of the potential minima, their offsets and curvatures.
     potential: spatial potential vector
     mode: 'quick' or 'precise'.
@@ -92,14 +102,17 @@ def find_wells(potential, pot_resolution, ion_mass, mode='quick', smoothing_rati
     freq_threshold: Minimum trapping frequency of the wells to store"""
 
     assert mode is 'quick' or mode is 'precise', "Input argument 'mode' only supports mode='quick' and mode='precise'"
+    assert len(potential) == len(z_axis), "Potential and z axis inputs are of different lengths"
 
     # Extract potential within region of interest        
     roi_l = roi_centre - roi_width
     roi_r = roi_centre + roi_width
-    roi_idx = (roi_l <= trap_mom.transport_axis) & (trap_mom.transport_axis <= roi_r)
+    roi_idx = (roi_l <= z_axis) & (z_axis <= roi_r)
     pot = np.ravel(potential[roi_idx])
-    trap_axis_roi = trap_mom.transport_axis[roi_idx]
-    trap_axis_idx = np.arange(trap_mom.transport_axis.shape[0])[roi_idx]
+    trap_axis_roi = z_axis[roi_idx]
+    trap_axis_idx = np.arange(z_axis.shape[0])[roi_idx]
+            
+    pot_resolution = z_axis[1]-z_axis[0]
 
     potg2 = np.gradient(np.gradient(pot))
     # Ad-hoc filtering of the waveform potential with a top-hat
@@ -261,7 +274,7 @@ class WavDesired:
                  potentials, # list of arrays; each array is a potential for a timestep; volts
                  roi_idx, # Element indices for global trap axis position array; dims must match potentials
                  Ts=100*ns, # slowdown of 0 -> 10 ns/step, slowdown of 30 (typical) -> (10*(30+1)) = 310 ns/step
-                 mass=39.962591,
+                 mass=mass_Ca,
                  num_electrodes=30,
                  desc=None,
                  solver_weights=None):
@@ -308,7 +321,7 @@ class WavDesiredWells(WavDesired):
                  offsets, # array, same dimensions as positions
                  desired_potential_params=None,
                  Ts=100*ns,
-                 mass=39.962591, # AMU
+                 mass=mass_Ca,
                  num_electrodes=30,
                  desc=None,
                  solver_weights=None):
@@ -466,7 +479,7 @@ class WavPotential:
     from the electrodes in both 1d (i.e. along the trap axis), 2d (i.e in the radial plane)
     and 3d (i.e. along the axial and radial directions). Generally to be used for analysing 
     and plotting existing waveforms"""
-    def __init__(self, waveform, ion_mass = 39.962591, rf_v = 415, rf_freq = 115, shim_alpha = 0, shim_beta = 0):
+    def __init__(self, waveform, ion_mass=mass_Ca, rf_v=415, rf_freq=115, shim_alpha=0, shim_beta=0):
         
         ## Load relevant electrodes and reorder as needed
         # Warning: This is not very robust at the moment! Beware when modifying
@@ -484,8 +497,6 @@ class WavPotential:
         self.rf_freq = rf_freq # (MHz) (!!)
         self.shim_alpha = shim_alpha # (Volts)
         self.shim_beta = shim_beta # (Volts)
-        
-        self.pot_resolution = self.trap_axis[1]-self.trap_axis[0]
 
     ### Functions for analyzing/plotting the potential along the trap axis
 
@@ -570,8 +581,8 @@ class WavPotential:
         im_ani = anim.FuncAnimation(fig, update, data_gen, interval=30)
         plt.show()
 
-    def find_wells(self, time_idx, mode='quick', smoothing_ratio=80, polyfit_ratio=60, freq_threshold = 10*kHz, roi_centre=0*um, roi_width=2356*um):
-        return find_wells(self.potentials[:,time_idx], self.pot_resolution, self.ion_mass, mode, smoothing_ratio, polyfit_ratio, freq_threshold, roi_centre, roi_width)
+    def find_wells(self, time_idx, mode='quick', smoothing_ratio=80, polyfit_ratio=60, freq_threshold=10*kHz, roi_centre=0*um, roi_width=2356*um):
+        return find_wells(self.potentials[:,time_idx], self.trap_axis, self.ion_mass, mode, smoothing_ratio, polyfit_ratio, freq_threshold, roi_centre, roi_width)
 
     ### Functions for analyzing/plotting the potential in 2d (radials), and 3d (axial+radials)
         
@@ -836,7 +847,7 @@ def calculate_potentials(moments, waveform,
     waveform_trunc = waveform.samples[real_electrode_idxes,:]
     
     # RO: TODO: Ca mass probably does not belong here!
-    return WavPotential(waveform, 39.962591)
+    return WavPotential(waveform, mass_Ca)
     
 class WaveformSet:
     """Waveform set handler, both for pre-generated JSON waveform files
@@ -900,7 +911,13 @@ class WaveformSet:
             idx = num
 
         # assert idx >= 0, "Cannot access negative waveforms. Supply a 1-indexed string or 0-indexed int."
-        return self.waveforms[idx]        
+        return self.waveforms[idx]
+
+    def find_waveform(self, name_str):
+        """ Tries to find a waveform whose description partially or fully matches name_str """
+        for w in self.waveforms:
+            if name_str in w.desc:
+                return w
 
 if __name__ == "__main__":
     # Debugging stuff -- write unit tests from the below at some point

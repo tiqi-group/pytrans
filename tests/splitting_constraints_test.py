@@ -81,13 +81,14 @@ def splitting_constraints_test():
         # pre-splitting, still one well at 1.35 MHz
         ans_poly_before_split, alpha, beta = solve_poly_ab(polys, 1.5e7, slope_offset=None, dc_offset=None)
         # alpha = 0, beta maximised, wells equalised by an extra slope
+        # ans_poly_mid_split, alpha, beta = solve_poly_ab(polys, 0, slope_offset=0.16, dc_offset=None)
         ans_poly_mid_split, alpha, beta = solve_poly_ab(polys, 0, slope_offset=0.16, dc_offset=None)
         # slightly after splitting
-        ans_poly_after_split, alpha, beta = solve_poly_ab(polys, -3e6, slope_offset=None, dc_offset=None)
+        ans_poly_after_split, alpha, beta = solve_poly_ab(polys, -3e6, slope_offset=0.16, dc_offset=None)
         # post splitting, 
         ans_poly_after_split2, alpha, beta = solve_poly_ab(polys, -1e7, slope_offset=None, dc_offset=None)
         ans_poly_after_split3, alpha, beta = solve_poly_ab(polys, -5e7, slope_offset=None, dc_offset=None)
-        ans = ans_poly_before_split
+        ans = ans_poly_mid_split
         
         for m, u in zip(moments_interp.T, np.ravel(ans)):
             col = m.T
@@ -108,7 +109,7 @@ def splitting_constraints_test():
         print("voltages: ", all_voltages[:15])
         print("vscale: ", scale)
 
-        tfd = find_wells(moments*ans, np.array(z_axis[1]-z_axis[0]), 40, mode='precise', freq_threshold=5*kHz)
+        tfd = find_wells(moments*ans, z_axis, 40, mode='precise', freq_threshold=5*kHz)
         poss = []
         freqs = []
         offsets = []
