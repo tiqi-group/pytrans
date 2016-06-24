@@ -42,7 +42,7 @@ def split_waveforms(
     
     # Data format is (alpha, slope, points from prev. state to this one)
     # Requires careful tuning
-    glob_sl_offs = 20.16
+    glob_sl_offs = 10
     split_params = [# (1.5e7, None, 500, np.linspace),
         # (1e6, None, 500, np.linspace),
         #(0, glob_sl_offs, 500, lambda a,b,n: erfspace(a,b,n,1.5)),
@@ -155,10 +155,10 @@ def split_waveforms(
     return wf_split, splitting_wf
 
 def load_and_split(add_reordering=True, analyse_wfms=False):
-    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_06_23_v02.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_06_23_v05.dwc.json")
     # If file exists already, just load it to save time
     try:
-        raise FileNotFoundError # uncomment to always regenerate file for debugging
+        # raise FileNotFoundError # uncomment to always regenerate file for debugging
         wfs_load_and_split = WaveformSet(waveform_file=wf_path)
         print("Loaded waveform ",wf_path)
     except FileNotFoundError:
@@ -176,6 +176,13 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
                                                electrode_subset=[3,4,5,6,7,18,19,20,21,22]) # left splitting group
         wfs_load_and_split.waveforms.append(load_to_split)
         wfs_load_and_split.waveforms.append(wf_split)
+        wf_far_to_exp = lc.transport_waveform_multiple(
+            [[-844,0],[0,600]],
+            [[1.3,1.3],[1.3,1.3]],
+            [[960,960],[960,960]],
+            2*n_transport,
+            "-far to centre, centre to +far")
+        wfs_load_and_split.waveforms.append(wf_far_to_exp)                                                       
         wfs_load_and_split.write(wf_path)
 
     # Create a single testing waveform
@@ -183,14 +190,16 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
     if add_testing_waveform:
         test_waveform_present = wfs_load_and_split.get_waveform(-1).desc == "trans + split, then reverse"
         if test_waveform_present:
-            exp_to_split_wfm = wfs_load_and_split.get_waveform(-3)
-            end_wfm = wfs_load_and_split.get_waveform(-2)
+            exp_to_split_wfm = wfs_load_and_split.get_waveform(-4)
+            split_wfm = wfs_load_and_split.get_waveform(-3)
+            far_to_cent_wfm = wfs_load_and_split.get_waveform(-2)
         else:
-            exp_to_split_wfm = wfs_load_and_split.get_waveform(-2)
-            end_wfm = wfs_load_and_split.get_waveform(-1)
+            exp_to_split_wfm = wfs_load_and_split.get_waveform(-3)
+            split_wfm = wfs_load_and_split.get_waveform(-2)
+            far_to_cent_wfm = wfs_load_and_split.get_waveform(-1)            
 
-        #trans_split_forward = np.hstack([exp_to_split_wfm.samples, end_wfm.samples[:,:-500]])
-        trans_split_forward = np.hstack([exp_to_split_wfm.samples, end_wfm.samples])
+        #trans_split_forward = np.hstack([exp_to_split_wfm.samples, split_wfm.samples[:,:-500]])
+        trans_split_forward = np.hstack([exp_to_split_wfm.samples, split_wfm.samples, far_to_cent_wfm.samples])
         trans_split_for_rev = np.hstack([trans_split_forward, np.fliplr(trans_split_forward)])
         wf_trans_split_for_rev = Waveform("trans + split, then reverse", 0, "", trans_split_for_rev)
         wf_trans_split_for_rev.set_new_uid()

@@ -140,7 +140,8 @@ def solve_scaled_constraints(moments, desired_pot, offset, scale_weight):
     return uopt.value, vscale.value
 
 def solve_poly_ab(poly_moments, alpha=0, slope_offset=None, dc_offset=None,
-                  print_voltages=False, enforce_z_symmetry=False):
+                  print_voltages=False, enforce_z_symmetry=False,
+                  verbose_solver=False):
     # slope_offset: extra slope (electric field) to apply along z
     # direction, in V/m (can read it right off the potential
     # plots)
@@ -193,7 +194,7 @@ def solve_poly_ab(poly_moments, alpha=0, slope_offset=None, dc_offset=None,
         
     # obj = cvy.Maximize(cvy.sum_entries(beta_co*uopt))+cvy.Maximize(-cvy.sum_entries(alph_co*uopt))
     prob = cvy.Problem(obj, constr)
-    prob.solve(solver='ECOS', verbose=True)
+    prob.solve(solver='ECOS', verbose=verbose_solver)
     ans = uopt.value
     if print_voltages:
         print("Voltages: ", uopt.value[:num_elec//2])
