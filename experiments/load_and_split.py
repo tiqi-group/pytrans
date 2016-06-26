@@ -42,11 +42,11 @@ def split_waveforms(
     
     # Data format is (alpha, slope, points from prev. state to this one)
     # Requires careful tuning
-    glob_sl_offs = 10
+    glob_sl_offs = None
     split_params = [# (1.5e7, None, 500, np.linspace),
         # (1e6, None, 500, np.linspace),
         #(0, glob_sl_offs, 500, lambda a,b,n: erfspace(a,b,n,1.5)),
-        (1e6, glob_sl_offs, 200, np.linspace),
+#        (1e6, glob_sl_offs, 200, np.linspace), # TODO: uncomment this
         (0, glob_sl_offs, 50, np.linspace),
         # (-3e6, None, 500, np.linspace),
         (-5e6, glob_sl_offs, 50, np.linspace),
@@ -71,7 +71,7 @@ def split_waveforms(
                                              roi_width=polyfit_range)
         assert len(wavpot_fit['offsets']) == 1, "Error, found too many wells in ROI at start of splitting."
         split_offset = wavpot_fit['offsets'][0]/meV
-
+        
     # Initial waveform, transports from start to splitting location
     wf_split = lc.transport_waveform(
         [start_loc, split_loc],
@@ -84,7 +84,7 @@ def split_waveforms(
     debug_splitting_parts = False
     # Prepare full voltage array
     for (alpha, slope_offset, npts, linspace_fn) in split_params:
-        elec_voltage_set,_,_ = sp.solve_poly_ab(polys, alpha,
+        elec_voltage_set,alpha,beta = sp.solve_poly_ab(polys, alpha,
                                             slope_offset=slope_offset, dc_offset=None)
         new_death_voltages = latest_death_voltages.copy()
         new_death_voltages[physical_electrode_transform[electrode_subset]] = elec_voltage_set
@@ -95,6 +95,8 @@ def split_waveforms(
         full_wfm_voltages = np.hstack([full_wfm_voltages, ramped_voltages])
         latest_death_voltages = new_death_voltages
 
+        st()
+        
         if debug_splitting_parts:
             new_wf = Waveform("", 0, "", ramped_voltages)
             asdf = WavPotential(new_wf)
@@ -155,10 +157,10 @@ def split_waveforms(
     return wf_split, splitting_wf
 
 def load_and_split(add_reordering=True, analyse_wfms=False):
-    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_06_23_v05.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_06_24_v01.dwc.json")
     # If file exists already, just load it to save time
     try:
-        # raise FileNotFoundError # uncomment to always regenerate file for debugging
+        raise FileNotFoundError # uncomment to always regenerate file for debugging
         wfs_load_and_split = WaveformSet(waveform_file=wf_path)
         print("Loaded waveform ",wf_path)
     except FileNotFoundError:
@@ -168,7 +170,7 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
         wfs_load = WaveformSet(waveform_file=wf_load_path)
         wfs_load_and_split = wfs_load
 
-        n_transport = 600
+        n_transport = 100
         load_to_split, wf_split = split_waveforms(0, 1.3, 960,
                                                [-844, 0], [1.3,1.3], [960, 960],
                                                -422.5, 1.3,

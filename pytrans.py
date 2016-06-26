@@ -10,10 +10,10 @@ import scipy.signal as ssig
 import scipy.stats as sstat
 import cvxpy as cvy
 import os
-import pdb
+import ipdb
 import pickle
 import warnings
-st = pdb.set_trace
+st = ipdb.set_trace
 
 # Unit definitions, all in SI
 electron_charge = 1.60217662e-19 # coulombs
