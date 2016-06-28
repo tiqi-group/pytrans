@@ -15,6 +15,10 @@ import pickle
 import warnings
 st = ipdb.set_trace
 
+# You must copy global_settings.py.example to global_settings.py and
+# modify the options locally for your installation.
+from global_settings import *
+
 # Unit definitions, all in SI
 electron_charge = 1.60217662e-19 # coulombs
 atomic_mass_unit = 1.66053904e-27 # kg
@@ -456,7 +460,7 @@ class Waveform:
 
         # ECOS is faster than CVXOPT, but can crash for larger problems
         prob = sum(states)
-        prob.solve(solver='ECOS', verbose=False)
+        prob.solve(solver=global_solver, verbose=True)
 
         if False:
             # DEBUGGING ONLY

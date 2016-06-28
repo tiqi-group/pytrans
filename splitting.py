@@ -194,7 +194,7 @@ def solve_poly_ab(poly_moments, alpha=0, slope_offset=None, dc_offset=None,
         
     # obj = cvy.Maximize(cvy.sum_entries(beta_co*uopt))+cvy.Maximize(-cvy.sum_entries(alph_co*uopt))
     prob = cvy.Problem(obj, constr)
-    prob.solve(solver='ECOS', verbose=verbose_solver)
+    prob.solve(solver=global_solver, verbose=verbose_solver)
     ans = uopt.value
     if print_voltages:
         print("Voltages: ", uopt.value[:num_elec//2])

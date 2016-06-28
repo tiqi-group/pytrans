@@ -95,7 +95,7 @@ def split_waveforms(
         full_wfm_voltages = np.hstack([full_wfm_voltages, ramped_voltages])
         latest_death_voltages = new_death_voltages
 
-        st()
+        # st()
         
         if debug_splitting_parts:
             new_wf = Waveform("", 0, "", ramped_voltages)
@@ -170,7 +170,7 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
         wfs_load = WaveformSet(waveform_file=wf_load_path)
         wfs_load_and_split = wfs_load
 
-        n_transport = 100
+        n_transport = 500
         load_to_split, wf_split = split_waveforms(0, 1.3, 960,
                                                [-844, 0], [1.3,1.3], [960, 960],
                                                -422.5, 1.3,
