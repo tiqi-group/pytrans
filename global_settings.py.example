@@ -1,4 +1,5 @@
 # Different convex optimisation solvers
+# global_solver = 'CVXOPT'
 global_solver = 'ECOS'
 # global_solver = 'MOSEK'
 # global_solver = 'GUROBI'

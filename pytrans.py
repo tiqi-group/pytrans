@@ -10,10 +10,10 @@ import scipy.signal as ssig
 import scipy.stats as sstat
 import cvxpy as cvy
 import os
-import ipdb
+import pdb
 import pickle
 import warnings
-st = ipdb.set_trace
+st = pdb.set_trace
 
 # You must copy global_settings.py.example to global_settings.py and
 # modify the options locally for your installation.
@@ -324,7 +324,7 @@ class WavDesiredWells(WavDesired):
                  freqs, # array, same dimensions as positions
                  offsets, # array, same dimensions as positions
                  desired_potential_params=None,
-                 Ts=100*ns,
+                 Ts=10*ns,
                  mass=mass_Ca,
                  num_electrodes=30,
                  desc=None,
@@ -419,44 +419,50 @@ class Waveform:
 
         ## Setup and solve optimisation problem
         uopt = cvy.Variable(wdp.num_electrodes, N)
-        states = [] # lists?
+        states = []
 
+        # Global constraints
+
+        # Penalise deviations from default voltage
+        sw_r0_u_ss_m = np.tile(sw['r0_u_ss'], (N,1)).T # matrixized
+        cost = sw['r0'] * cvy.sum_squares(sw['r0_u_weights'] * (uopt - sw_r0_u_ss_m))
+                    
+        # Absolute voltage constraints
+        min_elec_voltages_m = np.tile(min_elec_voltages, (N,1)).T
+        max_elec_voltages_m = np.tile(max_elec_voltages, (N,1)).T        
+        constr = [min_elec_voltages_m <= uopt, uopt <= max_elec_voltages_m]
+
+        # Absolute symmetry constraints
+        constr += [uopt[:15,:] == uopt[15:,:]]
+
+        # Approximate costs on first and second derivative of u with finite differences
+        # Here, we use 2nd order approximations. For a table with coefficients see 
+        # https://en.wikipedia.org/wiki/Finite_difference_coefficient
+
+        assert (N < 2) or (N > 3), "Cannot have this number of timesteps, due to finite-diff approximations"
+        if N > 3:
+            # Middle: central finite-difference approx
+            cost += sw['r1']*cvy.sum_squares(0.5*(uopt[:,2:]-uopt[:,:-2]) )
+            cost += sw['r2']*cvy.sum_squares(uopt[:,2:] -2 * uopt[:,1:-1] + uopt[:,:-2])
+
+            # Start: use forward finite difference approximation of derivatives
+            cost += sw['r1']*cvy.sum_squares(-0.5*uopt[:,2] + 2*uopt[:,1] - 1.5*uopt[:,0])
+            cost += sw['r2']*cvy.sum_squares(-uopt[:,3] + 4*uopt[:,2] - 5*uopt[:,1] + 2*uopt[:,0])
+
+            # End: use backward finite difference approximation of derivatives
+            cost += sw['r1']*cvy.sum_squares(1.5*uopt[:,-1] - 2*uopt[:,-2] + 0.5*uopt[:,-3])
+            cost += sw['r2']*cvy.sum_squares(2*uopt[:,-1] - 5*uopt[:,-2] + 4*uopt[:,-3] - uopt[:,-4]) 
+
+            # Slew rate constraints    
+            constr += [-max_slew_rate*wdp.Ts <= (uopt[:,1:]-uopt[:,:-1]), (uopt[:,1:]-uopt[:,:-1]) <= max_slew_rate*wdp.Ts]
+        
         for kk, (pot, roi) in enumerate(zip(wdp.potentials, wdp.roi_idx)):
-            # Cost term capturing how accurately we generate the desired potential well            
-            cost = cvy.sum_squares(trap_mom.potentials[roi, :]*uopt[:,kk] - pot)
-            cost += sw['r0'] * cvy.sum_squares(sw['r0_u_weights'] * (uopt[:,kk] - sw['r0_u_ss']))
-            
-            # Absolute voltage constraints
-            constr = [min_elec_voltages <= uopt[:,kk], uopt[:,kk] <= max_elec_voltages]
+            # Cost term capturing how accurately we generate the desired potential well
+            # (could also vectorise it like the above, but the ROI
+            # indices tend to vary in length between timesteps)
+            cost += cvy.sum_squares(trap_mom.potentials[roi, :]*uopt[:,kk] - pot)
 
-            # Absolute symmetry constraints
-            for m in range(15):
-                # symmetry constraints for electrode pairs
-                constr += [uopt[m,kk] == uopt[m+15,kk]]
-
-            assert (N < 2) or (N > 3), "Cannot have this number of timesteps, due to finite-diff approximations"
-            if N > 3: # time-dependent constraints require at least 4 samples
-
-                # Approximate costs on first and second derivative of u with finite differences
-                # Here, we use 2nd order approximations. For a table with coefficients see 
-                # https://en.wikipedia.org/wiki/Finite_difference_coefficient
-                if ( kk != 0 and kk != N-1 ):
-                    # Middle: Use central finite difference approximation of derivatives
-                    cost += sw['r1']*cvy.sum_squares(0.5*(uopt[:,kk+1]-uopt[:,kk-1]) )
-                    cost += sw['r2']*cvy.sum_squares(uopt[:,kk+1] - 2*uopt[:,kk] + uopt[:,kk-1])
-                elif kk == 0:
-                    # Start: Use forward finite difference approximation of derivatives
-                    cost += sw['r1']*cvy.sum_squares(-0.5*uopt[:,kk+2] + 2*uopt[:,kk+1] - 1.5*uopt[:,kk])
-                    cost += sw['r2']*cvy.sum_squares(-uopt[:,kk+3] + 4*uopt[:,kk+2] - 5*uopt[:,kk+1] + 2*uopt[:,kk])
-                elif kk == N-1: 
-                    # End: Use backward finite difference approximation of derivatives
-                    cost += sw['r1']*cvy.sum_squares(1.5*uopt[:,kk] - 2*uopt[:,kk-1] + 0.5*uopt[:,kk-2])
-                    cost += sw['r2']*cvy.sum_squares(2*uopt[:,kk] - 5*uopt[:,kk-1] + 4*uopt[:,kk-2] - uopt[:,kk-3]) 
-                # Slew rate constraints    
-                if (kk != N-1):
-                    constr += [ -max_slew_rate*wdp.Ts <= uopt[:,kk+1] - uopt[:,kk] , uopt[:,kk+1] - uopt[:,kk] <= max_slew_rate*wdp.Ts ]
-
-            states.append( cvy.Problem(cvy.Minimize(cost), constr) )
+        states.append( cvy.Problem(cvy.Minimize(cost), constr) )
 
         # ECOS is faster than CVXOPT, but can crash for larger problems
         prob = sum(states)

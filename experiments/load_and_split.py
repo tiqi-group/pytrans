@@ -23,7 +23,7 @@ def split_waveforms(
         start_loc, start_f, start_offset,
         final_locs, final_fs, final_offsets,
         split_loc, split_f, split_offset=None,
-        n_transport=500,
+        n_transport=2000,
         electrode_subset=None,
         start_split_label='trans from start -> split start',
         split_label='split apart',
@@ -47,11 +47,11 @@ def split_waveforms(
         # (1e6, None, 500, np.linspace),
         #(0, glob_sl_offs, 500, lambda a,b,n: erfspace(a,b,n,1.5)),
 #        (1e6, glob_sl_offs, 200, np.linspace), # TODO: uncomment this
-        (0, glob_sl_offs, 50, np.linspace),
+        (0, glob_sl_offs, 100, np.linspace),
         # (-3e6, None, 500, np.linspace),
-        (-5e6, glob_sl_offs, 50, np.linspace),
-        (-1e7, glob_sl_offs, 50, np.linspace),
-        (-1.5e7, glob_sl_offs, 50, np.linspace)]
+        (-5e6, glob_sl_offs, 100, np.linspace),
+        (-1e7, glob_sl_offs, 100, np.linspace),
+        (-1.5e7, glob_sl_offs, 100, np.linspace)]
         # (-2e7, None, 50, np.linspace),
         # (-3e7, None, 100, np.linspace),
         # (-4e7, None, 100, np.linspace),
@@ -157,7 +157,7 @@ def split_waveforms(
     return wf_split, splitting_wf
 
 def load_and_split(add_reordering=True, analyse_wfms=False):
-    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_06_24_v01.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_06_28_v03.dwc.json")
     # If file exists already, just load it to save time
     try:
         raise FileNotFoundError # uncomment to always regenerate file for debugging
@@ -170,7 +170,7 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
         wfs_load = WaveformSet(waveform_file=wf_load_path)
         wfs_load_and_split = wfs_load
 
-        n_transport = 500
+        n_transport = 2000
         load_to_split, wf_split = split_waveforms(0, 1.3, 960,
                                                [-844, 0], [1.3,1.3], [960, 960],
                                                -422.5, 1.3,
