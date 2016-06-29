@@ -42,7 +42,7 @@ def split_waveforms(
     
     # Data format is (alpha, slope, points from prev. state to this one)
     # Requires careful tuning
-    glob_sl_offs = None
+    glob_sl_offs = 20
     split_params = [# (1.5e7, None, 500, np.linspace),
         # (1e6, None, 500, np.linspace),
         #(0, glob_sl_offs, 500, lambda a,b,n: erfspace(a,b,n,1.5)),
@@ -109,6 +109,7 @@ def split_waveforms(
     split_freqs = np.array(final_splitting_params['freqs'])/MHz
     split_offsets = np.array(final_splitting_params['offsets'])/meV
     assert split_locs.size == 2, "Wrong number of wells detected after splitting"
+
                                                                      
     # Final waveform, extends separation by 150um either way and goes to default well settings
     # (starting values must be set to the results of the splitting!)
@@ -118,7 +119,17 @@ def split_waveforms(
         [[split_offsets[0], final_offsets[0]],[split_offsets[1], final_offsets[1]]],
         n_transport,
         "")
+    
+    # Remove final segment of full voltage array, replace with manual
+    # ramp to start of regular solver
+    final_ramp_start = full_wfm_voltages[:,[-npts]]
+    final_ramp_end = wf_finish_split.samples[:,[0]]
+    full_wfm_voltages = full_wfm_voltages[:,:-npts+1] # final_ramp_start voltage set
 
+    final_ramped_voltages = vlinspace(final_ramp_start, final_ramp_end, npts, linspace_fn)[:,1:]
+    full_wfm_voltages = np.hstack([full_wfm_voltages, final_ramped_voltages])
+
+    # Append final splitting wfm
     full_wfm_voltages = np.hstack([full_wfm_voltages, wf_finish_split.samples[:,1:]])
             
     splitting_wf = Waveform(split_label, 0, "", full_wfm_voltages)
@@ -157,7 +168,7 @@ def split_waveforms(
     return wf_split, splitting_wf
 
 def load_and_split(add_reordering=True, analyse_wfms=False):
-    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_06_28_v03.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_06_29_v02.dwc.json")
     # If file exists already, just load it to save time
     try:
         raise FileNotFoundError # uncomment to always regenerate file for debugging
@@ -187,8 +198,8 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
         wfs_load_and_split.waveforms.append(wf_far_to_exp)                                                       
         wfs_load_and_split.write(wf_path)
 
-    # Create a single testing waveform
-    add_testing_waveform = True
+    # Create a single testing waveform, made up of the individual transports
+    add_testing_waveform = False
     if add_testing_waveform:
         test_waveform_present = wfs_load_and_split.get_waveform(-1).desc == "trans + split, then reverse"
         if test_waveform_present:
@@ -216,7 +227,7 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
         pot_for_rev = WavPotential(wf_trans_split_for_rev)
 
         print(pot_forward.find_wells(-1))
-        pot_for_rev.animate_wfm()
+        pot_for_rev.animate_wfm(decimation=1)
         wfs_load_and_split.write(wf_path)
 
     alter_splitting_offset = False
