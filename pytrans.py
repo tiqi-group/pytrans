@@ -72,6 +72,9 @@ max_death_voltages = max_elec_voltages[dac_channel_transform]
 min_elec_voltages = -max_elec_voltages
 min_death_voltages = -max_death_voltages
 
+## Maximum number of samples the DEATH RAMs can hold
+max_death_samples = 16384
+
 ## Electrode starts and ends in um, ordered from Electrode 0 -> 29
 electrode_coords = np.array([[-2535,-1535],[-1515,-1015],[-995,-695],[-675,-520],[-500,-345],[-325,-170],[-150,150],[170,325],[345,500],[520,675],[695,995],[1015,1515],[1535,2535],[-2535,-1535],[-1515,-1015],[-995,-695],[-675,-520],[-500,-345],[-325,-170],[-150,150],[170,325],[345,500],[520,675],[695,995],[1015,1515],[1535,2535]])
 
@@ -906,7 +909,13 @@ class WaveformSet:
             warnings.warn("File "+file_path+" already exists. Overwriting...")
         with open(file_path, 'w') as fp:
             wfm_dict = {}
+            total_samples_written = 0
             for k, wf in enumerate(self.waveforms):
+                total_samples_written += wf.samples.shape[1]
+                if total_samples_written > max_death_samples:
+                    warnings.warn('Too many DEATH samples desired; truncating waveform file at Waveform ' + str(k+1))
+                    break
+                
                 wfm_dict['wav'+str(k+1)] = {
                     'description':wf.desc,
                     'uid':hex(wf.uid), # cut off 0x to suit ionizer
