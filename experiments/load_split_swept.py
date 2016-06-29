@@ -19,7 +19,7 @@ def merge_waveforms_for_rev(wfs):
     wf_for_rev.set_new_uid()
     return wf_for_rev
 
-def split_waveforms(
+def split_waveforms_many_resamples(
         start_loc, start_f, start_offset,
         final_locs, final_fs, final_offsets,
         split_loc, split_f, split_offset=None,
@@ -37,8 +37,8 @@ def split_waveforms(
     polyfit_range = 200*um
 
     polys = sp.generate_interp_polys(trap_mom.transport_axis,
-                                    trap_mom.potentials[:, electrode_subset],
-                                    split_centre, polyfit_range)
+                                     trap_mom.potentials[:, electrode_subset],
+                                     split_centre, polyfit_range)
     
     # Data format is (alpha, slope, points from prev. state to this one)
     # Requires careful tuning
@@ -47,17 +47,17 @@ def split_waveforms(
     split_params = [# (1.5e7, None, 500, np.linspace),
         # (1e6, None, 500, np.linspace),
         #(0, glob_sl_offs, 500, lambda a,b,n: erfspace(a,b,n,1.5)),
-#        (1e6, glob_sl_offs, 200, np.linspace), # TODO: uncomment this
+        #        (1e6, glob_sl_offs, 200, np.linspace), # TODO: uncomment this
         (0, glob_sl_offs, interp_steps, np.linspace),
         # (-3e6, None, 500, np.linspace),
         (-5e6, glob_sl_offs, interp_steps, np.linspace),
         (-1e7, glob_sl_offs, interp_steps, np.linspace),
         (-1.5e7, glob_sl_offs, interp_steps, np.linspace)]
-        # (-2e7, None, 50, np.linspace),
-        # (-3e7, None, interp_steps, np.linspace),
-        # (-4e7, None, interp_steps, np.linspace),
-        # (-5e7, None, 150, np.linspace),
-        # (-6e7, None, 300, np.linspace)]
+    # (-2e7, None, 50, np.linspace),
+    # (-3e7, None, interp_steps, np.linspace),
+    # (-4e7, None, interp_steps, np.linspace),
+    # (-5e7, None, 150, np.linspace),
+    # (-6e7, None, 300, np.linspace)]
 
 
     if not split_offset:
@@ -78,7 +78,7 @@ def split_waveforms(
         [start_loc, split_loc],
         [start_f, split_f],
         [start_offset, split_offset], n_transport, start_split_label)
-        
+    
     latest_death_voltages = wf_split.samples[:,[-1]] # square bracket to return column vector
     full_wfm_voltages = latest_death_voltages.copy()
 
@@ -86,7 +86,7 @@ def split_waveforms(
     # Prepare full voltage array
     for (alpha, slope_offset, npts, linspace_fn) in split_params:
         elec_voltage_set,alpha,beta = sp.solve_poly_ab(polys, alpha,
-                                            slope_offset=slope_offset, dc_offset=None)
+                                                       slope_offset=slope_offset, dc_offset=None)
         new_death_voltages = latest_death_voltages.copy()
         new_death_voltages[physical_electrode_transform[electrode_subset]] = elec_voltage_set
 
@@ -132,7 +132,7 @@ def split_waveforms(
 
     # Append final splitting wfm
     full_wfm_voltages = np.hstack([full_wfm_voltages, wf_finish_split.samples[:,1:]])
-            
+    
     splitting_wf = Waveform(split_label, 0, "", full_wfm_voltages)
     splitting_wf.set_new_uid()
     
@@ -164,12 +164,28 @@ def split_waveforms(
         im_ani = anim.FuncAnimation(fig, update, data_gen, interval=30)
 
         plt.show()
-        im_ani.save('im.mp4', writer=writer)
+        # im_ani.save('im.mp4', writer=writer)
 
-    return wf_split, splitting_wf
+    def lin_gen(a, b, npts, erf_sc):
+        return erfspace(a, b, npts, erf_sc)
 
-def load_and_split(add_reordering=True, analyse_wfms=False):
-    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_06_29_v05.dwc.json")
+    lambda a, b, npts: erfspace(a, b, npts, erf_sc)
+        
+    wf_split_tup = tuple(lc.transport_waveform(
+        [start_loc, split_loc],
+        [start_f, split_f],
+        # [start_offset, split_offset],
+        [start_offset, start_offset+d],
+        n_transport,
+        start_split_label+'extra ' + str(d),
+        linspace_fn = lambda a, b, npts: erfspace(a, b, npts, 2.5))
+
+                         for d in np.linspace(-860,-660,16))
+
+    return wf_split, splitting_wf, wf_split_tup
+
+def trans_load_to_split(add_reordering=True, analyse_wfms=False):
+    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_swept_2016_06_29_v01.dwc.json")
     # If file exists already, just load it to save time
     try:
         raise FileNotFoundError # uncomment to always regenerate file for debugging
@@ -183,11 +199,12 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
         wfs_load_and_split = wfs_load
 
         n_transport = 1000
-        load_to_split, wf_split = split_waveforms(0, 1.3, 960,
-                                               [-844, 0], [1.3,1.3], [960, 960],
-                                               -422.5, 1.3,
-                                               n_transport=n_transport,
-                                               electrode_subset=[3,4,5,6,7,18,19,20,21,22]) # left splitting group
+        load_to_split, wf_split, wf_split_swept = split_waveforms_many_resamples(
+            0, 1.3, 960,
+            [-844, 0], [1.3,1.3], [960, 960],
+            -422.5, 1.3,
+            n_transport=n_transport,
+            electrode_subset=[3,4,5,6,7,18,19,20,21,22]) # left splitting group
         wfs_load_and_split.waveforms.append(load_to_split)
         wfs_load_and_split.waveforms.append(wf_split)
         wf_far_to_exp = lc.transport_waveform_multiple(
@@ -196,8 +213,13 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
             [[960,960],[960,960]],
             2*n_transport,
             "-far to centre, centre to +far")
-        wfs_load_and_split.waveforms.append(wf_far_to_exp)                                                       
-        wfs_load_and_split.write(wf_path)
+        # wfs_load_and_split.waveforms.append(wf_far_to_exp)
+
+        # Append extra splitting waveforms
+        wf_list = list(wf_split_swept)
+        wfs_swept = WaveformSet(wf_list)
+        # wfs_load_and_split.write(wf_path)
+        wfs_swept.write(wf_path)
 
     # Create a single testing waveform, made up of the individual transports
     add_testing_waveform = False
@@ -246,4 +268,5 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
         wfs_load_and_split.write(wf_dbg_path)
 
 if __name__ == "__main__":
-    load_and_split()
+    trans_load_to_split()
+ 
