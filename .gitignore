@@ -1,6 +1,8 @@
 *~
 *.pyc
+global_settings.py
 death_outputs_to_use.txt
+robin_temp/
 waveform_files/
 moments_file/trap_exp.mat
 moments_file/trap_exp.pickle
