@@ -124,15 +124,15 @@ def find_wells(potential, z_axis, ion_mass, mode='quick', smoothing_ratio=80, po
     #potg2_filt = np.convolve(potg2,
     #                         np.ones(pot.size/smoothing_ratio)/(pot.size*smoothing_ratio),
     #                         mode='same')
-    min_indices, = ssig.argrelextrema(pot, np.less_equal, order=20) # find relative minima. order=x to suppress detecting most spurious minima
+    min_indices_candidates, = ssig.argrelextrema(pot, np.less_equal, order=20) # find relative minima. order=x to suppress detecting most spurious minima
 
     # Gather wells
-    min_indices_validated  = []
+    min_indices  = []
     offsets = []
     polys = []
     trap_freqs = []
     trap_locs = []
-    for mi in min_indices: # Loop over candidates
+    for mi in min_indices_candidates: # Loop over candidates
         if mode is 'quick':
             # numerically evaluate from the raw data (noisy)
             grad = potg2[mi]/pot_resolution**2
@@ -156,7 +156,7 @@ def find_wells(potential, z_axis, ion_mass, mode='quick', smoothing_ratio=80, po
         if grad > 0:
             freq = np.sqrt( electron_charge * grad / (ion_mass * atomic_mass_unit) ) /2/np.pi
             if freq > freq_threshold:
-                min_indices_validated.append(trap_axis_idx[mi])
+                min_indices.append(trap_axis_idx[mi])
                 if mode is 'quick':
                     offsets.append(pot[mi])
                     trap_freqs.append(freq)
@@ -167,7 +167,7 @@ def find_wells(potential, z_axis, ion_mass, mode='quick', smoothing_ratio=80, po
                     trap_freqs.append(freq)
                     trap_locs.append(-poly[1]/2/poly[2])
 
-    return {'min_indices':min_indices_validated, 'offsets':offsets, 'freqs':trap_freqs, 'locs':trap_locs}
+    return {'min_indices':min_indices, 'offsets':offsets, 'freqs':trap_freqs, 'locs':trap_locs}
     
 class Moments:
     """Spatial potential moments of the electrodes; used for calculations
@@ -577,8 +577,11 @@ class WavPotential:
 
         fig = plt.figure()
         ax = fig.add_subplot(1,1,1)
+        ax.set_xlim([-2350,2350])
         ax.set_ylim([-4,4])
-
+        ax.set_xlabel('trap location (um)')
+        ax.set_ylabel('potential (V)')
+        
         line, = ax.plot(self.trap_axis/um, self.potentials[:,0])
         def update(data):
             line.set_ydata(data)
@@ -588,7 +591,7 @@ class WavPotential:
             for pot in self.potentials.T[::decimation]:
                 yield pot
 
-        im_ani = anim.FuncAnimation(fig, update, data_gen, interval=30)
+        im_ani = anim.FuncAnimation(fig, update, data_gen, interval=30) # interval: ms between new frames
         plt.show()
 
     def find_wells(self, time_idx, mode='quick', smoothing_ratio=80, polyfit_ratio=60, freq_threshold=10*kHz, roi_centre=0*um, roi_width=2356*um):
