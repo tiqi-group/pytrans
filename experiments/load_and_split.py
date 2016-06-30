@@ -42,7 +42,7 @@ def split_waveforms(
     
     # Data format is (alpha, slope, points from prev. state to this one)
     # Requires careful tuning
-    glob_sl_offs = 15
+    glob_sl_offs = 0
     interp_steps = 75
     split_params = [# (1.5e7, None, 500, np.linspace),
         # (1e6, None, 500, np.linspace),
@@ -169,7 +169,7 @@ def split_waveforms(
     return wf_split, splitting_wf
 
 def load_and_split(add_reordering=True, analyse_wfms=False):
-    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_06_29_v05.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_06_29_v06.dwc.json")
     # If file exists already, just load it to save time
     try:
         raise FileNotFoundError # uncomment to always regenerate file for debugging
@@ -182,7 +182,7 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
         wfs_load = WaveformSet(waveform_file=wf_load_path)
         wfs_load_and_split = wfs_load
 
-        n_transport = 1000
+        n_transport = 308
         load_to_split, wf_split = split_waveforms(0, 1.3, 960,
                                                [-844, 0], [1.3,1.3], [960, 960],
                                                -422.5, 1.3,
