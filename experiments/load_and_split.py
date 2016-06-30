@@ -42,13 +42,13 @@ def split_waveforms(
     
     # Data format is (alpha, slope, points from prev. state to this one)
     # Requires careful tuning
-    glob_sl_offs = 0
+    glob_sl_offs = -33.5
     interp_steps = 75
     split_params = [# (1.5e7, None, 500, np.linspace),
         # (1e6, None, 500, np.linspace),
         #(0, glob_sl_offs, 500, lambda a,b,n: erfspace(a,b,n,1.5)),
 #        (1e6, glob_sl_offs, 200, np.linspace), # TODO: uncomment this
-        (0, glob_sl_offs, interp_steps, np.linspace),
+        (0, glob_sl_offs, interp_steps*2, np.linspace),
         # (-3e6, None, 500, np.linspace),
         (-5e6, glob_sl_offs, interp_steps, np.linspace),
         (-1e7, glob_sl_offs, interp_steps, np.linspace),
@@ -104,6 +104,8 @@ def split_waveforms(
             asdf.plot_range_of_wfms(20)
             plt.show()
 
+    npts_final = npts
+
     final_splitting_params = find_wells_from_samples(
         latest_death_voltages, split_centre, polyfit_range)
     split_locs = np.array(final_splitting_params['locs'])/um
@@ -123,11 +125,11 @@ def split_waveforms(
     
     # Remove final segment of full voltage array, replace with manual
     # ramp to start of regular solver
-    final_ramp_start = full_wfm_voltages[:,[-npts]]
+    final_ramp_start = full_wfm_voltages[:,[-npts_final]]
     final_ramp_end = wf_finish_split.samples[:,[0]]
-    full_wfm_voltages = full_wfm_voltages[:,:-npts+1] # final_ramp_start voltage set
+    full_wfm_voltages = full_wfm_voltages[:,:-npts_final+1] # final_ramp_start voltage set
 
-    final_ramped_voltages = vlinspace(final_ramp_start, final_ramp_end, npts, linspace_fn)[:,1:]
+    final_ramped_voltages = vlinspace(final_ramp_start, final_ramp_end, npts_final*3//4, linspace_fn)[:,1:]
     full_wfm_voltages = np.hstack([full_wfm_voltages, final_ramped_voltages])
 
     # Append final splitting wfm
@@ -169,7 +171,7 @@ def split_waveforms(
     return wf_split, splitting_wf
 
 def load_and_split(add_reordering=True, analyse_wfms=False):
-    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_06_29_v06.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_06_30_v05.dwc.json")
     # If file exists already, just load it to save time
     try:
         raise FileNotFoundError # uncomment to always regenerate file for debugging
@@ -194,9 +196,14 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
             [[-844,0],[0,600]],
             [[1.3,1.3],[1.3,1.3]],
             [[960,960],[960,960]],
-            2*n_transport,
+            2.5*n_transport,
             "-far to centre, centre to +far")
-        wfs_load_and_split.waveforms.append(wf_far_to_exp)                                                       
+        wfs_load_and_split.waveforms.append(wf_far_to_exp)
+
+        animate_wfm = False
+        if animate_wfm:
+            pass
+            
         wfs_load_and_split.write(wf_path)
 
     # Create a single testing waveform, made up of the individual transports
