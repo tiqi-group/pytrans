@@ -125,27 +125,26 @@ def find_wells(potential, z_axis, ion_mass, mode='quick', smoothing_ratio=80, po
     #                         np.ones(pot.size/smoothing_ratio)/(pot.size*smoothing_ratio),
     #                         mode='same')
     min_indices_candidates, = ssig.argrelextrema(pot, np.less_equal, order=20) # find relative minima. order=x to suppress detecting most spurious minima
-
+    
+    # If present, remove spurious candidates at boundaries
+    start_end_idx = np.array([0,len(pot)-1],dtype='int')
+    min_indices_candidates = np.setdiff1d(min_indices_candidates,start_end_idx)
+    
     # Gather wells
     min_indices  = []
     offsets = []
     polys = []
     trap_freqs = []
     trap_locs = []
-    for mi in min_indices_candidates: # Loop over candidates
+    for mi in min_indices_candidates:
         if mode is 'quick':
-            # numerically evaluate from the raw data (noisy)
+            # numerically evaluate gradient from the raw data (noisy)
             grad = potg2[mi]/pot_resolution**2
-            # grads = potg2_filt[mi]/pot_resolution**2
+            # grad = potg2_filt[mi]/pot_resolution**2
         elif mode is 'precise':
-            ## Select region of interest
-            idx1 = mi-5
-            idx2 = mi+5
-            # Prevent out of bound errors
-            if idx1 < 0:
-                idx1 = 0
-            if idx2 > (pot.shape[0]-1):
-                idx2 = pot.shape[0]-1
+            # Select region of interest (preventing out of bounds errors)
+            idx1 = mi-5 if mi-5 > 0 else 0
+            idx2 = mi+5 if mi+5 < pot.shape[0] else pot.shape[0]
 
             # Fit quadratic to potential
             pfit = np.polyfit(trap_axis_roi[idx1:idx2], pot[idx1:idx2], 2)
@@ -174,13 +173,9 @@ class Moments:
     involving the trap"""
     def __init__(self,
                  moments_path = os.path.join(os.path.dirname(__file__), "moments_file", "DanielTrapMomentsTransport.mat"),
-                 potential_path = os.path.join(os.path.dirname(__file__), "moments_file", "trap_exp.pickle"),
-                #f_rf_drive = 115*MHz, # trap rf drive frequency (Hz)
-                #v_rf = 415 # trap rf drive voltage (Volts)
+                 potential_path = os.path.join(os.path.dirname(__file__), "moments_file", "trap.pickle"), # +- 1000um in axial, +-4um in radial direction
+                 #potential_path = os.path.join(os.path.dirname(__file__), "moments_file", "trap_exp.pickle"), # +-100um in axial, +-11um in radial direction
                  ):
-        
-        #self.f_rf_drive = f_rf_drive
-        #self.v_rf = v_rf
         
         self.load_trap_axis_potential_data(moments_path)
         self.load_3d_potential_data(potential_path)
@@ -223,11 +218,10 @@ class Moments:
         # Higher-res potential data [don't need for now]
     
     def load_3d_potential_data(self, potential_path):
-        """ Loads the potentials in 3d due to the individual trap electrodes as 
+        """ Loads the 3d potentials due to the individual trap electrodes as 
         obtained from simulations performed with the NIST BEM software. 
-        The current data covers +-100um in the trap direction, and +-11um in the
-        radial directions and is primarily used to calculate the radial frequencies
-        and principal axes within the experimental zone. 
+        This data is primarily used to calculate the radial frequencies
+        and principal axes within the trap. 
         """
         
         with open(potential_path, 'rb') as f:
@@ -257,6 +251,10 @@ class Moments:
         pot3d.x = x # vector containing the points along a single axis
         pot3d.y = y # i.e. y = [-11, -9, ..., 9, 11]*um
         pot3d.z = z
+        pot3d.nx = np.shape(x)[0]
+        pot3d.ny = np.shape(y)[0]
+        pot3d.nz = np.shape(z)[0]
+        pot3d.ntot = pot3d.nx * pot3d.ny * pot3d.nz # total number of points in mesh
         pot3d.xx = xx # vector with the x coordinates for all the mesh points, flattened
         pot3d.yy = yy # i.e. potentials['ElectrodeName'][ind] = V(xx[ind],yy[ind],zz[ind])
         pot3d.zz = zz
@@ -466,7 +464,7 @@ class Waveform:
 
         # ECOS is faster than CVXOPT, but can crash for larger problems
         prob = sum(states)
-        prob.solve(solver=global_solver, verbose=True)
+        prob.solve(solver=global_solver, verbose=global_solver_verbose)
 
         if False:
             # DEBUGGING ONLY
@@ -598,29 +596,17 @@ class WavPotential:
         return find_wells(self.potentials[:,time_idx], self.trap_axis, self.ion_mass, mode, smoothing_ratio, polyfit_ratio, freq_threshold, roi_centre, roi_width)
 
     ### Functions for analyzing/plotting the potential in 2d (radials), and 3d (axial+radials)
+    
+    def add_potentials(self, time_idx, slice_ind=None):
+        """ Adds potentials"""
         
-    def add_potentials_2d(self, time_idx):
-        """Calculates the potential due to all the electrodes (i.e. RF, control & shims) in the radial plane at the position of the axial well minimum."""
-        
-        ## Find relevant plane
-        
-        # Find minimum along trap axis
-        axial_wells = self.find_wells(time_idx,mode='quick',roi_centre=0,roi_width=100*um)
-        
-        assert len(axial_wells['locs']) > 0, "Found no trapping well in -100um to +100um"
-        assert len(axial_wells['locs']) < 2, "Found more than one trapping well in -100um to +100um"
-        
-        r0_x = axial_wells['locs'][0]
-        axial_freq = axial_wells['freqs'][0]
-
-        x_idx = ( np.abs(trap_mom.pot3d.x - r0_x) ).argmin()
-        pot_slice_ind = np.arange(41*12*12).reshape(41,12,12,order='F')[x_idx,:,:] # relevant indices of flattened array
-        
-        ## Add potentials 
-        
+        # Calculate the potential over the full region if no slice is specified
+        if slice_ind is None:
+            slice_ind = np.arange(trap_mom.pot3d.ntot)
+            
         # Add potential due to RF electrodes
         rf_scaling = self.rf_v**2/(self.ion_mass*self.rf_freq**2)
-        potential_2d = trap_mom.pot3d.potentials['RF_pondpot_1V1MHz1amu'][pot_slice_ind]*rf_scaling
+        potential = trap_mom.pot3d.potentials['RF_pondpot_1V1MHz1amu'][slice_ind]*rf_scaling
     
         # Add potential due to DC control electrodes
         for el_idx in range(len(physical_electrode_transform)):
@@ -633,22 +619,21 @@ class WavPotential:
                 # Bottom electrode, thus DCCa
                 electrode_name = 'DCCa' + str(el_idx-15)
     
-            potential_2d += self.waveform_samples[el_idx, time_idx]*trap_mom.pot3d.potentials[electrode_name][pot_slice_ind]
+            potential += self.waveform_samples[el_idx, time_idx]*trap_mom.pot3d.potentials[electrode_name][slice_ind]
     
         # Add potential due to shims
-        Vsa = self.shim_alpha/4 + self.shim_beta/4;
-        Vsb = -self.shim_alpha/4 + self.shim_beta/4;
-        Vsc = self.shim_alpha/4 - self.shim_beta/4;
-        Vsd = -self.shim_alpha/4 - self.shim_beta/4;
-        
-        potential_2d +=  Vsa*trap_mom.pot3d.potentials['DCSa'][pot_slice_ind] + \
-                         Vsb*trap_mom.pot3d.potentials['DCSb'][pot_slice_ind] + \
-                         Vsc*trap_mom.pot3d.potentials['DCSc'][pot_slice_ind] + \
-                         Vsd*trap_mom.pot3d.potentials['DCSd'][pot_slice_ind]
-
-        potential_2d = potential_2d.reshape(12,12)
-        
-        return potential_2d, r0_x, axial_freq
+        if self.shim_alpha is not 0 or self.shim_beta is not 0:
+            Vsa = self.shim_alpha/4 + self.shim_beta/4;
+            Vsb = -self.shim_alpha/4 + self.shim_beta/4;
+            Vsc = self.shim_alpha/4 - self.shim_beta/4;
+            Vsd = -self.shim_alpha/4 - self.shim_beta/4;
+            
+            potential +=  Vsa*trap_mom.pot3d.potentials['DCSa'][slice_ind] + \
+                             Vsb*trap_mom.pot3d.potentials['DCSb'][slice_ind] + \
+                             Vsc*trap_mom.pot3d.potentials['DCSc'][slice_ind] + \
+                             Vsd*trap_mom.pot3d.potentials['DCSd'][slice_ind]
+    
+        return potential
     
     def find_radials_2d(self, time_idx):
         """Calculates the axial and radial trap frequencies assuming the axial direction to be along the trap axis, thus
@@ -658,8 +643,24 @@ class WavPotential:
         # Notation:
         # V(y,z) = ay^2 + bz^2 + c*yz + d*y + e*z + f
         
-        V, r0_x, axial_freq = self.add_potentials_2d(time_idx)
+        # 1) Find relevant radial plane by finding minimum along trap axis
+        roi_c = 0.5*(trap_mom.pot3d.x[0] + trap_mom.pot3d.x[-1])
+        roi_w = 0.5*(trap_mom.pot3d.x[-1] - trap_mom.pot3d.x[0])
+        axial_wells = self.find_wells(time_idx,mode='precise',roi_centre=roi_c,roi_width=roi_w)
         
+        assert len(axial_wells['locs']) > 0, "Found no trapping well in ROI"
+        assert len(axial_wells['locs']) < 2, "Found more than one trapping well in ROI"
+        
+        r0_x = axial_wells['locs'][0]
+        axial_freq = axial_wells['freqs'][0]
+
+        x_idx = ( np.abs(trap_mom.pot3d.x - r0_x) ).argmin()
+        slice_ind = np.arange(trap_mom.pot3d.ntot).reshape(trap_mom.pot3d.nx,trap_mom.pot3d.ny,trap_mom.pot3d.nz,order='F')[x_idx,:,:] # relevant indices of flattened array
+        
+        V = self.add_potentials(time_idx, slice_ind)
+        V = V.reshape(trap_mom.pot3d.ny,trap_mom.pot3d.nz)
+        
+        # 2) Determine radial modes
         # Linear least squares fit
         p = np.linalg.lstsq(trap_mom.pot3d.fit_coord2d,V.flatten(order='F'))[0]
         a,b,c,d,e,f=p
@@ -685,8 +686,8 @@ class WavPotential:
             warnings.warn('Potential is anti-confining.')
         
         axes = np.zeros( (3,3) )
-        axes[0,0] = 1 # axial eigenvector comes first
-        if radial_axes[1,0] < 0: # align both radial eigenvectors in the upper half plane
+        axes[0,0] = 1 # put axial eigenvector first
+        if radial_axes[1,0] < 0: # align both radial eigenvectors in the upper half of the yz plane
             radial_axes[:,0] = -radial_axes[:,0]
         if radial_axes[1,1] < 0:
             radial_axes[:,1] = -radial_axes[:,1]
@@ -696,39 +697,6 @@ class WavPotential:
         r0[1:3] = r0_yz
         
         return omegas, axes, r0, offset, V
-        
-    def add_potentials_3d(self, time_idx):
-        """Calculates the 3d potential in the experimental zone of the trap due to all the electrodes (i.e. RF, control & shims) """
-        
-        # Add potential due to RF electrodes
-        rf_scaling = self.rf_v**2/(self.ion_mass*self.rf_freq**2)
-        potential_3d = trap_mom.pot3d.potentials['RF_pondpot_1V1MHz1amu']*rf_scaling
-        
-        # Add potential due to DC control electrodes
-        for el_idx in range(len(physical_electrode_transform)):
-            # Get electrode name
-            assert (0 <= el_idx) and (el_idx <= 29), "Electrode index out of bounds"
-            if el_idx < 15:
-                # Top electrode, thus DCCc (see comment at the top)
-                electrode_name = 'DCCc' + str(el_idx)
-            else:
-                # Bottom electrode, thus DCCa
-                electrode_name = 'DCCa' + str(el_idx-15)
-
-            potential_3d += self.waveform_samples[el_idx, time_idx]*trap_mom.pot3d.potentials[electrode_name]
-
-        # Add potential due to shims
-        Vsa = self.shim_alpha/4 + self.shim_beta/4;
-        Vsb = -self.shim_alpha/4 + self.shim_beta/4;
-        Vsc = self.shim_alpha/4 - self.shim_beta/4;
-        Vsd = -self.shim_alpha/4 - self.shim_beta/4;
-        
-        potential_3d +=  Vsa*trap_mom.pot3d.potentials['DCSa'] + \
-                         Vsb*trap_mom.pot3d.potentials['DCSb'] + \
-                         Vsc*trap_mom.pot3d.potentials['DCSc'] + \
-                         Vsd*trap_mom.pot3d.potentials['DCSd']
-        
-        return potential_3d
         
     def find_radials_3d(self,time_idx):
         """Calculate the three trapping frequencies and orthonormal directions given by the potential V(x,y,z)"""
@@ -745,10 +713,22 @@ class WavPotential:
         # Here, we do linear least squares fit to get p = (a,b,...,i,j) and then extract
         # the various properties of the potential from p.
     
-        V = self.add_potentials_3d(time_idx)
         
+        # 1) Find relevant region of 3d potential by finding minimum along trap axis
+        roi_c = 0.5*(trap_mom.pot3d.x[0] + trap_mom.pot3d.x[-1])
+        roi_w = 0.5*(trap_mom.pot3d.x[-1] - trap_mom.pot3d.x[0])
+        axial_wells = self.find_wells(time_idx,mode='precise',roi_centre=roi_c,roi_width=roi_w)
+        
+        assert len(axial_wells['locs']) > 0, "Found no trapping well in ROI"
+        assert len(axial_wells['locs']) < 2, "Found more than one trapping well in ROI"
+
+        x_idx = ( np.abs(trap_mom.pot3d.x - axial_wells['locs'][0]) ).argmin()
+        pot_slice_ind = np.arange(trap_mom.pot3d.ntot).reshape(trap_mom.pot3d.nx,trap_mom.pot3d.ny,trap_mom.pot3d.nz,order='F')[x_idx-5:x_idx+5+1,:,:].flatten() # +1 due to slice indexing
+        V = self.add_potentials(time_idx,slice_ind=pot_slice_ind)
+
+        # 2) Find axial & radial modes        
         # Linear least squares fit
-        p = np.linalg.lstsq(trap_mom.pot3d.fit_coord3d,V)[0]
+        p = np.linalg.lstsq(trap_mom.pot3d.fit_coord3d[pot_slice_ind,:],V)[0]
         a,b,c,d,e,f,g,h,i,j = p
         
         # Extract the trapping frequencies and corresponding axes:
@@ -779,8 +759,7 @@ class WavPotential:
         offset = p[-1] # j
 
         # Sort the results such that omegas[0] and axes[:,0] correspond to the axial mode
-        axial_mode_idx = axes[0,:].argmax()
-        axial_mode_idx  = 0
+        axial_mode_idx = np.abs(axes[0,:]).argmax() # idx of eigenvector with largest component along axial direction x
         if axial_mode_idx != 0:
             if axial_mode_idx == 1:    
                 permutation = np.array([axial_mode_idx,0,2],dtype='int')    
@@ -789,6 +768,12 @@ class WavPotential:
             # Put axial first                
             omegas = omegas[permutation]
             axes = axes[:,permutation]
+
+        # align both radial eigenvectors in the upper half of the yz plane
+        if axes[2,1] < 0: 
+            axes[:,1] = -axes[:,1]
+        if axes[2,2] < 0:
+            axes[:,2] = -axes[:,2]
     
         return omegas, axes, r0, offset, V
         
@@ -802,8 +787,7 @@ class WavPotential:
         if mode == '3d':
             omegas, axes, r0, offset, V_3d = self.find_radials_3d(time_idx)
             # Pick required 2d slice from 3d potential:
-            x_min_idx = ( np.abs(trap_mom.pot3d.x-r0[0]) ).argmin()
-            V = V_3d.reshape((41,12,12),order='F')[x_min_idx,:,:]            
+            V = V_3d.reshape((11,trap_mom.pot3d.ny,trap_mom.pot3d.nz))[5,:,:]
         elif mode == '2d':
             omegas, axes, r0, offset, V = self.find_radials_2d(time_idx)
         else:
@@ -814,32 +798,37 @@ class WavPotential:
         V = np.flipud(V)
         
         # Plot
-        res = ax.imshow(V, extent=[-12, 12, -12, 12], interpolation='none',cmap='viridis')
+        
+        # Scale plot to simulation extent (required due to imshow quirks)
+        if trap_mom.pot3d.ntot == 5904: # trap_exp.pickle, +-100um axially, +-11um radially
+            extent = 12
+            scalefactor = 7 # length of arrows
+        else: # trap.pickle, +-1000um axially, +-4um radially
+            extent = 4.5
+            scalefactor = 3 # length of arrows        
+        
+        res = ax.imshow(V, extent=[-extent, extent, -extent, extent], interpolation='none',cmap='viridis')
         cbar = plt.colorbar(res, fraction=0.046, pad=0.04) # Numbers ensure cbar has same size as plot
         ax.plot(r0[1]/um,r0[2]/um,'r.',markersize=10)
         soa =np.array( [ [r0[1]/um, r0[2]/um, axes[1,1],axes[2,1]], [r0[1]/um,r0[2]/um,axes[1,2],axes[2,2]] ])
         X0,Y0,XV,YV = zip(*soa)
-        scalefactor = 7 # length of arrows
         ax.quiver(X0,Y0,XV,YV,scale_units='xy',scale=1/scalefactor,color='white')
         
         # Annotate plot with trap freqs. and origin of well
-        ax.text(r0[1]/um + 2, r0[2]/um - 0.5, '{:.2f}'.format(omegas[0]/MHz) + ' MHz', color='white') # Axial freq
+        ax.text(r0[1]/um + extent/4, r0[2]/um, 'Ax: ' +'{:.2f}'.format(omegas[0]/MHz) + ' MHz', color='white') # Axial freq
         ax.text(r0[1]/um + scalefactor*axes[1,1], r0[2]/um + scalefactor*axes[2,1], '{:.2f}'.format(omegas[1]/MHz) + ' MHz', color='white') # Radial 1
         ax.text(r0[1]/um + scalefactor*axes[1,2], r0[2]/um + scalefactor*axes[2,2], '{:.2f}'.format(omegas[2]/MHz) + ' MHz', color='white') # Radial 2
-        ax.text(r0[1]/um - 4, r0[2]/um - 5, 'x0 = ' + '{:.2f}'.format(r0[0]/um) + ' um\n' + 'y0 = ' + '{:.2f}'.format(r0[1]/um) + ' um\n' + 'z0 = ' + '{:.2f}'.format(r0[2]/um) + ' um', color='white') # Centre locations
-                
+        ax.text(-extent/4, -extent/2, 'x0 = ' + '{:.2f}'.format(r0[0]/um) + ' um\n' + 'y0 = ' + '{:.2f}'.format(r0[1]/um) + ' um\n' + 'z0 = ' + '{:.2f}'.format(r0[2]/um) + ' um', color='white') # Centre locations
+        
         # Format plot
         ax.set_xlabel('y (um)')
         ax.set_ylabel('z (um)')
         plt.xticks(trap_mom.pot3d.y/um)
         plt.yticks(trap_mom.pot3d.z/um)
-        ax.set_xlim([-12,12])
-        ax.set_ylim([-12,12])
+        ax.set_xlim([-extent,extent])
+        ax.set_ylim([-extent,extent])
         cbar.set_label('Potential (V)')
-        ax.set_title(mode +' analysis of the radials')          
-
-
-        
+        ax.set_title(mode +' analysis of the radials')
 
 # TODO: RO: Eliminate calculate_potentials?! Seems to be a glorified wrapper for
 # the WavPotential init function.
@@ -965,8 +954,24 @@ if __name__ == "__main__":
                                       desc=wfm_desc+", {:.3f} MHz, {:.1f} meV".format(freq, offs) )
                 wf = Waveform(wdw)
                 return wf
-                
-            wf_exp_static_13 = static_waveform(50, 1.8, 1000, "static")
+
+            def transport_waveform(pos, freq, offs, timesteps, wfm_desc, linspace_fn=np.linspace):
+                wdw = WavDesiredWells(
+                    [linspace_fn(pos[0], pos[1], timesteps) * um],
+                    [linspace_fn(freq[0], freq[1], timesteps) * MHz],
+                    [linspace_fn(offs[0], offs[1], timesteps) * meV],
+
+                    solver_weights=local_weights,
+                    desired_potential_params=local_potential_params,
+
+                    desc=wfm_desc + ", {:.3f}->{:.3f} MHz, {:.1f}->{:.1f} meV".format(freq[0], freq[1], offs[0],
+                                                                                      offs[1])
+                )
+                return Waveform(wdw)
+
+            wf_exp_static_13 = static_waveform(50, 1.8, 500, "static")
+            #wf_exp_shallow_16 = transport_waveform([-500, 0], [1.8, 1.8], [1500, 1500], 51, "shallow")
+            #wf_exp_shallow_16 = transport_waveform([-500, 0], [1.8, 1.8], [1500, 1500], 501, "shallow")
             wf_list = [wf_exp_static_13]
             wfs_load = WaveformSet(wf_list)
             wfs_load.write(wf_path)
