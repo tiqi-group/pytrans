@@ -832,27 +832,6 @@ class WavPotential:
         ax.set_ylim([-extent,extent])
         cbar.set_label('Potential (V)')
         ax.set_title(mode +' analysis of the radials')
-
-# TODO: RO: Eliminate calculate_potentials?! Seems to be a glorified wrapper for
-# the WavPotential init function.
-def calculate_potentials(moments, waveform,
-                         real_electrode_idxes=physical_electrode_transform,
-                         ):
-    """Multiplies the moments matrix by the waveform matrix
-    (with suitable transformation based on real_electrode_idxes parameter)
-    
-    Note: watch out for scaling issues if real_electrode_indices is
-    not equal to the number of electrodes
-    
-    moments: Moments class containing potential data
-    waveform: Waveform class containing the voltage samples array
-
-    """
-    mom_trunc = moments.potentials[:,:len(real_electrode_idxes)]
-    waveform_trunc = waveform.samples[real_electrode_idxes,:]
-    
-    # RO: TODO: Ca mass probably does not belong here!
-    return WavPotential(waveform, mass_Ca)
     
 class WaveformSet:
     """Waveform set handler, both for pre-generated JSON waveform files
