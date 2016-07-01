@@ -3,7 +3,10 @@
 global_settings.py
 death_outputs_to_use.txt
 robin_temp/
+.idea/
 waveform_files/
+moments_file/trap.pickle
+moments_file/trap.vtk
 moments_file/trap_exp.mat
 moments_file/trap_exp.pickle
 moments_file/trap_exp.vtk
