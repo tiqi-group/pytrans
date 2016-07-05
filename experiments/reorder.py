@@ -3,6 +3,7 @@
 import sys
 sys.path.append("../")
 from pytrans import *
+from loading_conveyor import transport_waveform
 import copy as cp
 
 # This script can be used to append multiple reorder operations to an existing waveform file
@@ -42,6 +43,17 @@ def generate_reorder_wfms(wf, push_v_vec=[0.3], twist_v_vec=[0.5], timesteps=100
                 new_wfs.append(new_wf)
 
     return new_wfs
+
+def generate_reorder_2Be2Ca_wfms(start_freq, start_offs, target_freq_vec=[1.0], target_offs_vec=[1.0], timesteps_vec=[500]):
+    # elec_start = wf.samples # vert. array    
+    # assert wf.samples.shape == (32,1), "Please supply a static waveform for the reordering"
+    new_wfms = []
+    for freq, offs, timesteps in zip(target_freq_vec, target_offs_vec, timesteps_vec):
+        new_wf = transport_waveform([0,0], [start_freq, freq], [start_offs, offs],
+                               timesteps, "2Be2Ca reorder")
+        new_wf.samples = np.hstack([new_wf.samples, np.fliplr(new_wf.samples)])
+        new_wfms.append(new_wf)
+    return new_wfms
             
 if __name__ == "__main__":
     wf_path_conveyor = os.path.join(os.pardir, "waveform_files", "loading_conveyor_2016_06_08_v01.dwc.json")
