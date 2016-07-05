@@ -4,7 +4,7 @@ import sys
 sys.path.append("../")
 from pytrans import *
 
-def animate_wfms(wfm_tup, decimation=10, save_video_path=None):
+def animate_wfms_test(wfm_tup, decimation=10, save_video_path=None):
     # wfm_tup: must be a list of similar waveforms, whose samples matrices are the same size
     # decimation: factor reduction in sample number
     # save_video_path: if not None, saves the video to this path.
@@ -56,6 +56,6 @@ if __name__ == "__main__":
         wfps.animate_wfm(1)
 
     if parallel:
-        animate_wfms(wfps, 1)
+        animate_wfms_test(wfps, 1)
 
 

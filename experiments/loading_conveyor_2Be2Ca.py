@@ -150,7 +150,7 @@ def reordering_waveform(pos, freq, offs, timesteps, push_v, twist_v, wfm_desc):
     return wf
     
 def loading_conveyor(add_reordering=True, analyse_wfms=False):
-    wf_path = os.path.join(os.pardir, "waveform_files", "loading_2016_07_05_v01.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "loading_2Be2Ca_2016_07_05_v01.dwc.json")
 
     # If file exists already, just load it to save time
     try:

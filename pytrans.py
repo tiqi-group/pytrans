@@ -91,6 +91,15 @@ def vlinspace(start_vec, end_vec, npts, lin_fn = np.linspace):
     assert start_vec.shape[1] == end_vec.shape[1] == 1, "Need to input column vectors"
     return np.vstack(list(lin_fn(sv, ev, npts) for sv, ev in zip(start_vec, end_vec)))
 
+def find_coulomb_wells(samples, roi_centre, roi_width, ions=2):
+    # Similar to find_wells_from_samples, however numerically finds
+    # the locations and frequencies of some number of ions when
+    # subject to mutual Coulomb repulsion.
+
+    start_guess = find_wells_from_samples(samples, roi_centre, roi_width)
+    st()
+    start_freqs = None
+
 def find_wells_from_samples(samples, roi_centre, roi_width):
     # Convenience function to avoid having to generate a WavPotential
     # class for every sample (uses identical code)
@@ -170,6 +179,56 @@ def find_wells(potential, z_axis, ion_mass, mode='quick', smoothing_ratio=80, po
                     trap_locs.append(-poly[1]/2/poly[2])
 
     return {'min_indices':min_indices, 'offsets':offsets, 'freqs':trap_freqs, 'locs':trap_locs}
+
+def animate_wavpots(wavpots, parallel=True, decimation=10, save_video_path=None):
+    # wavpots: must be an iterable of similar WavPotentials
+    # 
+    # parallel: whether to animate the waveforms sequentially or at the same time.
+    # If at the same time, their samples matrices must be the same size.
+    # 
+    # decimation: factor reduction in sample number
+    # 
+    # save_video_path: if not None, saves the video to this path.
+    Writer = anim.writers['ffmpeg']
+    writer = Writer(fps=30, metadata=dict(artist="vnegnev"), bitrate=1800)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(1,1,1)
+    ax.set_ylim([-4,4])
+    ax.set_xlabel('trap location (um)')
+    ax.set_ylabel('potential (V)')    
+
+    if parallel:
+        lines = tuple(ax.plot(k.trap_axis/um, k.potentials[:,0])[0] for k in wavpots)
+        timesteps = wavpots[0].potentials.shape[1]
+        
+        def data_gen(i):
+            return tuple(wf.potentials[:, i*decimation] for wf in wavpots)
+
+        def animate(i):
+            ydata = data_gen(i)
+            for line, y in zip(lines, ydata):
+                line.set_ydata(y)
+    else: # sequential
+        wavpot1 = wavpots[0]
+        merged_potentials = np.hstack((wf.potentials for wf in wavpots))
+        timesteps = merged_potentials.shape[1]        
+        line, = ax.plot(wavpot1.trap_axis/um, merged_potentials[:,0]) # first potential
+
+        # def data_gen(i):
+        #     return merged_potentials[:,[i]]
+
+        def animate(i):
+            line.set_ydata(merged_potentials[:,[i]])
+            
+    im_ani = anim.FuncAnimation(fig, animate,
+                                frames = timesteps//decimation,
+                                interval=30, blit=False)
+
+    if save_video_path:
+        im_ani.save(save_video_path, fps=30, extra_args=['-vcodec', 'libx264'])
+    
+    plt.show()
     
 class Moments:
     """Spatial potential moments of the electrodes; used for calculations
@@ -373,7 +432,7 @@ class WavDesiredWells(WavDesired):
         if not ax:
             fig = plt.figure()
             ax = fig.add_subplot(1,1,1)
-            #st()
+
         ax.plot(trap_axis[self.roi_idx[idx]]/um, self.potentials[idx])
         ax.set_xlabel('trap location (um)')
         ax.set_ylabel('potential (V)')

@@ -42,7 +42,11 @@ def split_waveforms(
     
     # Data format is (alpha, slope, points from prev. state to this one)
     # Requires careful tuning
-    glob_sl_offs = -33.5
+
+    # glob_sl_offs = -33.5 # 2Ca splitting
+    glob_sl_offs = -35
+    # glob_sl_offs = -10 # 2Be splitting
+    
     interp_steps = 75
     split_params = [# (1.5e7, None, 500, np.linspace),
         # (1e6, None, 500, np.linspace),
@@ -95,8 +99,6 @@ def split_waveforms(
                                     npts, linspace_fn)[:,1:]
         full_wfm_voltages = np.hstack([full_wfm_voltages, ramped_voltages])
         latest_death_voltages = new_death_voltages
-
-        # st()
         
         if debug_splitting_parts:
             new_wf = Waveform("", 0, "", ramped_voltages)
@@ -171,7 +173,7 @@ def split_waveforms(
     return wf_split, splitting_wf
 
 def load_and_split(add_reordering=True, analyse_wfms=False):
-    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_06_30_v05.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_07_01_v04.dwc.json")
     # If file exists already, just load it to save time
     try:
         raise FileNotFoundError # uncomment to always regenerate file for debugging
@@ -180,29 +182,45 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
     except FileNotFoundError:
         print("Generating waveform ",wf_path)
         # use existing loading conveyor file to save time - need to regenerate if not available
-        wf_load_path = os.path.join(os.pardir, "waveform_files", "loading_2016_06_21_v01.dwc.json")
+        wf_load_path = os.path.join(os.pardir, "waveform_files", "loading_2016_07_01_v02.dwc.json")
         wfs_load = WaveformSet(waveform_file=wf_load_path)
         wfs_load_and_split = wfs_load
 
+        conveyor_offset = 960
+
         n_transport = 308
-        load_to_split, wf_split = split_waveforms(0, 1.3, 960,
-                                               [-844, 0], [1.3,1.3], [960, 960],
+        load_to_split, wf_split = split_waveforms(0, 1.3, conveyor_offset,
+                                               [-844, 0], [1.3,1.3], [conveyor_offset, conveyor_offset],
                                                -422.5, 1.3,
                                                n_transport=n_transport,
                                                electrode_subset=[3,4,5,6,7,18,19,20,21,22]) # left splitting group
         wfs_load_and_split.waveforms.append(load_to_split)
-        wfs_load_and_split.waveforms.append(wf_split)
         wf_far_to_exp = lc.transport_waveform_multiple(
             [[-844,0],[0,600]],
             [[1.3,1.3],[1.3,1.3]],
-            [[960,960],[960,960]],
+            [[conveyor_offset,conveyor_offset],[conveyor_offset,conveyor_offset]],
             2.5*n_transport,
             "-far to centre, centre to +far")
-        wfs_load_and_split.waveforms.append(wf_far_to_exp)
 
-        animate_wfm = False
-        if animate_wfm:
-            pass
+        wf_recombine_fast = lc.transport_waveform_multiple(
+            [[0,0], [600,0]],
+            [[1.3,1.3],[1.3,1.3]],
+            [[conveyor_offset,conveyor_offset],[conveyor_offset,conveyor_offset]],
+            n_transport,
+            "recombine, centre, +far -> centre, centre")
+
+        # Interpolate between end of splitting and start of parallel transport
+        split_trans_interp = vlinspace(wf_split.samples[:,[-1]], wf_far_to_exp.samples[:,[0]], 50)
+        wf_split.samples = np.hstack((wf_split.samples, split_trans_interp))
+        
+        wfs_load_and_split.waveforms.append(wf_split)
+        wfs_load_and_split.waveforms.append(wf_far_to_exp)
+        wfs_load_and_split.waveforms.append(wf_recombine_fast)
+
+        animate_split = False
+        if animate_split:
+            animate_wavpots([WavPotential(k) for k in (load_to_split, wf_split, wf_far_to_exp)], parallel=False, decimation=1)# , save_video_path='load_and_split.mp4')
+        
             
         wfs_load_and_split.write(wf_path)
 
@@ -237,20 +255,6 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
         print(pot_forward.find_wells(-1))
         pot_for_rev.animate_wfm(decimation=1)
         wfs_load_and_split.write(wf_path)
-
-    alter_splitting_offset = False
-    if alter_splitting_offset:
-        wf_dbg_path = os.path.join(os.pardir, "waveform_files", "load_split_debug_2016_06_22_v01.dwc.json")
-        wf_exp_to_split = wfs_load_and_split.find_waveform("trans from start -> split start")
-        wf_split = wfs_load_and_split.find_waveform("split apart")
-        wf_for_rev = wfs_load_and_split.find_waveform("then reverse")
-        wf_split.samples[physical_electrode_transform[[2, 17]], :] -= 0.8 # decrease voltage
-        wf_for_rev.samples = merge_waveforms_for_rev([wf_exp_to_split, wf_split]).samples
-
-        # check the behaviour
-        pot_for_rev = WavPotential(wf_for_rev)
-        pot_for_rev.animate_wfm()
-        wfs_load_and_split.write(wf_dbg_path)
 
 if __name__ == "__main__":
     load_and_split()
