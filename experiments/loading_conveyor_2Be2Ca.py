@@ -7,7 +7,7 @@ from reorder import *
 from loading_conveyor import local_weights, static_waveform, transport_waveform, transport_waveform_multiple, conveyor_waveform
     
 def loading_conveyor_2Be2Ca(add_reordering=True, analyse_wfms=False):
-    wf_path = os.path.join(os.pardir, "waveform_files", "loading_2Be2Ca_2016_07_05_v04.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "loading_2Be2Ca_2016_07_06_v02.dwc.json")
 
     # If file exists already, just load it to save time
     try:
@@ -18,8 +18,8 @@ def loading_conveyor_2Be2Ca(add_reordering=True, analyse_wfms=False):
         print("Generating waveform ",wf_path)
         n_load = 1001
         n_freq_change = 200
-        default_freq = 0.6
-        default_offs = -690
+        default_freq = 0.7
+        default_offs = +900
 
         # List of experimental-zone setting tuples
         exp_settings = [(0, default_freq, default_offs, "exp BeCa")]

@@ -5,8 +5,8 @@ sys.path.append("../")
 from pytrans import *
 from reorder import *
 
-local_weights = {'r0':1e-6,
-                 'r0_u_weights':np.ones(30)*1e-4,
+local_weights = {'r0':1e-5,
+                 'r0_u_weights':np.ones(30), # all electrodes uniform
                  'r0_u_ss':np.ones(30)*8,
                  'r1':1e-6,'r2':1e-7}
 

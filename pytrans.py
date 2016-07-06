@@ -8,6 +8,8 @@ import matplotlib.animation as anim
 import scipy.io as sio
 import scipy.signal as ssig
 import scipy.stats as sstat
+import scipy.interpolate as sintp
+import scipy.optimize as sopt
 import cvxpy as cvy
 import os
 import pdb
@@ -91,19 +93,76 @@ def vlinspace(start_vec, end_vec, npts, lin_fn = np.linspace):
     assert start_vec.shape[1] == end_vec.shape[1] == 1, "Need to input column vectors"
     return np.vstack(list(lin_fn(sv, ev, npts) for sv, ev in zip(start_vec, end_vec)))
 
-def find_coulomb_wells(samples, roi_centre, roi_width, ions=2):
+def roi_potential(potential, z_axis, roi_centre, roi_width):
+    assert len(potential) == len(z_axis), "Potential and z axis inputs are of different lengths"    
+    roi_l = roi_centre - roi_width
+    roi_r = roi_centre + roi_width
+    roi_idx = (roi_l <= z_axis) & (z_axis <= roi_r)
+    pot_roi = np.ravel(potential[roi_idx])
+    z_axis_roi = z_axis[roi_idx]
+    z_axis_idx = np.arange(z_axis.shape[0])[roi_idx]
+    return pot_roi, z_axis_roi, z_axis_idx
+
+def find_coulomb_wells(samples, roi_centre, roi_width, mass=mass_Ca, ions=2):
     # Similar to find_wells_from_samples, however numerically finds
     # the locations and frequencies of some number of ions when
     # subject to mutual Coulomb repulsion.
+    #
+    # samples: DEATH voltages in a column vector
+    # roi_centre: central point of region of interest (in m)
+    # roi_width: +/- from central point (in m); ROI is [roi_centre-roi_width, roi_centre+roi_width]
+    #
+    # Note: potential within ROI should be a more-or-less even function with
+    # the minimum/minima near the middle (e.g. a positive parabola or
+    # double-well quartic), otherwise solver may not converge.
 
     start_guess = find_wells_from_samples(samples, roi_centre, roi_width)
-    st()
-    start_freqs = None
+    num_wells = len(start_guess['freqs'])
+    assert 1 <= num_wells, "Too few wells found in ROI: widen ROI or check the potential." 
+    assert num_wells <= ions, "Too many wells found in ROI: reduce ROI or check the potential."
+
+    potential = np.dot(trap_mom.potentials[:,:len(physical_electrode_transform)],
+                       samples[physical_electrode_transform])
+    
+    pot, z_axis, _ = roi_potential(potential, trap_mom.transport_axis, roi_centre, roi_width)
+    pot_fn = sintp.interp1d(z_axis, pot, kind='quadratic')
+
+    def total_pot(z):
+        # z: array of ion positions (NOTE: only implemented for 2 ions for now!)
+        # z[1] must be > z[0]
+        z0, z1 = z[0], z[1]
+        if z1 <= z0 or z0 <= roi_centre-roi_width or z1 >= roi_centre+roi_width:
+            # should be way higher than any conceivable
+            # Coulomb-related potential, to discourage solver
+            return 10 # 10 eV should be way above anything normal
+        
+        pot_electrodes = pot_fn(z0) + pot_fn(z1)
+
+        # Coulomb repulsion
+        pot_coulomb = 2*electron_charge/(4*np.pi*epsilon_0) / np.abs(z1-z0) # 2x because 2 ions
+        return pot_electrodes + pot_coulomb
+    
+    minimize_result = sopt.minimize(total_pot,
+                                    [roi_centre, roi_centre+0.1*um],
+                                    method='Nelder-Mead',
+                                    options={'xtol':1e-12})
+
+    if not minimize_result.success:
+        warnings.warn("Coulomb solver did not converge, results may be untrustworthy!")
+
+    # ion positions
+    z0, z1 = minimize_result.x[0], minimize_result.x[1]
+    z_hires = np.linspace(z_axis[0], z_axis[-1], 1e3)
+    print(z0/um, z1/um)
+    plt.plot(z_axis, pot, 'g')
+    plt.plot(z_hires, pot_fn(z_hires),'b')
+    plt.plot([z0,z1], pot_fn([z0, z1]), 'o')
+    plt.show()
 
 def find_wells_from_samples(samples, roi_centre, roi_width):
     # Convenience function to avoid having to generate a WavPotential
     # class for every sample (uses identical code)
-    # TODO: extend arguments, get WavPotential to use this too
+    # TODO: extend arguments
     potential = np.dot(trap_mom.potentials[:,:len(physical_electrode_transform)],
                        samples[physical_electrode_transform])
     return find_wells(potential, trap_mom.transport_axis, mass_Ca, mode='precise',
@@ -118,16 +177,9 @@ def find_wells(potential, z_axis, ion_mass, mode='quick', smoothing_ratio=80, po
     freq_threshold: Minimum trapping frequency of the wells to store"""
 
     assert mode is 'quick' or mode is 'precise', "Input argument 'mode' only supports mode='quick' and mode='precise'"
-    assert len(potential) == len(z_axis), "Potential and z axis inputs are of different lengths"
 
-    # Extract potential within region of interest        
-    roi_l = roi_centre - roi_width
-    roi_r = roi_centre + roi_width
-    roi_idx = (roi_l <= z_axis) & (z_axis <= roi_r)
-    pot = np.ravel(potential[roi_idx])
-    trap_axis_roi = z_axis[roi_idx]
-    trap_axis_idx = np.arange(z_axis.shape[0])[roi_idx]
-            
+    # Extract potential within region of interest 
+    pot, trap_axis_roi, trap_axis_idx = roi_potential(potential, z_axis, roi_centre, roi_width)
     pot_resolution = z_axis[1]-z_axis[0]
 
     potg2 = np.gradient(np.gradient(pot))

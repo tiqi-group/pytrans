@@ -3,3 +3,6 @@
 global_solver = 'ECOS'
 # global_solver = 'MOSEK'
 # global_solver = 'GUROBI'
+
+# Solver verbosity (True/False)
+global_solver_verbose = True
