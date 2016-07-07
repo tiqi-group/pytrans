@@ -204,5 +204,14 @@ def solve_poly_ab(poly_moments, alpha=0, slope_offset=None, dc_offset=None,
 if __name__ == "__main__":
     #reproduce_fig2_home_steane()
     # look_at_wells_manually()
-    wp = WaveformSet(waveform_file="waveform_files/load_split_2Be2Ca_2016_07_06_v04.dwc.json").find_waveform("apart").samples[:,[174]]
+    wp = WaveformSet(waveform_file="waveform_files/load_split_2Be2Ca_2016_07_06_v04.dwc.json").find_waveform("apart").samples[:,[50]]
     find_coulomb_wells(wp, -422.5*um, 100*um)
+    # wpot = WavPotential(
+
+    
+    
+    # wp = WaveformSet(waveform_file = "waveform_files/load_split_2Be2Ca_2016_07_06_v04.dwc.json").find_waveform("static")
+
+    # wpot = WavPotential(wp, ion_mass=mass_Ca)
+    # wpot.plot_radials(0)
+    # plt.show()

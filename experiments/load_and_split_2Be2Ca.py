@@ -173,7 +173,7 @@ def split_waveforms_2Be2Ca(
     return wf_split, splitting_wf
 
 def load_and_split_2Be2Ca(add_reordering=True, analyse_wfms=False):
-    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2Be2Ca_2016_07_06_v04.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2Be2Ca_2016_07_07_v01.dwc.json")
     # If file exists already, just load it to save time
     try:
         raise FileNotFoundError # uncomment to always regenerate file for debugging
@@ -182,12 +182,12 @@ def load_and_split_2Be2Ca(add_reordering=True, analyse_wfms=False):
     except FileNotFoundError:
         print("Generating waveform ",wf_path)
         # use existing loading conveyor file to save time - need to regenerate if not available
-        wf_load_path = os.path.join(os.pardir, "waveform_files", "loading_2Be2Ca_2016_07_06_v02.dwc.json")
+        wf_load_path = os.path.join(os.pardir, "waveform_files", "loading_2Be2Ca_2016_07_07_v01.dwc.json")
         wfs_load = WaveformSet(waveform_file=wf_load_path)
         wfs_load_and_split_2Be2Ca = wfs_load
 
-        freq_2Be2Ca = 0.7
-        offs_2Be2Ca = +900
+        freq_2Be2Ca = 1.0
+        offs_2Be2Ca = +700
         
         freq_BeCa = 1.3
         offs_BeCa = +960

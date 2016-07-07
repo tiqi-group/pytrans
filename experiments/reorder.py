@@ -3,7 +3,7 @@
 import sys
 sys.path.append("../")
 from pytrans import *
-from loading_conveyor import transport_waveform
+from loading_conveyor import * #transport_waveform
 import copy as cp
 
 # This script can be used to append multiple reorder operations to an existing waveform file

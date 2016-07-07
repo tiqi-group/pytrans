@@ -24,6 +24,7 @@ from global_settings import *
 # Unit definitions, all in SI
 electron_charge = 1.60217662e-19 # coulombs
 atomic_mass_unit = 1.66053904e-27 # kg
+mass_Be = 9.012
 mass_Ca = 39.962591
 epsilon_0 = 8.854187817e-12 # farad/m
 um = 1e-6
@@ -152,12 +153,21 @@ def find_coulomb_wells(samples, roi_centre, roi_width, mass=mass_Ca, ions=2):
 
     # ion positions
     z0, z1 = minimize_result.x[0], minimize_result.x[1]
-    z_hires = np.linspace(z_axis[0], z_axis[-1], 1e3)
-    print(z0/um, z1/um)
-    plt.plot(z_axis, pot, 'g')
-    plt.plot(z_hires, pot_fn(z_hires),'b')
-    plt.plot([z0,z1], pot_fn([z0, z1]), 'o')
-    plt.show()
+
+    # local curvatures at ion positions (using the full potential well)
+    
+
+    plot_results = True
+    if plot_results:
+        z_hires = np.linspace(z_axis[0], z_axis[-1], 1e3)
+        print(z0/um, z1/um)
+        plt.plot(z_axis, pot, 'g')
+        plt.plot(z_hires, pot_fn(z_hires),'b')
+        plt.plot([z0,z1], pot_fn([z0, z1]), 'or')
+        plt.plot(start_guess['locs'], pot_fn(start_guess['locs']), 'ob')
+        plt.show()
+
+    
 
 def find_wells_from_samples(samples, roi_centre, roi_width):
     # Convenience function to avoid having to generate a WavPotential
@@ -601,7 +611,7 @@ class WavPotential:
     from the electrodes in both 1d (i.e. along the trap axis), 2d (i.e in the radial plane)
     and 3d (i.e. along the axial and radial directions). Generally to be used for analysing 
     and plotting existing waveforms"""
-    def __init__(self, waveform, ion_mass=mass_Ca, rf_v=415, rf_freq=115, shim_alpha=0, shim_beta=0):
+    def __init__(self, waveform, ion_mass=mass_Ca, rf_v=385, rf_freq=115.102, shim_alpha=0, shim_beta=0):
         
         ## Load relevant electrodes and reorder as needed
         # Warning: This is not very robust at the moment! Beware when modifying
@@ -891,7 +901,7 @@ class WavPotential:
     
         return omegas, axes, r0, offset, V
         
-    def plot_radials(self,time_idx, ax=None, mode='3d'):
+    def plot_radials(self,time_idx, ax=None, mode='3d', ax_title=None):
         """ Plots the potential in the radial plane together with the radial directions,
         well centre position, and all frequencies.""" 
         if not ax:
@@ -942,7 +952,9 @@ class WavPotential:
         ax.set_xlim([-extent,extent])
         ax.set_ylim([-extent,extent])
         cbar.set_label('Potential (V)')
-        ax.set_title(mode +' analysis of the radials')
+        if not ax_title:
+            ax_title = mode +' analysis of the radials'
+        ax.set_title(ax_title)
     
 class WaveformSet:
     """Waveform set handler, both for pre-generated JSON waveform files
