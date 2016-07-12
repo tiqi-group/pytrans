@@ -156,7 +156,6 @@ def find_coulomb_wells(samples, roi_centre, roi_width, mass=mass_Ca, ions=2):
 
     # local curvatures at ion positions (using the full potential well)
     
-
     plot_results = True
     if plot_results:
         z_hires = np.linspace(z_axis[0], z_axis[-1], 1e3)

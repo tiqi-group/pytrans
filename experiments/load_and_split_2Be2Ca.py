@@ -182,7 +182,7 @@ def load_and_split_2Be2Ca(add_reordering=True, analyse_wfms=False):
     except FileNotFoundError:
         print("Generating waveform ",wf_path)
         # use existing loading conveyor file to save time - need to regenerate if not available
-        wf_load_path = os.path.join(os.pardir, "waveform_files", "loading_2Be2Ca_2016_07_07_v01.dwc.json")
+        wf_load_path = os.path.join(os.pardir, "waveform_files", "loading_2Be2Ca_2016_07_11_v05.dwc.json")
         wfs_load = WaveformSet(waveform_file=wf_load_path)
         wfs_load_and_split_2Be2Ca = wfs_load
 
