@@ -127,10 +127,10 @@ def loading_conveyor_2Be2Ca(add_reordering=True, analyse_wfms=False):
         wfs_load.write(wf_path)
 
     if analyse_wfms:
-        pot = calculate_potentials(trap_mom, wfs_load.get_waveform(2))
-        plot_selection(pot)
+        pot = WavPotential(wfs_load.get_waveform(2))
+        pot.plot_one_wfm(0)
         print(pot.find_wells(0, mode='precise'))
-        print(pot.find_wells(100, mode='precise'))
+        plt.show()
 
 if __name__ == "__main__":
-    loading_conveyor_2Be2Ca(analyse_wfms=True)
+    loading_conveyor_2Be2Ca(analyse_wfms=False)

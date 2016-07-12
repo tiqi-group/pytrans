@@ -9,6 +9,7 @@ import scipy.io as sio
 import scipy.signal as ssig
 import scipy.stats as sstat
 import scipy.interpolate as sintp
+import scipy.misc as smis
 import scipy.optimize as sopt
 import cvxpy as cvy
 import os
@@ -104,7 +105,7 @@ def roi_potential(potential, z_axis, roi_centre, roi_width):
     z_axis_idx = np.arange(z_axis.shape[0])[roi_idx]
     return pot_roi, z_axis_roi, z_axis_idx
 
-def find_coulomb_wells(samples, roi_centre, roi_width, mass=mass_Ca, ions=2):
+def find_coulomb_wells(samples, roi_centre, roi_width, mass=mass_Ca, ions=2, plot_results=False):
     # Similar to find_wells_from_samples, however numerically finds
     # the locations and frequencies of some number of ions when
     # subject to mutual Coulomb repulsion.
@@ -117,22 +118,42 @@ def find_coulomb_wells(samples, roi_centre, roi_width, mass=mass_Ca, ions=2):
     # the minimum/minima near the middle (e.g. a positive parabola or
     # double-well quartic), otherwise solver may not converge.
 
+    trap_freqs_no_coulomb = []
+    trap_freqs = []
+    trap_locs_no_coulomb = []
+    trap_locs = []
+    
     start_guess = find_wells_from_samples(samples, roi_centre, roi_width)
     num_wells = len(start_guess['freqs'])
     assert 1 <= num_wells, "Too few wells found in ROI: widen ROI or check the potential." 
     assert num_wells <= ions, "Too many wells found in ROI: reduce ROI or check the potential."
 
+    for k in range(ions):
+        # wrap around/duplicate results for each ion if there are fewer wells than ions
+        guess_idx = np.mod(k, num_wells)
+        trap_locs_no_coulomb.append(start_guess['locs'][guess_idx])
+        trap_freqs_no_coulomb.append(start_guess['freqs'][guess_idx])         
+
     potential = np.dot(trap_mom.potentials[:,:len(physical_electrode_transform)],
                        samples[physical_electrode_transform])
     
     pot, z_axis, _ = roi_potential(potential, trap_mom.transport_axis, roi_centre, roi_width)
-    pot_fn = sintp.interp1d(z_axis, pot, kind='quadratic')
+    # Potential interpolation type
+    interp_splines = True
+    if interp_splines:
+        # s_opt = len(z_axis)*1e-12
+        s_opt = len(z_axis)*5e-12
+        # s_opt = 0
+        pot_fn = sintp.UnivariateSpline(z_axis, pot, s=s_opt, k=5)
+    else:
+        pot_fn = sintp.interp1d(z_axis, pot, kind='quadratic')
 
     def total_pot(z):
         # z: array of ion positions (NOTE: only implemented for 2 ions for now!)
         # z[1] must be > z[0]
         z0, z1 = z[0], z[1]
-        if z1 <= z0 or z0 <= roi_centre-roi_width or z1 >= roi_centre+roi_width:
+        z_min, z_max = z_axis[0], z_axis[-1]
+        if z1 <= z0 or z0 <= z_min or z1 >= z_max:
             # should be way higher than any conceivable
             # Coulomb-related potential, to discourage solver
             return 10 # 10 eV should be way above anything normal
@@ -155,25 +176,48 @@ def find_coulomb_wells(samples, roi_centre, roi_width, mass=mass_Ca, ions=2):
     z0, z1 = minimize_result.x[0], minimize_result.x[1]
 
     # local curvatures at ion positions (using the full potential well)
+    v0dd = smis.derivative(lambda z: total_pot((z, z1)), z0, 0.1*um, n=2, order=5)
+    v1dd = smis.derivative(lambda z: total_pot((z0, z)), z1, 0.1*um, n=2, order=5)
+
+    trap_locs.append(z0)
+    trap_locs.append(z1)
+
+    def curv2freq(vdd):
+        # vdd: double derivative of potential w.r.t. distance (in V/m^2)
+        # returns trap freq
+        return np.sqrt( electron_charge * vdd / (mass * atomic_mass_unit) ) /2/np.pi
     
-    plot_results = True
+    trap_freqs.append(curv2freq(v0dd))
+    trap_freqs.append(curv2freq(v1dd))
+
     if plot_results:
         z_hires = np.linspace(z_axis[0], z_axis[-1], 1e3)
         print(z0/um, z1/um)
+        plt.figure()
         plt.plot(z_axis, pot, 'g')
         plt.plot(z_hires, pot_fn(z_hires),'b')
         plt.plot([z0,z1], pot_fn([z0, z1]), 'or')
         plt.plot(start_guess['locs'], pot_fn(start_guess['locs']), 'ob')
+
+        # plt.figure()
+        # plt.plot(z_hires[4:-4], smis.derivative(pot_fn, z_hires[4:-4], 0.1*um, n=2, order=5), 'r')
         plt.show()
 
-    
+    return {'freqs_no_coulomb':trap_freqs_no_coulomb,
+            'freqs':trap_freqs,
+            'locs':trap_locs,
+            'locs_no_coulomb':trap_locs_no_coulomb}
+
+def calc_potential(samples):
+    # Calculate trap potential, ignoring shims, along full trap length
+    return np.dot(trap_mom.potentials[:,:len(physical_electrode_transform)],
+                  samples[physical_electrode_transform])
 
 def find_wells_from_samples(samples, roi_centre, roi_width):
     # Convenience function to avoid having to generate a WavPotential
     # class for every sample (uses identical code)
     # TODO: extend arguments
-    potential = np.dot(trap_mom.potentials[:,:len(physical_electrode_transform)],
-                       samples[physical_electrode_transform])
+    potential = calc_potential(samples)
     return find_wells(potential, trap_mom.transport_axis, mass_Ca, mode='precise',
                       roi_centre=roi_centre, roi_width=roi_width)
 

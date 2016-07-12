@@ -44,7 +44,8 @@ def split_waveforms(
     # Requires careful tuning
 
     # glob_sl_offs = -33.5 # 2Ca splitting
-    glob_sl_offs = -35
+    # glob_sl_offs = -35
+    glob_sl_offs = -100
     # glob_sl_offs = -10 # 2Be splitting
     
     interp_steps = 75
@@ -52,10 +53,14 @@ def split_waveforms(
         # (1e6, None, 500, np.linspace),
         #(0, glob_sl_offs, 500, lambda a,b,n: erfspace(a,b,n,1.5)),
 #        (1e6, glob_sl_offs, 200, np.linspace), # TODO: uncomment this
-        (0, glob_sl_offs, interp_steps*2, np.linspace),
+        (1e6, glob_sl_offs, interp_steps//2, np.linspace),        
+        (5e5, glob_sl_offs, interp_steps//2, np.linspace),
+        (0, glob_sl_offs, interp_steps//2, np.linspace),
         # (-3e6, None, 500, np.linspace),
-        (-5e6, glob_sl_offs, interp_steps, np.linspace),
-        (-1e7, glob_sl_offs, interp_steps, np.linspace),
+        (-2.5e6, glob_sl_offs, interp_steps//2, np.linspace),
+        (-5e6, glob_sl_offs, interp_steps//2, np.linspace),
+        (-7.5e6, glob_sl_offs, interp_steps//2, np.linspace),        
+        (-1e7, glob_sl_offs, interp_steps//2, np.linspace),
         (-1.5e7, glob_sl_offs, interp_steps, np.linspace)]
         # (-2e7, None, 50, np.linspace),
         # (-3e7, None, interp_steps, np.linspace),
@@ -69,7 +74,8 @@ def split_waveforms(
         # solver for the initial splitting conditions and fitting to it
         death_v_set = np.zeros([num_elecs, 1])
         sp_start = split_params[0]
-        elec_v_set,_,_ = sp.solve_poly_ab(polys, sp_start[0], sp_start[1])
+        elec_v_set,_,_ = sp.solve_poly_ab(polys, alpha=sp_start[0],
+                                          slope_offset=sp_start[1])
         death_v_set[physical_electrode_transform[electrode_subset]] = elec_v_set
         wavpot_fit = find_wells_from_samples(death_v_set,
                                              roi_centre=split_centre,
@@ -86,7 +92,7 @@ def split_waveforms(
     latest_death_voltages = wf_split.samples[:,[-1]] # square bracket to return column vector
     full_wfm_voltages = latest_death_voltages.copy()
 
-    debug_splitting_parts = False
+    plot_splitting_parts = False
     # Prepare full voltage array
     for (alpha, slope_offset, npts, linspace_fn) in split_params:
         elec_voltage_set,alpha,beta = sp.solve_poly_ab(polys, alpha,
@@ -100,10 +106,12 @@ def split_waveforms(
         full_wfm_voltages = np.hstack([full_wfm_voltages, ramped_voltages])
         latest_death_voltages = new_death_voltages
         
-        if debug_splitting_parts:
+        if plot_splitting_parts:
             new_wf = Waveform("", 0, "", ramped_voltages)
             asdf = WavPotential(new_wf)
             asdf.plot_range_of_wfms(20)
+            # plt.set_ylim([-1.470,-1.435])
+            # plt.set_xlim([-500,-350])            
             plt.show()
 
     npts_final = npts
@@ -173,7 +181,7 @@ def split_waveforms(
     return wf_split, splitting_wf
 
 def load_and_split(add_reordering=True, analyse_wfms=False):
-    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_07_01_v04.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_07_12_v01.dwc.json")
     # If file exists already, just load it to save time
     try:
         raise FileNotFoundError # uncomment to always regenerate file for debugging

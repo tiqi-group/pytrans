@@ -94,6 +94,11 @@ def look_at_wells_manually():
 
 import scipy.interpolate as interp
 
+def plot_split_voltages(samples, electrodes=[2,3,4,5,6,7,8]):
+    plt.plot(samples[physical_electrode_transform[electrodes],:].T)
+    plt.legend(list(str(k) for k in electrodes))
+    plt.show()
+
 def calc_beta(sep, alp):
     # sep: separation from ion to ion
     # alp: prefactor in quadratic
@@ -205,7 +210,7 @@ if __name__ == "__main__":
     #reproduce_fig2_home_steane()
     # look_at_wells_manually()
     wp = WaveformSet(waveform_file="waveform_files/load_split_2Be2Ca_2016_07_06_v04.dwc.json").find_waveform("apart").samples[:,[50]]
-    find_coulomb_wells(wp, -422.5*um, 100*um)
+    find_coulomb_wells(wp, -422.5*um, 100*um, plot_results=True)
     # wpot = WavPotential(
 
     

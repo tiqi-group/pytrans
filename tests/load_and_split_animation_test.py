@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Not really used any more, functionality moved to pytrans
 
 import sys
 sys.path.append("../")
