@@ -7,7 +7,7 @@ sys.path.append("../")
 from pytrans import *
 from splitting import *
 
-wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_07_12_v01.dwc.json")
+wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_07_15_v01.dwc.json")
 
 def coulomb_solve(sample, roi):
     wells = find_coulomb_wells(sample[np.newaxis].T, -422.5*um, roi)

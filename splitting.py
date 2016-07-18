@@ -172,8 +172,8 @@ def solve_poly_ab(poly_moments, alpha=0, slope_offset=None, dc_offset=None,
     beta_co = beta_c/beta_norm
     gamm_co = gamm_c/gamm_norm
     dc_co = dc_c/dc_norm
-    # Avoid going over-voltage
-    constr = [-max_elec_voltages[0] <= uopt, uopt <= max_elec_voltages[0]]
+    # Avoid going over-voltage (don't quite hit the limits)
+    constr = [-max_elec_voltages[0]+0.5 <= uopt, uopt <= max_elec_voltages[0]-0.5] 
 
     # electrode constraint pairs assume electrode moments are
     # adjacent, in order of increasing z and with the bottom row
@@ -190,9 +190,9 @@ def solve_poly_ab(poly_moments, alpha=0, slope_offset=None, dc_offset=None,
     obj = cvy.Maximize(cvy.sum_entries(beta_co*uopt))
     obj -= 100*cvy.Minimize(cvy.sum_squares(alph_co*uopt - alpha/alph_norm))
     # constr.append(cvy.sum_entries(alph_co*uopt)==alpha/alph_norm) # quadratic term
-    if dc_offset:
+    if dc_offset is not None:
         constr.append(cvy.sum_entries(dc_co*uopt)==dc_offset/dc_norm) # linear term ~= 0
-    if slope_offset:
+    if slope_offset is not None:
         # obj -= cvy.Minimize(cvy.sum_squares(gamm_co*uopt - slope_offset/gamm_norm))
         # polyder_moments = np.vstack((np.polyder(k) for k in poly_moments.T)).T
         obj -= 10*cvy.Minimize(cvy.sum_squares(gamm_co*uopt - slope_offset/gamm_norm))

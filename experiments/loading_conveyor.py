@@ -150,7 +150,7 @@ def reordering_waveform(pos, freq, offs, timesteps, push_v, twist_v, wfm_desc):
     return wf
     
 def loading_conveyor(add_reordering=True, analyse_wfms=False):
-    wf_path = os.path.join(os.pardir, "waveform_files", "loading_2016_07_05_v01.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "loading_2016_07_15_v01.dwc.json")
 
     # If file exists already, just load it to save time
     try:
@@ -163,15 +163,16 @@ def loading_conveyor(add_reordering=True, analyse_wfms=False):
         n_freq_change = 200
         default_freq = 1.3
         default_offs = -320
+        loading_pos = -1870 + 1
 
         # List of experimental-zone setting tuples
         exp_settings = [(0, default_freq, default_offs, "exp BeCa")]
         conveyor_offset = 960
         
         wf_load = transport_waveform(
-            [-1870, 0], [0.7, default_freq], [600, conveyor_offset], n_load, "Load -> exp")
+            [loading_pos, 0], [0.7, default_freq], [600, conveyor_offset], n_load, "Load -> exp")
         wf_load_conveyor = conveyor_waveform(
-            [-1870, 0], [0.7, default_freq], [600, conveyor_offset], n_load, "Load -> exp")
+            [loading_pos, 0], [0.7, default_freq], [600, conveyor_offset], n_load, "Load -> exp")
         wf_exp_static_13 = static_waveform(
             0, default_freq, conveyor_offset, "static")
         wf_exp_shallow_13 = transport_waveform(
