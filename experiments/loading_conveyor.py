@@ -149,8 +149,11 @@ def reordering_waveform(pos, freq, offs, timesteps, push_v, twist_v, wfm_desc):
     
     return wf
     
-def loading_conveyor(add_reordering=True, analyse_wfms=False):
-    wf_path = os.path.join(os.pardir, "waveform_files", "loading_2016_07_15_v01.dwc.json")
+def loading_conveyor(add_reordering=True,
+                     add_shallow_deep=True, # extra waveforms smoothly reducing depth of well, and static deeply-confining waveforms
+                     analyse_wfms=False,
+                     wf_path=os.path.join(os.pardir, "waveform_files", "loading_2016_07_15_v01.dwc.json"),
+                     extra_exp_settings=None):
 
     # If file exists already, just load it to save time
     try:
@@ -167,6 +170,8 @@ def loading_conveyor(add_reordering=True, analyse_wfms=False):
 
         # List of experimental-zone setting tuples
         exp_settings = [(0, default_freq, default_offs, "exp BeCa")]
+        if extra_exp_settings is not None:
+            exp_settings += extra_exp_settings
         conveyor_offset = 960
         
         wf_load = transport_waveform(
@@ -188,13 +193,16 @@ def loading_conveyor(add_reordering=True, analyse_wfms=False):
         deep_weights['r0'] = 1e-3        
         for pos, freq, offs, label in exp_settings:
             wf_exp_static = static_waveform(
-                pos, freq, offs, label)        
-            wf_exp_shallow = transport_waveform(
-                [pos, pos], [freq, 0.3], [offs, 0], n_freq_change, "shallow")
-            wf_exp_static_deep = static_waveform(
-                pos, freq, offs, label + " deep", solv_wghts=deep_weights)
+                pos, freq, offs, label)
+            if add_shallow_deep:
+                wf_exp_shallow = transport_waveform(
+                    [pos, pos], [freq, 0.3], [offs, 0], n_freq_change, "shallow")
+                wf_exp_static_deep = static_waveform(
+                    pos, freq, offs, label + " deep", solv_wghts=deep_weights)
 
-            wf_list += [wf_exp_static, wf_exp_shallow, wf_exp_static_deep]
+                wf_list += [wf_exp_static, wf_exp_shallow, wf_exp_static_deep]
+            else:
+                wf_list += [wf_exp_static]
 
         if add_reordering:
             wf_list += generate_reorder_wfms(wf_exp_dual_species,
