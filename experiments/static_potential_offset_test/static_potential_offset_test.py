@@ -136,8 +136,12 @@ def analyze_waveform(num_of_cases, plotting=True, printing=True, writing=False):
 
     if writing:
         os.system('touch delta_f_p.csv')
-        with open('delta_f_p.csv', 'w', newline='') as file:
-            csv.writer(file).writerows(delta_f_p)
+        with open('delta_f_p.csv', 'w', newline='') as dfp:
+            csv.writer(dfp).writerows(delta_f_p)
+
+        os.system('touch f_p.csv')
+        with open('f_p.csv', 'w', newline='') as fp:
+            csv.writer(fp).writerows(f_desired_p)
 
 if __name__ == "__main__":
     # load_to_exp()

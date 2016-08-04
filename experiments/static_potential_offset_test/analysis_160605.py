@@ -133,37 +133,71 @@ for ts, el, of, ef, mf, ac, nt in zip(timestamps, electrodes, offsets, expected_
 
 
 ############ Analysis ##############
-f_meas = np.zeros(len(timestamps))
-f_uncert = np.zeros(len(timestamps))
-for ts, i in zip(timestamps, range(len(timestamps))):
-    f_meas[i] = all_fit_chars[str(ts)]['parameters'][2]
-    f_uncert[i] = all_fit_chars[str(ts)]['errors'][2]
+# Write data from fits we care about to some new variables:
+f_meas = [0 for i in range(len(timestamps)-1)]
+fm_uncert = [0 for i in range(len(timestamps)-1)]
+for el, of, ts, i in zip(electrodes, offsets, timestamps, range(len(timestamps))):
+    # Seems reasonable to put the zero offset value first:
+    if i > 0 and i < 3:
+        key = 'electrode(s): ' + str(el) + ', ' + 'offset: ' + str(of)
+        f_meas[i] = {key: all_fit_chars[str(ts)]['parameters'][2]}
+        fm_uncert[i] = {key: all_fit_chars[str(ts)]['errors'][2]}
+    elif i == 3:
+        key = 'electrode(s): ' + str(el) + ', ' + 'offset: ' + str(of)
+        f_meas[0] = {key: all_fit_chars[str(ts)]['parameters'][2]}
+        fm_uncert[0] = {key: all_fit_chars[str(ts)]['errors'][2]}
+    elif i > 3:
+        key = 'electrode(s): ' + str(el) + ', ' + 'offset: ' + str(of)
+        f_meas[i-1] = {key: all_fit_chars[str(ts)]['parameters'][2]}
+        fm_uncert[i-1] = {key: all_fit_chars[str(ts)]['errors'][2]}
 
+# Calculate measured frequency shifts (I used the second measurement of the
+# frequency without any shifts instead of the first since the second one was a
+# more accurate measurement, but probably doesn't matter that much -- they're
+# both pretty close):
 delta_f_meas = []
 dfm_uncert = []
-for el, of, i in zip(electrodes, offsets, range(len(electrodes))):
+for el, of, ts in zip(electrodes, offsets, timestamps):
     if of != 0.:
         key = 'electrode(s): ' + str(el) + ', ' + 'offset: ' + str(of)
-        delta_f_meas.append({key: f_meas[i] - f_meas[3]})
-        dfm_uncert.append({key: f_uncert[i] + f_uncert[3]})
+        delta_f_meas.append({key: all_fit_chars[str(ts)]['parameters'][2] - all_fit_chars['184523']['parameters'][2]})
+        dfm_uncert.append({key: all_fit_chars[str(ts)]['errors'][2] - all_fit_chars['184523']['errors'][2]})
 
 # Run static potential offset test (make sure writing=True in 'analyze_waveform'):
 os.system(py_command + ' static_potential_offset_test.py')
-predicted_freq = []
-with open('delta_f_p.csv', 'r', newline='') as file:
-    for row in csv.reader(file):
-        predicted_freq.append(float(row[0])/1.e3)
+delta_f_predicted = []
+f_predicted = []
+with open('delta_f_p.csv', 'r', newline='') as dfp:
+    for row in csv.reader(dfp):
+        delta_f_predicted.append(float(row[0])/1.e3)
 
-# Plot results compared with predictions:
+with open('f_p.csv', 'r', newline='') as fp:
+    for row in csv.reader(fp):
+        f_predicted.append(float(row[0])/1.e6)
+
+# Plot results compared with predictions for frequencies:
+xaxis_labels = tuple( [j for j in f_meas[i].keys()][0] for i in range(len(f_meas)) )
+fm = np.array([[j for j in f_meas[i].values()][0] for i in range(len(f_meas))] )
+fm_err = np.array([[j for j in fm_uncert[i].values()][0] for i in range(len(fm_uncert))] )
+
+plt.plot(range(len(xaxis_labels)), np.array(f_predicted), 'rd')
+plt.errorbar(range(len(xaxis_labels)), fm, yerr=fm_err, fmt='ko')
+plt.xticks(range(len(xaxis_labels)), xaxis_labels, size='small', rotation=90)
+plt.tight_layout()
+plt.savefig(path_to_plot_asys + 'f_plot' + ext)
+plt.close()
+
+# Plot results compared with predictions for delta_freqs:
 xaxis_labels = tuple( [j for j in delta_f_meas[i].keys()][0] for i in range(len(delta_f_meas)) )
 dfm = np.array([[j for j in delta_f_meas[i].values()][0]*1.e3 for i in range(len(delta_f_meas))] )
 dfm_err = np.array([[j for j in dfm_uncert[i].values()][0]*1.e3 for i in range(len(dfm_uncert))] )
 
-plt.plot(range(len(xaxis_labels)), np.array(predicted_freq), 'rd')
+plt.plot(range(len(xaxis_labels)), np.array(delta_f_predicted), 'rd')
 plt.errorbar(range(len(xaxis_labels)), dfm, yerr=dfm_err, fmt='ko')
 plt.xticks(range(len(xaxis_labels)), xaxis_labels, size='small', rotation=90)
 plt.tight_layout()
 plt.savefig(path_to_plot_asys + 'delta_f_plot' + ext)
 plt.close()
 
+os.system('cd ' + path_to_plot_asys + ' && ' + plot_viewer + ' f_plot' + ext)
 os.system('cd ' + path_to_plot_asys + ' && ' + plot_viewer + ' delta_f_plot' + ext)
