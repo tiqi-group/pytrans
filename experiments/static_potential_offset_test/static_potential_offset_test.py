@@ -38,10 +38,23 @@ def single_waveform():
     # electrode_offsets = [[-0.15], [+0.15]]
     # electrode_combos = [[7],[7]]
 
-    electrode_offsets = [[-0.15], [0.15], [-0.4], [0.4], [-1], [1], [-0.4], [0.4], [-1], [1], [-4], [4], [-4], [4], [-8.5], [8.5], [-8.5], [8.5], [-0.4], [0.4], [-0.4], [0.4], [-1], [1], [-1], [1], [-4], [4], [-4], [4], [-8.5], [8.5], [-8.5], [8.5], [-8.5,-8.5,-8.5], [8.5,8.5,8.5], [-8.5,-8.5,-8.5], [8.5,8.5,8.5], [-8.5,-8.5,-8.5], [8.5,8.5,8.5], [-8.5,-8.5,-8.5], [8.5,8.5,8.5]]
+    electrode_offsets = []
+    with open('spot_offset_inputs.csv') as spot_off_in:
+        for offset in csv.reader(spot_off_in, delimiter=' '):
+            offset_list = []
+            for of in offset:
+                if of != '':
+                    offset_list.append(float(of))
+            electrode_offsets.append(offset_list)
     
-    electrode_combos = [[7],[7],[6],[6],[5],[5],[8],[8],[9],[9],[4],[4],[10],[10],[3],[3],[11],[11],[21],[21],[23],[23],[20],[20],[24],[24],[19],[19],[25],[25],[18],[18],[26],[26],[0,1,2],[0,1,2],[12,13,14],[12,13,14],[15,16,17],[15,16,17],[27,28,29],[27,28,29]]
-
+    electrode_combos = []
+    with open('spot_combo_inputs.csv') as spot_com_in:
+        for combo in csv.reader(spot_com_in, delimiter=' '):
+            combo_list = []
+            for co in combo:
+                if co != '':
+                    combo_list.append(int(co))
+            electrode_combos.append(combo_list)
 
     for ec, eo in zip(electrode_combos, electrode_offsets):
         assert len(ec) == len(eo), "Different number of electrodes and offsets requested!"
