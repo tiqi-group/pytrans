@@ -43,7 +43,7 @@ assert len(timestamps)==len(electrodes)==len(offsets)==len(expected_freqs)==len(
 def Lorentzian(x, fwhm, scale, x0, y0):
         return y0 - (scale / ((x - x0)**2 + (fwhm/2)**2))
 
-def Analyze(Plot_Data=True, Shell_Out=True, Open_Plots=True, Faulty_Voltage=0.0):
+def Analyze(Plot_Data=True, Shell_Out=True, Open_Plots=True, Gain_Error_Analysis=False, Gain_Error=1.0, Fault_Analysis=False, Faulty_Voltage=0.0):
     ########## Reading Data ############
     all_data_dict = {}
     all_fit_chars = {}
@@ -173,16 +173,27 @@ def Analyze(Plot_Data=True, Shell_Out=True, Open_Plots=True, Faulty_Voltage=0.0)
     
     electrode_combos_ref = [[7],[7],[6],[6],[5],[5],[8],[8],[9],[9],[4],[4],[10],[10],[3],[3],[11],[11],[21],[21],[23],[23],[20],[20],[24],[24],[19],[19],[25],[25],[18],[18],[26],[26],[0,1,2],[0,1,2],[12,13,14],[12,13,14],[15,16,17],[15,16,17],[27,28,29],[27,28,29]]
 
-    electrode_offsets = []
-    electrode_combos = []
-    for eor, ecr in zip(electrode_offsets_ref, electrode_combos_ref):
-        if ecr[0] == 10:
-            eor[0] = Faulty_Voltage
+    if Fault_Analysis: # Account for the effects of electrode 10 not working
+        electrode_offsets = []
+        electrode_combos = []
+        for eor, ecr in zip(electrode_offsets_ref, electrode_combos_ref):
+            if ecr[0] == 10:
+                eor[0] = Faulty_Voltage
+            else:
+                eor.append(Faulty_Voltage)
+                ecr.append(10)
+            electrode_offsets.append(eor)
+            electrode_combos.append(ecr)
+    else:
+        electrode_offsets = electrode_offsets_ref
+        electrode_combos = electrode_combos_ref
+
+    with open('gea.txt', 'w') as gea:
+        if Gain_Error_Analysis: # Multiply all voltages by a constant
+            gea.write('True\n')
         else:
-            eor.append(Faulty_Voltage)
-            ecr.append(10)
-        electrode_offsets.append(eor)
-        electrode_combos.append(ecr)
+            gea.write('False\n')
+        gea.write(str(Gain_Error))
 
     with open('spot_offset_inputs.csv', 'w') as spot_off_in:
         for eo in electrode_offsets:
@@ -239,4 +250,4 @@ def Analyze(Plot_Data=True, Shell_Out=True, Open_Plots=True, Faulty_Voltage=0.0)
     
 
 if __name__ == "__main__":
-    Analyze(Plot_Data=False, Shell_Out=False, Open_Plots=True, Faulty_Voltage=0.0)
+    Analyze(Plot_Data=False, Shell_Out=False, Open_Plots=True, Gain_Error_Analysis=True, Gain_Error=1.056, Fault_Analysis=True, Faulty_Voltage=0.0)
