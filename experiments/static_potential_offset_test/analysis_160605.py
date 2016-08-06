@@ -1,5 +1,8 @@
 # Data analysis script for static potential offset experiment on June 5th 2016.
 
+import sys
+sys.path.append("../../")
+from pytrans import physical_electrode_transform
 import os
 import csv
 import numpy as np
@@ -43,7 +46,7 @@ assert len(timestamps)==len(electrodes)==len(offsets)==len(expected_freqs)==len(
 def Lorentzian(x, fwhm, scale, x0, y0):
         return y0 - (scale / ((x - x0)**2 + (fwhm/2)**2))
 
-def Analyze(Plot_Data=True, Shell_Out=True, Open_Plots=True, Gain_Error_Analysis=False, Gain_Error=1.0, Fault_Analysis=False, Faulty_Voltage=0.0):
+def Analyze(Plot_Data=True, Shell_Out=True, Open_Plots=True, New_DEATH_Gain_Error=False, Gain_Error_Analysis=False, Gain_Error=1.0, Fault_Analysis=False, Faulty_Voltage=0.0):
     ########## Reading Data ############
     all_data_dict = {}
     all_fit_chars = {}
@@ -173,27 +176,37 @@ def Analyze(Plot_Data=True, Shell_Out=True, Open_Plots=True, Gain_Error_Analysis
     
     electrode_combos_ref = [[7],[7],[6],[6],[5],[5],[8],[8],[9],[9],[4],[4],[10],[10],[3],[3],[11],[11],[21],[21],[23],[23],[20],[20],[24],[24],[19],[19],[25],[25],[18],[18],[26],[26],[0,1,2],[0,1,2],[12,13,14],[12,13,14],[15,16,17],[15,16,17],[27,28,29],[27,28,29]]
 
+    electrode_offsets = electrode_offsets_ref
+    electrode_combos = electrode_combos_ref
+    if New_DEATH_Gain_Error:
+        for ec_l, i in zip(electrode_combos, range(len(electrode_combos))):
+            for ec, j in zip(ec_l, range(len(ec_l))):
+                if physical_electrode_transform[ec] < 16: # These are the New DEATH channels
+                    electrode_offsets[i][j] *= 1.027 # ~9.96V/9.70V
     if Fault_Analysis: # Account for the effects of electrode 10 not working
-        electrode_offsets = []
-        electrode_combos = []
-        for eor, ecr in zip(electrode_offsets_ref, electrode_combos_ref):
-            if ecr[0] == 10:
-                eor[0] = Faulty_Voltage
-            else:
-                eor.append(Faulty_Voltage)
-                ecr.append(10)
-            electrode_offsets.append(eor)
-            electrode_combos.append(ecr)
-    else:
-        electrode_offsets = electrode_offsets_ref
-        electrode_combos = electrode_combos_ref
+        for ec, i in zip(electrode_combos, range(len(electrode_offsets))):
+            if ec[0] == 10:
+                electrode_offsets[i][0] = Faulty_Voltage
+    if Gain_Error_Analysis:
+        for i in range(len(electrode_offsets)):
+            for j in range(len(electrode_offsets[i])):
+                electrode_offsets[i][j] *= Gain_Error
 
-    with open('gea.txt', 'w') as gea:
+    with open('analysis_options.txt', 'w') as anop:
         if Gain_Error_Analysis: # Multiply all voltages by a constant
-            gea.write('True\n')
+            anop.write('1\n') # True
         else:
-            gea.write('False\n')
-        gea.write(str(Gain_Error))
+            anop.write('0\n') # False
+        anop.write(str(Gain_Error) + '\n')
+        if Fault_Analysis: # Electrode 10 always produces a voltage value Faulty_Voltage
+            anop.write('1\n') # True
+        else:
+            anop.write('0\n') # False
+        anop.write(str(Faulty_Voltage) + '\n')
+        if New_DEATH_Gain_Error:
+            anop.write('1') # True
+        else:
+            anop.write('0') # False
 
     with open('spot_offset_inputs.csv', 'w') as spot_off_in:
         for eo in electrode_offsets:
@@ -250,4 +263,4 @@ def Analyze(Plot_Data=True, Shell_Out=True, Open_Plots=True, Gain_Error_Analysis
     
 
 if __name__ == "__main__":
-    Analyze(Plot_Data=False, Shell_Out=False, Open_Plots=True, Gain_Error_Analysis=True, Gain_Error=1.056, Fault_Analysis=True, Faulty_Voltage=0.0)
+    Analyze(Plot_Data=False, Shell_Out=False, Open_Plots=True, New_DEATH_Gain_Error=False, Gain_Error_Analysis=False, Gain_Error=1.047, Fault_Analysis=False, Faulty_Voltage=0.0)
