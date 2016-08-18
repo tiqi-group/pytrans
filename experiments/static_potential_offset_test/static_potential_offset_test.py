@@ -37,6 +37,8 @@ def single_waveform(Gain_Error_Analysis=False, Gain_Error=1.0, Fault_Analysis=Fa
             wf.samples[i][0] *= Gain_Error
     if Fault_Analysis:
         wf.samples[physical_electrode_transform[[10]]] = np.array([[Faulty_Voltage]]).T
+    # Un-comment the next line to simulate electrode 22 not working:
+    #wf.samples[physical_electrode_transform[[22]]] = np.array([[0.0]]).T
     wf_list.append(wf)
 
     # electrode_offsets = [[-10],[-10],[-10],[10],[10],[5],[1.5],[0.5],[1.5],[5],[10],[10],[-10],[-10],[-10],
