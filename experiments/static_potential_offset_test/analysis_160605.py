@@ -304,42 +304,47 @@ def Analyze(Plot_Data=True, Shell_Out=True, Open_Plots=True, New_DEATH_Gain_Erro
                 fm_err_old.append(float(row[2]))
                 f_predicted_old.append(float(row[3]))
 
+        diff_err_old = (np.array(fm_old) - np.array(f_predicted_old))*1000
+        diff_err = (np.array(fm) - np.array(f_predicted))*1000
+
         fig = plt.figure(figsize=(8,8.5))
         topmar = 0.04
-        botmar = 0.27
+        botmar = 0.24
         rightmar = 0.02
-        leftmar = 0.12
+        leftmar = 0.10
         gap = 0.02
         xlen = 1 - rightmar - leftmar
         ylen = 1 - botmar - gap - topmar
 
         ax1 = fig.add_axes([leftmar, botmar+gap+ylen/2.0, xlen, ylen/2.0])
-        ax1.plot(range(1, len(xaxis_labels_old)+1), f_predicted_old, 'kd')
-        ax1.errorbar(range(1, len(xaxis_labels_old)+1), fm_old, yerr=fm_err_old, fmt='co')
+        # ax1.plot(range(1, len(xaxis_labels_old)+1), f_predicted_old, 'kd')
+        # ax1.errorbar(range(1, len(xaxis_labels_old)+1), fm_old, yerr=fm_err_old, fmt='co')
+        ax1.bar(range(1, len(xaxis_labels_old)+1), diff_err_old, yerr=fm_err_old, color='k', ecolor='r')
         ax1.xaxis.set_ticks(range(1, len(xaxis_labels_old)+1))
         ax1.xaxis.set_ticklabels(tuple('' for i in range(len(xaxis_labels_old)) ) )
         plt.grid()
-        plt.title('Absolute Frequencies')
+        plt.title('Absolute Frequency, Differential Errors')
 
         ax2 = fig.add_axes([leftmar, botmar, xlen, ylen/2.0])
-        ax2.plot(range(1, len(xaxis_labels)+1), f_predicted, 'kd')
-        ax2.errorbar(range(1, len(xaxis_labels)+1), fm, yerr=fm_err, fmt='co')
+        # ax2.plot(range(1, len(xaxis_labels)+1), f_predicted, 'kd')
+        # ax2.errorbar(range(1, len(xaxis_labels)+1), fm, yerr=fm_err, fmt='co')
+        ax2.bar(range(1, len(xaxis_labels)+1), diff_err, yerr=fm_err, color='k', ecolor='r')
         ax2.xaxis.set_ticks(range(1, len(xaxis_labels)+1))
         ax2.xaxis.set_ticklabels(xaxis_labels, size='small', rotation=90)
         plt.grid()
 
-        fig.legend([ax2.get_children()[1], ax2.get_children()[4]], ['Predicted', 'Measured'], loc=3)
-        plt.figtext(0.02, 0.68, 'Frequency [MHz]', fontsize=13, rotation='vertical')
-        plt.figtext(0.93, 0.93, '(a)', fontsize=18)
-        plt.figtext(0.93, 0.57, '(b)', fontsize=18)
+        # fig.legend([ax2.get_children()[1], ax2.get_children()[4]], ['Predicted', 'Measured'], loc=3)
+        plt.figtext(0.03, 0.79, 'Differential Frequency Error [kHz]', fontsize=13, rotation='vertical')
+        plt.figtext(0.11, 0.92, '(a)', fontsize=18)
+        plt.figtext(0.11, 0.55, '(b)', fontsize=18)
         for o in fig.findobj(mpl.text.Text):
             o.set_fontname('serif')
 
-        fig.savefig(path_to_plot_asys + 'f_plot' + ext)
+        fig.savefig(path_to_plot_asys + 'diff_err_plot' + ext)
         plt.close(fig)
         del topmar, botmar, rightmar, leftmar, gap, xlen, ylen
 
-        os.system('cd plots/analysis/ && evince f_plot.pdf')
+        os.system('cd plots/analysis/ && evince diff_err_plot.pdf')
     
     # Plot results compared with predictions for delta_freqs:
     xaxis_labels = tuple( [j for j in delta_f_meas[i].keys()][0] for i in range(len(delta_f_meas)) )
@@ -464,7 +469,7 @@ def Analyze(Plot_Data=True, Shell_Out=True, Open_Plots=True, New_DEATH_Gain_Erro
     ax1top.set_xlim(ax1.get_xlim())
     ax1top.xaxis.set_ticklabels(offset_labels_top_p)
     ax1.xaxis.set_label_text('Electrodes')
-    ax1top.xaxis.set_label_text('Offsets [V]')
+    ax1top.xaxis.set_label_text('Voltage Offsets [V]')
     label1top = ax1top.xaxis.get_label()
     label1top.set_color(ofcolor)
     for tick1, tick2 in zip(ax1.xaxis.get_major_ticks(), ax1top.xaxis.get_major_ticks()):
@@ -479,7 +484,7 @@ def Analyze(Plot_Data=True, Shell_Out=True, Open_Plots=True, New_DEATH_Gain_Erro
     ax2.xaxis.set_ticks(np.arange(1.8, 2.2*len(electrode_labels_top_n)+1.8, 2.2))
     ax2.xaxis.set_ticklabels(offset_labels_top_n)
     ax2top = ax2.twiny()
-    ax2.xaxis.set_label_text('Offsets [V]')
+    ax2.xaxis.set_label_text('Voltage Offsets [V]')
     label2 = ax2.xaxis.get_label()
     label2.set_color(ofcolor)
     ax2top.xaxis.set_ticks(np.arange(1.8, 2.2*len(electrode_labels_top_n)+1.8, 2.2))
@@ -514,7 +519,7 @@ def Analyze(Plot_Data=True, Shell_Out=True, Open_Plots=True, New_DEATH_Gain_Erro
     ax4.xaxis.set_ticks(np.arange(1.8, 2.2*len(electrode_labels_bot_n)+1.8, 2.2))
     ax4.xaxis.set_ticklabels(offset_labels_bot_n)
     ax4top = ax4.twiny()
-    ax4.xaxis.set_label_text('Offsets [V]')
+    ax4.xaxis.set_label_text('Voltage Offsets [V]')
     label4 = ax4.xaxis.get_label()
     label4.set_color(ofcolor)
     ax4top.xaxis.set_ticks(np.arange(1.8, 2.2*len(electrode_labels_bot_n)+1.8, 2.2))
