@@ -196,6 +196,7 @@ def split_waveforms(
 
 def load_and_split(add_reordering=True, analyse_wfms=False):
     wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_07_15_v01.dwc.json")
+
     # If file exists already, just load it to save time
     try:
         raise FileNotFoundError # uncomment to always regenerate file for debugging
@@ -222,7 +223,7 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
         field_offsets = np.linspace(-29.5,-24.5,11)
         wfs_split = []
         for field_offset in field_offsets:
-            load_to_split, wf_split = split_waveforms(0, 1.3, conveyor_offset,
+            centre_to_split, wf_split = split_waveforms(0, 1.3, conveyor_offset,
                                                       [-844, 0], [1.3,1.3], [conveyor_offset, conveyor_offset],
                                                       -422.5, 1.3,
                                                       field_offset=field_offset,
@@ -235,7 +236,7 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
             wf_split.samples = np.hstack((wf_split.samples, split_trans_interp))
             wfs_split.append(wf_split)
 
-        wfs_load_and_split.waveforms.append(load_to_split)        
+        wfs_load_and_split.waveforms.append(centre_to_split)        
         wfs_load_and_split.waveforms += wfs_split       
         wf_recombine_fast = lc.transport_waveform_multiple(
             [[0,0], [600,0]],
@@ -249,7 +250,7 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
 
         animate_split = False
         if animate_split:
-            animate_wavpots([WavPotential(k) for k in (load_to_split, wf_split, wf_far_to_exp)], parallel=False, decimation=1)# , save_video_path='load_and_split.mp4')
+            animate_wavpots([WavPotential(k) for k in (centre_to_split, wf_split, wf_far_to_exp)], parallel=False, decimation=1)# , save_video_path='load_and_split.mp4')
         
             
         wfs_load_and_split.write(wf_path)

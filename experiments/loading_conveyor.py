@@ -36,7 +36,7 @@ def static_waveform(pos, freq, offs, wfm_desc, solv_wghts=local_weights):
     wf = Waveform(wdw)
     return wf
     
-def transport_waveform(pos, freq, offs, timesteps, wfm_desc, linspace_fn=np.linspace):
+def transport_waveform(pos, freq, offs, timesteps, wfm_desc, linspace_fn=np.linspace, Ts=10*ns):
     # pos, freq, offs: 2-element iterables specifying the start and end, in um, MHz and meV
     wdw = WavDesiredWells(
         [linspace_fn(pos[0], pos[1], timesteps)*um],
@@ -45,7 +45,7 @@ def transport_waveform(pos, freq, offs, timesteps, wfm_desc, linspace_fn=np.lins
 
         solver_weights=local_weights,
         desired_potential_params=local_potential_params,
-
+        Ts=Ts,
         desc=wfm_desc+", {:.3f}->{:.3f} MHz, {:.1f}->{:.1f} meV".format(freq[0], freq[1], offs[0], offs[1])
     )
     return Waveform(wdw)
