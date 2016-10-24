@@ -9,3 +9,5 @@ loading_conveyor.py : implements functions for:
 		    loading_conveyor - 
 
 trans_single.py : various routines for transport and shallow wells, used to measure the trap heating rate (20.09.2016)
+
+load_split_swept.py: splitting waveform file with many waveforms with which parameters can be swept by scanning in Ionizer
