@@ -194,6 +194,7 @@ if __name__ == "__main__":
     
     WavPot.plot_radials(0, mode='2d')
     WavPot.plot_radials(0, mode='3d')
+    plt.show()
     #WavPot.plot_radials(0, mode='2d')
     #wasd=WavPot.find_wells(0,mode='precise')
     #wasd2=WavPot.add_potentials_2d(0)

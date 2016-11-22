@@ -43,14 +43,16 @@ meV = 1e-3
 # DCCc(n) corresponds to T(n+1) = Index n
 # DCCa(n) corresponds to B(n+1) = Index n+15, i.e. DCCa14 corresponds to B15 = Index 29
                   
-# indices of which electrode each DEATH output drives, from 0->31
+# Values represent indices of which electrode each DEATH output
+# drives, from 0->31. E.g. dac_channel_transform[5] = 1 tells us that
+# DEATH output 5 drives Electrode 1.
 dac_channel_transform = np.array([0, 15,3,18, 1,16,4,19,   2,17,5,20,-7,14, 6,21,
                                   11,26,7,22,12,27,8,23,  13,28,9,24,-22,29,10,25])
 num_elecs = dac_channel_transform.size
 
 # locations of electrode voltages in the waveform files produced by
-# the system right now (0 -> 29) (i.e. which DEATH output drives each
-# electrode, from 0 -> 29)
+# the system right now (0 -> 29) (i.e. values represent which DEATH
+# output drives each electrode, from 0 -> 29)
 physical_electrode_transform = np.array([0,4,8,2,  6,10,14,18,  22,26,30,16,  20,24,13,
                                          1,5,9,3,  7,11,15,19,  23,27,31,17,  21,25,29])
 
@@ -70,7 +72,7 @@ physical_electrode_transform = np.array([0,4,8,2,  6,10,14,18,  22,26,30,16,  20
 # physical_electrode_transform = [4, 5, 0, 1]
 
 ## DEATH channel max voltage outputs
-max_elec_voltages = np.zeros(30)+9.0
+max_elec_voltages = np.zeros(30)+8.9
 max_death_voltages = max_elec_voltages[dac_channel_transform]
 
 min_elec_voltages = -max_elec_voltages
@@ -834,7 +836,7 @@ class WavPotential:
         
         # Extract the trapping frequencies and corresponding axes
         A = np.array( [ [a, c/2], [c/2, b] ] )
-        eigenvalues, radial_axes =  np.linalg.eig(A)        
+        eigenvalues, axes =  np.linalg.eig(A)        
         radial_freqs = np.sqrt(eigenvalues*2*electron_charge / (self.ion_mass*atomic_mass_unit) )/(2*np.pi)
         
         # Extract the trapping location by solving for the point where grad V = 0:
@@ -1069,10 +1071,12 @@ class WaveformSet:
         # assert idx >= 0, "Cannot access negative waveforms. Supply a 1-indexed string or 0-indexed int."
         return self.waveforms[idx]
 
-    def find_waveform(self, name_str):
+    def find_waveform(self, name_str, get_index=False):
         """ Tries to find a waveform whose description partially or fully matches name_str """
-        for w in self.waveforms:
+        for k, w in enumerate(self.waveforms):
             if name_str in w.desc:
+                if get_index:
+                    return k
                 return w
 
 if __name__ == "__main__":

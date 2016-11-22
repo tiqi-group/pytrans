@@ -7,17 +7,10 @@ from reorder import *
 import copy as cp
 
 # Loading conveyor stuff
-import loading_conveyor as lc
+import transport_utils as tu
 
 # Splitting (need to refactor soon - there's a lot of unneeded stuff in splitting.py!)
 import splitting as sp
-
-def merge_waveforms_for_rev(wfs):
-    samples_forward = np.hstack(wf.samples for wf in wfs)
-    samples_for_rev = np.hstack([samples_forward, np.fliplr(samples_forward)])
-    wf_for_rev = Waveform("forward, then reverse", 0, "", samples_for_rev)
-    wf_for_rev.set_new_uid()
-    return wf_for_rev
 
 def split_waveforms(
         start_loc, start_f, start_offset,
@@ -83,7 +76,7 @@ def split_waveforms(
         split_offset = wavpot_fit['offsets'][0]/meV
         
     # Initial waveform, transports from start to splitting location
-    wf_split = lc.transport_waveform(
+    wf_split = tu.transport_waveform(
         [start_loc, split_loc],
         [start_f, split_f],
         [start_offset, split_offset], n_transport, start_split_label)
@@ -125,7 +118,7 @@ def split_waveforms(
                                                                      
     # Final waveform, extends separation by 150um either way and goes to default well settings
     # (starting values must be set to the results of the splitting!)
-    wf_finish_split = lc.transport_waveform_multiple(
+    wf_finish_split = tu.transport_waveform_multiple(
         [[split_locs[0], final_locs[0]],[split_locs[1], final_locs[1]]],
         [[split_freqs[0],final_fs[0]],[split_freqs[1],final_fs[1]]],
         [[split_offsets[0], final_offsets[0]],[split_offsets[1], final_offsets[1]]],
@@ -158,7 +151,7 @@ def split_waveforms(
         full_wfm_voltages_filt = np.vstack((fwv_func(t_axis) for fwv_func in fwv_funcs))
             
     # splitting_wf = Waveform(split_label, 0, "", full_wfm_voltages)
-    splitting_wf = Waveform(split_label+", offset = " + str(field_offset*um) + " V/m",
+    splitting_wf = Waveform(split_label+", offset = " + "{0:6.3e}".format(field_offset*um) + " V/m",
                             0, "", full_wfm_voltages_filt)
     splitting_wf.set_new_uid()
     
@@ -195,7 +188,8 @@ def split_waveforms(
     return wf_split, splitting_wf
 
 def load_and_split(add_reordering=True, analyse_wfms=False):
-    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_07_15_v01.dwc.json")
+    """ Generate loading/splitting waveforms, with swept offset """
+    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_11_01_v04.dwc.json")
 
     # If file exists already, just load it to save time
     try:
@@ -205,27 +199,40 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
     except FileNotFoundError:
         print("Generating waveform ",wf_path)
         # use existing loading conveyor file to save time - need to regenerate if not available
+
+        # 1 or 2Ca
         wf_load_path = os.path.join(os.pardir, "waveform_files", "loading_2016_07_15_v01.dwc.json")
+
+        # 2Be or 2Be1Ca
+        wf_load_path = os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2016_07_11_v02.dwc.json")
         wfs_load = WaveformSet(waveform_file=wf_load_path)
-        wfs_load_and_split = wfs_load
+        # truncate waveforms after the first shallow one
+        reordering = False
+        if reordering:
+            wfs_load_and_split = wfs_load
+        else:
+            wfs_load_and_split = WaveformSet(
+                wfs_load.waveforms[:wfs_load.find_waveform("shallow", get_index=True)+1])
 
         conveyor_offset = 960
 
         n_transport = 308
+        f_well = 1.1
 
-        wf_far_to_exp = lc.transport_waveform_multiple(
+        wf_far_to_exp = tu.transport_waveform_multiple(
             [[-844,0],[0,600]],
-            [[1.3,1.3],[1.3,1.3]],
+            [[f_well,f_well],[f_well,f_well]],
             [[conveyor_offset,conveyor_offset],[conveyor_offset,conveyor_offset]],
             2.5*n_transport,
             "-far to centre, centre to +far")
         
-        field_offsets = np.linspace(-29.5,-24.5,11)
+        # field_offsets = np.linspace(-29.5,-24.5,11)
+        field_offsets = np.linspace(-75,-66,15)
         wfs_split = []
         for field_offset in field_offsets:
-            centre_to_split, wf_split = split_waveforms(0, 1.3, conveyor_offset,
-                                                      [-844, 0], [1.3,1.3], [conveyor_offset, conveyor_offset],
-                                                      -422.5, 1.3,
+            centre_to_split, wf_split = split_waveforms(0, f_well, conveyor_offset,
+                                                      [-844, 0], [f_well,f_well], [conveyor_offset, conveyor_offset],
+                                                      -422.5, f_well,
                                                       field_offset=field_offset,
                                                       n_transport=n_transport,
                                                       electrode_subset=[3,4,5,6,7,18,19,20,21,22]) # left splitting group
@@ -238,9 +245,9 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
 
         wfs_load_and_split.waveforms.append(centre_to_split)        
         wfs_load_and_split.waveforms += wfs_split       
-        wf_recombine_fast = lc.transport_waveform_multiple(
+        wf_recombine_fast = tu.transport_waveform_multiple(
             [[0,0], [600,0]],
-            [[1.3,1.3],[1.3,1.3]],
+            [[f_well,f_well],[f_well,f_well]],
             [[conveyor_offset,conveyor_offset],[conveyor_offset,conveyor_offset]],
             n_transport,
             "recombine, centre, +far -> centre, centre")

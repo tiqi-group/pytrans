@@ -25,9 +25,17 @@ def plot_selection(pot):
 
     plt.legend(legends)
     plt.show()
+
+def analyse_wfm_radials(wfm, wfm_idx=0):
+    wavpot = WavPotential(wfm, shim_beta=0, shim_alpha=0) #, rf_v=)
+    omegas, axes, r0, offset, V = wavpot.find_radials_3d(wfm_idx)
+    wavpot.plot_radials(wfm_idx, mode='3d')
+    # 2.76, 3.27 radials for 760meV offset
+    # 2.76, 3.35 radials for 960meV offset
+    plt.show()
     
 def loading_conveyor(add_reordering=True, analyse_wfms=False):
-    wf_path = os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2016_07_11_v02.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2016_11_15_v01.dwc.json")
 
     # If file exists already, just load it to save time
     try:
@@ -39,23 +47,33 @@ def loading_conveyor(add_reordering=True, analyse_wfms=False):
         n_load = 1001
         n_freq_change = 200
         default_freq = 1.1
-        default_offs = 960
+        default_offs = 500
+        # default_offs = 760
+
+        shallow_freq = 0.3
 
         # List of experimental-zone setting tuples
         exp_settings = [(0, default_freq, default_offs, "exp 2Be1Ca")]
-        conveyor_offset = 960
+        # conveyor_offset = 960
+        conveyor_offset = default_offs
+        shallow_offset = -550
         
         wf_load = tu.transport_waveform(
             [-1870, 0], [0.7, default_freq], [600, conveyor_offset], n_load, "Load -> exp")
         wf_load_conveyor = tu.conveyor_waveform(
             [-1870, 0], [0.7, default_freq], [600, conveyor_offset], n_load, "Load -> exp")
         wf_exp_static_13 = tu.static_waveform(
-            0, default_freq, conveyor_offset, "static")
+            0, default_freq, conveyor_offset, "static")        
         wf_exp_shallow_13 = tu.transport_waveform(
-            [0, 0], [default_freq, 0.3], [conveyor_offset, 0], n_freq_change, "shallow")
+            [0, 0], [default_freq, shallow_freq], [conveyor_offset, shallow_offset], n_freq_change, "shallow")
         wf_list = [wf_load, wf_load_conveyor,
                    wf_exp_static_13, wf_exp_shallow_13]
 
+        analyse_static_radials = True
+        if analyse_static_radials:
+            analyse_wfm_radials(wf_exp_shallow_13, -1)
+            # analyse_wfm_radials(wf_exp_static_13, 0)
+        
         # Default waveform, for reordering
         wf_exp_dual_species = tu.static_waveform(*exp_settings[0])
         
