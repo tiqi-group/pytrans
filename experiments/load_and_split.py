@@ -189,7 +189,7 @@ def split_waveforms(
 
 def load_and_split(add_reordering=True, analyse_wfms=False):
     """ Generate loading/splitting waveforms, with swept offset """
-    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_11_01_v04.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_11_22_v01.dwc.json")
 
     # If file exists already, just load it to save time
     try:
@@ -201,7 +201,7 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
         # use existing loading conveyor file to save time - need to regenerate if not available
 
         # 1 or 2Ca
-        wf_load_path = os.path.join(os.pardir, "waveform_files", "loading_2016_07_15_v01.dwc.json")
+        # wf_load_path = os.path.join(os.pardir, "waveform_files", "loading_2016_07_15_v01.dwc.json")
 
         # 2Be or 2Be1Ca
         wf_load_path = os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2016_07_11_v02.dwc.json")
@@ -227,7 +227,7 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
             "-far to centre, centre to +far")
         
         # field_offsets = np.linspace(-29.5,-24.5,11)
-        field_offsets = np.linspace(-75,-66,15)
+        field_offsets = np.linspace(-100,0,11)
         wfs_split = []
         for field_offset in field_offsets:
             centre_to_split, wf_split = split_waveforms(0, f_well, conveyor_offset,
