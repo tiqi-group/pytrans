@@ -35,7 +35,7 @@ def analyse_wfm_radials(wfm, wfm_idx=0):
     plt.show()
     
 def loading_conveyor(add_reordering=True, analyse_wfms=False):
-    wf_path = os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2016_11_15_v01.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2016_11_27_v01.dwc.json")
 
     # If file exists already, just load it to save time
     try:
@@ -47,7 +47,7 @@ def loading_conveyor(add_reordering=True, analyse_wfms=False):
         n_load = 1001
         n_freq_change = 200
         default_freq = 1.1
-        default_offs = 500
+        default_offs = 860
         # default_offs = 760
 
         shallow_freq = 0.3
