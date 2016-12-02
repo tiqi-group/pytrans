@@ -2,8 +2,8 @@
 import json
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-import mpl_toolkits.mplot3d
+# import matplotlib.patches as patches
+# import mpl_toolkits.mplot3d
 import matplotlib.animation as anim
 import scipy.io as sio
 import scipy.signal as ssig
@@ -978,9 +978,9 @@ class WavPotential:
         
         res = ax.imshow(V, extent=[-extent, extent, -extent, extent], interpolation='none',cmap='viridis')
         cbar = plt.colorbar(res, fraction=0.046, pad=0.04) # Numbers ensure cbar has same size as plot
-        ax.plot(r0[1]/um,r0[2]/um,'r.',markersize=10)
-        soa =np.array( [ [r0[1]/um, r0[2]/um, axes[1,1],axes[2,1]], [r0[1]/um,r0[2]/um,axes[1,2],axes[2,2]] ])
-        X0,Y0,XV,YV = zip(*soa)
+        ax.plot(r0[1]/um, r0[2]/um, 'r.', markersize=10)
+        soa = ( [r0[1]/um, r0[2]/um, axes[1,1],axes[2,1]], [r0[1]/um,r0[2]/um,axes[1,2],axes[2,2]] )
+        X0,Y0,XV,YV = zip(*soa) # pair up the above
         ax.quiver(X0,Y0,XV,YV,scale_units='xy',scale=1/scalefactor,color='white')
         
         # Annotate plot with trap freqs. and origin of well
