@@ -36,7 +36,7 @@ def analyse_wfm_radials(wfm, wfm_idx=0, plot_radials=True):
     return omegas, axes, r0, offset, V
     
 def loading_conveyor_2Be1Ca(add_reordering=True, analyse_wfms=False):
-    wf_path = os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2016_11_29_v01.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2016_12_06_v01.dwc.json")
 
     # If file exists already, just load it to save time
     try:
@@ -47,7 +47,7 @@ def loading_conveyor_2Be1Ca(add_reordering=True, analyse_wfms=False):
         print("Generating waveform ",wf_path)
         n_load = 1001
         n_freq_change = 200
-        default_freq = 1.1
+        default_freq = 1.2
         default_offs = 1000
         # default_offs = 760
 
@@ -121,4 +121,4 @@ def loading_conveyor_2Be1Ca(add_reordering=True, analyse_wfms=False):
         print(pot.find_wells(100, mode='precise'))
 
 if __name__ == "__main__":
-    loading_conveyor_2Be1Ca(analyse_wfms=True)
+    loading_conveyor_2Be1Ca(analyse_wfms=False)

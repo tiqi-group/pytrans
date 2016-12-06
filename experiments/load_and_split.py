@@ -189,7 +189,7 @@ def split_waveforms(
 
 def load_and_split(add_reordering=True, analyse_wfms=False):
     """ Generate loading/splitting waveforms, with swept offset """
-    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_11_22_v01.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2Be1Ca_2016_12_06_v01.dwc.json")
 
     # If file exists already, just load it to save time
     try:
@@ -204,20 +204,24 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
         # wf_load_path = os.path.join(os.pardir, "waveform_files", "loading_2016_07_15_v01.dwc.json")
 
         # 2Be or 2Be1Ca
-        wf_load_path = os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2016_07_11_v02.dwc.json")
+        wf_load_path = os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2016_12_06_v01.dwc.json")
         wfs_load = WaveformSet(waveform_file=wf_load_path)
         # truncate waveforms after the first shallow one
-        reordering = False
+        reordering = True
+        num_reorder_wfms = 4 if reordering else 0
         if reordering:
             wfs_load_and_split = wfs_load
         else:
             wfs_load_and_split = WaveformSet(
                 wfs_load.waveforms[:wfs_load.find_waveform("shallow", get_index=True)+1])
 
-        conveyor_offset = 960
+        default_freq = 1.2
+        default_offs = 1000
+        
+        conveyor_offset = default_offs
 
         n_transport = 308
-        f_well = 1.1
+        f_well = default_freq
 
         wf_far_to_exp = tu.transport_waveform_multiple(
             [[-844,0],[0,600]],
@@ -227,7 +231,7 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
             "-far to centre, centre to +far")
         
         # field_offsets = np.linspace(-29.5,-24.5,11)
-        field_offsets = np.linspace(-100,0,11)
+        field_offsets = np.linspace(-100,0,11 - num_reorder_wfms)
         wfs_split = []
         for field_offset in field_offsets:
             centre_to_split, wf_split = split_waveforms(0, f_well, conveyor_offset,
