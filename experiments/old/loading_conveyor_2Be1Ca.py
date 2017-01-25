@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+### DO NOT USE THIS FILE, IT IS OBSOLETE ###
+### USE loading_utils.py ###
+
 import sys
 sys.path.append("../")
 from pytrans import *
@@ -36,7 +39,7 @@ def analyse_wfm_radials(wfm, wfm_idx=0, plot_radials=True):
     return omegas, axes, r0, offset, V
     
 def loading_conveyor_2Be1Ca(add_reordering=True, analyse_wfms=False):
-    wf_path = os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2016_12_06_v01.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2016_12_07_v01.dwc.json")
 
     # If file exists already, just load it to save time
     try:
@@ -47,7 +50,7 @@ def loading_conveyor_2Be1Ca(add_reordering=True, analyse_wfms=False):
         print("Generating waveform ",wf_path)
         n_load = 1001
         n_freq_change = 200
-        default_freq = 1.2
+        default_freq = 1.1
         default_offs = 1000
         # default_offs = 760
 

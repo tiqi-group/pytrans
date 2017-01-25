@@ -85,12 +85,20 @@ max_death_samples = 16384
 electrode_coords = np.array([[-2535,-1535],[-1515,-1015],[-995,-695],[-675,-520],[-500,-345],[-325,-170],[-150,150],[170,325],[345,500],[520,675],[695,995],[1015,1515],[1535,2535],[-2535,-1535],[-1515,-1015],[-995,-695],[-675,-520],[-500,-345],[-325,-170],[-150,150],[170,325],[345,500],[520,675],[695,995],[1015,1515],[1535,2535]])
 
 ## Utility functions
+# Linspace replacement, producing an error function curve
 def erfspace(a, b, npts, erf_scaling=2.5):
     slope = b-a
     erf_y = sstat.norm.cdf(np.linspace(-erf_scaling, erf_scaling, npts))
     erf_y_slope = erf_y[-1]-erf_y[0]
     vout_zc = erf_y*slope/erf_y_slope # scale slope
     return vout_zc + a - vout_zc[0] # shift range
+
+# Linspace replacement, producing a line with 2 identical points at
+# the start and the end looking like a _/-
+def rampspace(a, b, npts, pad=10):
+    assert npts-2*pad >= 2, "Too few points requested for rampspace"
+    return np.hstack([np.repeat(a, pad),
+                      np.linspace(a, b, npts - 2*pad), np.repeat(b, pad)])
 
 def vlinspace(start_vec, end_vec, npts, lin_fn = np.linspace):
     """ Linspace on column vectors specifying the starts and ends"""

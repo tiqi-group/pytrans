@@ -8,6 +8,7 @@ import copy as cp
 
 # Loading conveyor stuff
 import transport_utils as tu
+import loading_utils as lu
 
 # Splitting (need to refactor soon - there's a lot of unneeded stuff in splitting.py!)
 import splitting as sp
@@ -79,7 +80,8 @@ def split_waveforms(
     wf_split = tu.transport_waveform(
         [start_loc, split_loc],
         [start_f, split_f],
-        [start_offset, split_offset], n_transport, start_split_label)
+        [start_offset, split_offset], n_transport, start_split_label,
+        linspace_fn=rampspace)
         
     latest_death_voltages = wf_split.samples[:,[-1]] # square bracket to return column vector
     full_wfm_voltages = latest_death_voltages.copy()
@@ -123,7 +125,8 @@ def split_waveforms(
         [[split_freqs[0],final_fs[0]],[split_freqs[1],final_fs[1]]],
         [[split_offsets[0], final_offsets[0]],[split_offsets[1], final_offsets[1]]],
         n_transport,
-        "")
+        "",
+        linspace_fn=rampspace)
     
     # Remove final segment of full voltage array, replace with manual
     # ramp to start of regular solver
@@ -189,7 +192,7 @@ def split_waveforms(
 
 def load_and_split(add_reordering=True, analyse_wfms=False):
     """ Generate loading/splitting waveforms, with swept offset """
-    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2Be1Ca_2016_12_06_v01.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2Be1Ca_2017_01_25_v01.dwc.json")
 
     # If file exists already, just load it to save time
     try:
@@ -197,15 +200,11 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
         wfs_load_and_split = WaveformSet(waveform_file=wf_path)
         print("Loaded waveform ",wf_path)
     except FileNotFoundError:
-        print("Generating waveform ",wf_path)
+        print("Generating waveform ", wf_path)
         # use existing loading conveyor file to save time - need to regenerate if not available
-
-        # 1 or 2Ca
-        # wf_load_path = os.path.join(os.pardir, "waveform_files", "loading_2016_07_15_v01.dwc.json")
-
-        # 2Be or 2Be1Ca
-        wf_load_path = os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2016_12_06_v01.dwc.json")
-        wfs_load = WaveformSet(waveform_file=wf_load_path)
+        wfs_load = lu.get_loading_wfms("loading_2Be1Ca_2017_01_25_v01.dwc.json",
+                                       add_reordering=True, ion_chain='2Be1Ca')
+        
         # truncate waveforms after the first shallow one
         reordering = True
         num_reorder_wfms = 4 if reordering else 0
@@ -215,7 +214,7 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
             wfs_load_and_split = WaveformSet(
                 wfs_load.waveforms[:wfs_load.find_waveform("shallow", get_index=True)+1])
 
-        default_freq = 1.2
+        default_freq = 1.1
         default_offs = 1000
         
         conveyor_offset = default_offs
@@ -228,7 +227,8 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
             [[f_well,f_well],[f_well,f_well]],
             [[conveyor_offset,conveyor_offset],[conveyor_offset,conveyor_offset]],
             2.5*n_transport,
-            "-far to centre, centre to +far")
+            "-far to centre, centre to +far",
+            linspace_fn=rampspace)
         
         # field_offsets = np.linspace(-29.5,-24.5,11)
         field_offsets = np.linspace(-100,0,11 - num_reorder_wfms)
@@ -254,7 +254,8 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
             [[f_well,f_well],[f_well,f_well]],
             [[conveyor_offset,conveyor_offset],[conveyor_offset,conveyor_offset]],
             n_transport,
-            "recombine, centre, +far -> centre, centre")
+            "recombine, centre, +far -> centre, centre",
+            linspace_fn=rampspace)
 
         wfs_load_and_split.waveforms.append(wf_far_to_exp)
         wfs_load_and_split.waveforms.append(wf_recombine_fast)
