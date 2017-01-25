@@ -12,6 +12,7 @@ def static_waveform(pos, freq, offs, wfm_desc, solv_wghts=default_weights):
     wdw = WavDesiredWells([pos*um],[freq*MHz],[offs*meV],
 
                           solver_weights=solv_wghts,
+                          # solver_weights=default_weights,
                           desired_potential_params=default_potential_params,
 
                           desc=wfm_desc+", {:.3f} MHz, {:.1f} meV".format(freq, offs)
@@ -19,8 +20,14 @@ def static_waveform(pos, freq, offs, wfm_desc, solv_wghts=default_weights):
     wf = Waveform(wdw)
     return wf
     
-def transport_waveform(pos, freq, offs, timesteps, wfm_desc, linspace_fn=np.linspace, Ts=10*ns):
+def transport_waveform(pos, freq, offs, timesteps, wfm_desc,
+                       linspace_fn=np.linspace, Ts=10*ns,
+                       interp_start=0, interp_end=0):
     # pos, freq, offs: 2-element iterables specifying the start and end, in um, MHz and meV
+    if interp_start:
+        timesteps -= interp_start
+    if interp_end:
+        timesteps -= interp_end
     wdw = WavDesiredWells(
         [linspace_fn(pos[0], pos[1], timesteps)*um],
         [linspace_fn(freq[0], freq[1], timesteps)*MHz],
@@ -31,9 +38,26 @@ def transport_waveform(pos, freq, offs, timesteps, wfm_desc, linspace_fn=np.lins
         Ts=Ts,
         desc=wfm_desc+", {:.3f}->{:.3f} MHz, {:.1f}->{:.1f} meV".format(freq[0], freq[1], offs[0], offs[1])
     )
-    return Waveform(wdw)
+    wf_wdw = Waveform(wdw)
+    if interp_start:
+        wdw_start = WavDesiredWells([pos[0]*um], [freq[0]*MHz], [offs[0]*meV],
+                                    solver_weights=default_weights,
+                                    desired_potential_params=default_potential_params,
+                                    Ts=Ts)
+        wfs_s = Waveform(wdw_start).samples
+        wf_wdw.samples = np.hstack([vlinspace(wfs_s, wf_wdw.samples[:,[0]], interp_start), wf_wdw.samples[:,1:]])
+    if interp_end:
+        wdw_end = WavDesiredWells([pos[1]*um], [freq[1]*MHz], [offs[1]*meV],
+                                    solver_weights=default_weights,
+                                    desired_potential_params=default_potential_params,
+                                    Ts=Ts)
+        wfs_e = Waveform(wdw_end).samples
+        wf_wdw.samples = np.hstack([wf_wdw.samples[:,:-1], vlinspace(wf_wdw.samples[:,[-1]], wfs_e, interp_end)])
+    return wf_wdw
 
-def transport_waveform_multiple(poss, freqs, offsets, timesteps, wfm_desc, linspace_fn = np.linspace):
+def transport_waveform_multiple(poss, freqs, offsets, timesteps, wfm_desc,
+                                linspace_fn=np.linspace):
+                                # interp_start=0, interp_end=0):
     # pos, freq, offs: M x 2-element lists specifying M separate
     # wells, like in transport_waveform()
     wdw = WavDesiredWells(

@@ -95,10 +95,10 @@ def erfspace(a, b, npts, erf_scaling=2.5):
 
 # Linspace replacement, producing a line with 2 identical points at
 # the start and the end looking like a _/-
-def rampspace(a, b, npts, pad=10):
-    assert npts-2*pad >= 2, "Too few points requested for rampspace"
-    return np.hstack([np.repeat(a, pad),
-                      np.linspace(a, b, npts - 2*pad), np.repeat(b, pad)])
+# def rampspace(a, b, npts, pad=1):
+#     assert npts-2*pad >= 2, "Too few points requested for rampspace"
+#     return np.hstack([np.repeat(a, pad),
+#                       np.linspace(a, b, npts - 2*pad), np.repeat(b, pad)])
 
 def vlinspace(start_vec, end_vec, npts, lin_fn = np.linspace):
     """ Linspace on column vectors specifying the starts and ends"""
@@ -597,10 +597,23 @@ class Waveform:
         states = []
 
         # Global constraints
+        assert (N < 2) or (N > 3), "Cannot have this number of timesteps, due to finite-diff approximations"        
 
         # Penalise deviations from default voltage
+        
         sw_r0_u_ss_m = np.tile(sw['r0_u_ss'], (N,1)).T # matrixized
-        cost = sw['r0'] * cvy.sum_squares(sw['r0_u_weights'] * (uopt - sw_r0_u_ss_m))
+        if False:
+            if N > 3:
+                cost = sw['r0'] * cvy.sum_squares(sw['r0_u_weights'] * (uopt[:,1:-1] - sw_r0_u_ss_m[:,1:-1]))
+                # Especially penalise deviations for the start and end voltages
+                extra_pen = 100
+                cost += extra_pen*sw['r0'] * cvy.sum_squares(sw['r0_u_weights']*(uopt[:,0] - sw_r0_u_ss_m[:,0]))
+                cost += extra_pen*sw['r0'] * cvy.sum_squares(sw['r0_u_weights']*(uopt[:,-1] - sw_r0_u_ss_m[:,-1]))
+            else:
+                cost = sw['r0'] * cvy.sum_squares(sw['r0_u_weights'] * (uopt - sw_r0_u_ss_m))
+        else:
+            # Default cost function
+            cost = sw['r0'] * cvy.sum_squares(sw['r0_u_weights'] * (uopt - sw_r0_u_ss_m))            
                     
         # Absolute voltage constraints
         min_elec_voltages_m = np.tile(min_elec_voltages, (N,1)).T
@@ -614,7 +627,6 @@ class Waveform:
         # Here, we use 2nd order approximations. For a table with coefficients see 
         # https://en.wikipedia.org/wiki/Finite_difference_coefficient
 
-        assert (N < 2) or (N > 3), "Cannot have this number of timesteps, due to finite-diff approximations"
         if N > 3:
             # Middle: central finite-difference approx
             cost += sw['r1']*cvy.sum_squares(0.5*(uopt[:,2:]-uopt[:,:-2]) )

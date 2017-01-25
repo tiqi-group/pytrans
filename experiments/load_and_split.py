@@ -81,7 +81,7 @@ def split_waveforms(
         [start_loc, split_loc],
         [start_f, split_f],
         [start_offset, split_offset], n_transport, start_split_label,
-        linspace_fn=rampspace)
+        interp_start=20, interp_end=20)
         
     latest_death_voltages = wf_split.samples[:,[-1]] # square bracket to return column vector
     full_wfm_voltages = latest_death_voltages.copy()
@@ -125,8 +125,7 @@ def split_waveforms(
         [[split_freqs[0],final_fs[0]],[split_freqs[1],final_fs[1]]],
         [[split_offsets[0], final_offsets[0]],[split_offsets[1], final_offsets[1]]],
         n_transport,
-        "",
-        linspace_fn=rampspace)
+        "")
     
     # Remove final segment of full voltage array, replace with manual
     # ramp to start of regular solver
@@ -192,7 +191,7 @@ def split_waveforms(
 
 def load_and_split(add_reordering=True, analyse_wfms=False):
     """ Generate loading/splitting waveforms, with swept offset """
-    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2Be1Ca_2017_01_25_v01.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2Be1Ca_2017_01_25_v02.dwc.json")
 
     # If file exists already, just load it to save time
     try:
@@ -227,11 +226,11 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
             [[f_well,f_well],[f_well,f_well]],
             [[conveyor_offset,conveyor_offset],[conveyor_offset,conveyor_offset]],
             2.5*n_transport,
-            "-far to centre, centre to +far",
-            linspace_fn=rampspace)
+            "-far to centre, centre to +far")
+            # interp_start=20, interp_end=20)
         
         # field_offsets = np.linspace(-29.5,-24.5,11)
-        field_offsets = np.linspace(-100,0,11 - num_reorder_wfms)
+        field_offsets = np.linspace(-20,80,11 - num_reorder_wfms)
         wfs_split = []
         for field_offset in field_offsets:
             centre_to_split, wf_split = split_waveforms(0, f_well, conveyor_offset,
@@ -254,13 +253,12 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
             [[f_well,f_well],[f_well,f_well]],
             [[conveyor_offset,conveyor_offset],[conveyor_offset,conveyor_offset]],
             n_transport,
-            "recombine, centre, +far -> centre, centre",
-            linspace_fn=rampspace)
+            "recombine, centre, +far -> centre, centre")
 
         wfs_load_and_split.waveforms.append(wf_far_to_exp)
         wfs_load_and_split.waveforms.append(wf_recombine_fast)
 
-        animate_split = False
+        animate_split = True
         if animate_split:
             animate_wavpots([WavPotential(k) for k in (centre_to_split, wf_split, wf_far_to_exp)], parallel=False, decimation=1)# , save_video_path='load_and_split.mp4')
         

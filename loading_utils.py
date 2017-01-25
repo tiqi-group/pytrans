@@ -7,7 +7,7 @@ from pytrans import *
 import transport_utils as tu
 import reorder as ror
 
-def get_loading_wfms(wfm_path, force_regen_wfm=True,
+def get_loading_wfms(wfm_path, force_regen_wfm=False,
                      default_freq=1.1, default_offs=1000, # used for static and return-from-shallow
                      shallow_freq=0.3, shallow_offs=-550, # used for shallow well
                      add_reordering=False,
@@ -17,6 +17,8 @@ def get_loading_wfms(wfm_path, force_regen_wfm=True,
     # If file exists already, just load it to save time
     try:
         # raise FileNotFoundError # uncomment to always regenerate file for debugging
+        if force_regen_wfm:
+            raise FileNotFoundError
         wfs_load = WaveformSet(waveform_file=wfm_path)
         print("Opened loading waveform ",wfm_path)
     except FileNotFoundError:
@@ -34,9 +36,9 @@ def get_loading_wfms(wfm_path, force_regen_wfm=True,
         wf_load_conveyor = tu.conveyor_waveform(
             [-1870, 0], [0.7, default_freq], [600, conveyor_offs], n_load, "Load -> exp")
         wf_exp_static = tu.static_waveform(
-            0, default_freq, conveyor_offs, "static")        
+            0, default_freq, conveyor_offs, "static")
         wf_exp_shallow = tu.transport_waveform(
-            [0, 0], [default_freq, shallow_freq], [conveyor_offs, shallow_offs], n_freq_change, "shallow")
+            [0, 0], [default_freq, shallow_freq], [conveyor_offs, shallow_offs], n_freq_change, "shallow", interp_start=10)
         wf_list = [wf_load, wf_load_conveyor,
                    wf_exp_static, wf_exp_shallow]
 
@@ -55,7 +57,6 @@ def get_loading_wfms(wfm_path, force_regen_wfm=True,
             ax = fig.gca(projection='3d')
             plt.plot(np.arange(n_timesteps), vec_mode1[:,0], vec_mode1[:,1], 'r')
             plt.plot(np.arange(n_timesteps), vec_mode2[:,0], vec_mode2[:,1], 'g')
-            # st()
             plt.show()
             # analyse_wfm_radials(wf_exp_static, 0)
         
@@ -64,12 +65,13 @@ def get_loading_wfms(wfm_path, force_regen_wfm=True,
         
         # Create more deeply confining wells (maybe does not help?)
         deep_weights=dict(tu.default_weights)
-        deep_weights['r0'] = 1e-3        
+        deep_weights['r0'] = 1e-3
+        
         for pos, freq, offs, label in exp_settings:
             wf_exp_static = tu.static_waveform(
-                pos, freq, offs, label)        
+                pos, freq, offs, label)
             wf_exp_shallow = tu.transport_waveform(
-                [pos, pos], [freq, 0.3], [offs, 0], n_freq_change, "shallow")
+                [pos, pos], [freq, shallow_freq], [offs, shallow_offs+1000], n_freq_change, "shallow", interp_start=10)
             wf_exp_static_deep = tu.static_waveform(
                 pos, freq, offs, label + " deep", solv_wghts=deep_weights)
 
@@ -82,8 +84,9 @@ def get_loading_wfms(wfm_path, force_regen_wfm=True,
         if add_reordering:
             wf_list += ror.generate_reorder_wfms(wf_exp_dual_species,
                                                  [1.0,1.5,2.0,2.5], [0], 100)
-        
+
         wfs_load = WaveformSet(wf_list)
+        # st()
         wfs_load.write(wfm_path)
 
     if analyse_wfms:
