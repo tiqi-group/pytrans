@@ -81,7 +81,7 @@ def split_waveforms(
         [start_loc, split_loc],
         [start_f, split_f],
         [start_offset, split_offset], n_transport, start_split_label,
-        interp_start=20, interp_end=20)
+        interp_start=20)
         
     latest_death_voltages = wf_split.samples[:,[-1]] # square bracket to return column vector
     full_wfm_voltages = latest_death_voltages.copy()
@@ -191,7 +191,7 @@ def split_waveforms(
 
 def load_and_split(add_reordering=True, analyse_wfms=False):
     """ Generate loading/splitting waveforms, with swept offset """
-    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2Be1Ca_2017_01_25_v02.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2Be1Ca_2017_01_27_v02.dwc.json")
 
     # If file exists already, just load it to save time
     try:
@@ -219,6 +219,7 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
         conveyor_offset = default_offs
 
         n_transport = 308
+        interp_n = n_transport//10
         f_well = default_freq
 
         wf_far_to_exp = tu.transport_waveform_multiple(
@@ -226,8 +227,8 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
             [[f_well,f_well],[f_well,f_well]],
             [[conveyor_offset,conveyor_offset],[conveyor_offset,conveyor_offset]],
             2.5*n_transport,
-            "-far to centre, centre to +far")
-            # interp_start=20, interp_end=20)
+            "-far to centre, centre to +far",
+            interp_start=40, interp_end=40)
         
         # field_offsets = np.linspace(-29.5,-24.5,11)
         field_offsets = np.linspace(-20,80,11 - num_reorder_wfms)
@@ -242,7 +243,7 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
 
             
             # Interpolate between end of splitting and start of parallel transport
-            split_trans_interp = vlinspace(wf_split.samples[:,[-1]], wf_far_to_exp.samples[:,[0]], 50)
+            split_trans_interp = vlinspace(wf_split.samples[:,[-1]], wf_far_to_exp.samples[:,[0]], interp_n)
             wf_split.samples = np.hstack((wf_split.samples, split_trans_interp))
             wfs_split.append(wf_split)
 
@@ -260,7 +261,7 @@ def load_and_split(add_reordering=True, analyse_wfms=False):
 
         animate_split = True
         if animate_split:
-            animate_wavpots([WavPotential(k) for k in (centre_to_split, wf_split, wf_far_to_exp)], parallel=False, decimation=1)# , save_video_path='load_and_split.mp4')
+            animate_wavpots([WavPotential(k) for k in (centre_to_split, wf_split, wf_far_to_exp)], parallel=False, decimation=1, save_video_path='load_and_split.mp4')
         
             
         wfs_load_and_split.write(wf_path)

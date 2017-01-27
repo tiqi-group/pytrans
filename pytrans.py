@@ -456,7 +456,8 @@ class WavDesired:
                  mass=mass_Ca,
                  num_electrodes=30,
                  desc=None,
-                 solver_weights=None):
+                 solver_weights=None,
+                 force_static_ends=False): # force solver result for 1st + last timesteps to be equal to the static case (exclude all effects like slew rate etc)
         self.desc = desc
         self.potentials = potentials
         self.roi_idx = roi_idx
@@ -481,6 +482,7 @@ class WavDesired:
         if solver_weights:
             # non-default solver parameters
             self.solver_weights.update(solver_weights)
+        self.force_static_ends = force_static_ends
 
     def plot(self, trap_axis, ax=None):
         """ ax: Matplotlib axes """
@@ -503,11 +505,14 @@ class WavDesiredWells(WavDesired):
                  mass=mass_Ca,
                  num_electrodes=30,
                  desc=None,
-                 solver_weights=None):
+                 solver_weights=None,
+                 force_static_ends=False):
         
-        potentials, roi_idx = self.desiredPotentials(positions, freqs, offsets, mass, desired_potential_params)
+        potentials, roi_idx = self.desiredPotentials(positions, freqs, offsets,
+                                                     mass, desired_potential_params)
         
-        super().__init__(potentials, roi_idx, Ts, mass, num_electrodes, desc, solver_weights)
+        super().__init__(potentials, roi_idx, Ts, mass, num_electrodes,
+                         desc, solver_weights, force_static_ends)
 
     def desiredPotentials(self, pos, freq, off, mass, des_pot_parm=None):
         # lists as a function of timestep [STILL ASSUMING ONE WELL PER POTENTIAL]
@@ -580,7 +585,8 @@ class Waveform:
             assert False, "Need some arguments in __init__."
 
     def solve_potentials(self, wdp):
-        """ Convert a desired set of potentials and ROIs into waveform samples"""
+        """ Convert a desired set of potentials and ROIs into waveform samples
+        wdp: waveform desired potential"""
         # TODO: make this more flexible, i.e. arbitrary-size voltages
         # max_elec_voltages should be copied from config_local.h in ionpulse_sdk
         # max_elec_voltages = np.ones(wdp.num_electrodes)*9.0 
@@ -596,28 +602,21 @@ class Waveform:
         uopt = cvy.Variable(wdp.num_electrodes, N)
         states = []
 
-        # Global constraints
-        assert (N < 2) or (N > 3), "Cannot have this number of timesteps, due to finite-diff approximations"        
+        ## Constrain the end voltages explicitly to match static case
+        ## (i.e. solve separate problem)
+        if wdp.force_static_ends:
+            uopt_ends = cvy.Variable(wdp.num_electrodes, 2)
 
-        # Penalise deviations from default voltage
-        
+        # Global constraints
+        assert (N < 2) or (N > 3), "Cannot have this number of timesteps, due to finite-diff approximations"
+
+        # Penalise deviations from default voltage        
         sw_r0_u_ss_m = np.tile(sw['r0_u_ss'], (N,1)).T # matrixized
-        if False:
-            if N > 3:
-                cost = sw['r0'] * cvy.sum_squares(sw['r0_u_weights'] * (uopt[:,1:-1] - sw_r0_u_ss_m[:,1:-1]))
-                # Especially penalise deviations for the start and end voltages
-                extra_pen = 100
-                cost += extra_pen*sw['r0'] * cvy.sum_squares(sw['r0_u_weights']*(uopt[:,0] - sw_r0_u_ss_m[:,0]))
-                cost += extra_pen*sw['r0'] * cvy.sum_squares(sw['r0_u_weights']*(uopt[:,-1] - sw_r0_u_ss_m[:,-1]))
-            else:
-                cost = sw['r0'] * cvy.sum_squares(sw['r0_u_weights'] * (uopt - sw_r0_u_ss_m))
-        else:
-            # Default cost function
-            cost = sw['r0'] * cvy.sum_squares(sw['r0_u_weights'] * (uopt - sw_r0_u_ss_m))            
-                    
+        cost = sw['r0'] * cvy.sum_squares(sw['r0_u_weights'] * (uopt - sw_r0_u_ss_m))
+        
         # Absolute voltage constraints
         min_elec_voltages_m = np.tile(min_elec_voltages, (N,1)).T
-        max_elec_voltages_m = np.tile(max_elec_voltages, (N,1)).T        
+        max_elec_voltages_m = np.tile(max_elec_voltages, (N,1)).T
         constr = [min_elec_voltages_m <= uopt, uopt <= max_elec_voltages_m]
 
         # Absolute symmetry constraints
@@ -649,7 +648,7 @@ class Waveform:
             # indices tend to vary in length between timesteps)
             cost += cvy.sum_squares(trap_mom.potentials[roi, :]*uopt[:,kk] - pot)
 
-        states.append( cvy.Problem(cvy.Minimize(cost), constr) )
+        states.append( cvy.Problem(cvy.Minimize(cost), constr) )        
 
         # ECOS is faster than CVXOPT, but can crash for larger problems
         prob = sum(states)

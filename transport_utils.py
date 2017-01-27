@@ -56,8 +56,8 @@ def transport_waveform(pos, freq, offs, timesteps, wfm_desc,
     return wf_wdw
 
 def transport_waveform_multiple(poss, freqs, offsets, timesteps, wfm_desc,
-                                linspace_fn=np.linspace):
-                                # interp_start=0, interp_end=0):
+                                linspace_fn=np.linspace, Ts=10*ns,
+                                interp_start=0, interp_end=0):
     # pos, freq, offs: M x 2-element lists specifying M separate
     # wells, like in transport_waveform()
     wdw = WavDesiredWells(
@@ -67,9 +67,28 @@ def transport_waveform_multiple(poss, freqs, offsets, timesteps, wfm_desc,
 
         solver_weights=default_weights,
         desired_potential_params=default_potential_params,
-
-        desc=wfm_desc+" {:d} wells".format(len(poss)))
-    return Waveform(wdw)
+        Ts=Ts,
+        desc=wfm_desc+" {:d} wells".format(len(poss)))    
+    wf_wdw = Waveform(wdw)
+    if interp_start:
+        wdw_start = WavDesiredWells(tuple(p[0]*um for p in poss),
+                                    tuple(f[0]*MHz for f in freqs),
+                                    tuple(o[0]*meV for o in offsets),
+                                    solver_weights=default_weights,
+                                    desired_potential_params=default_potential_params,
+                                    Ts=Ts)
+        wfs_s = Waveform(wdw_start).samples
+        wf_wdw.samples = np.hstack([vlinspace(wfs_s, wf_wdw.samples[:,[0]], interp_start), wf_wdw.samples[:,1:]])
+    if interp_end:
+        wdw_end = WavDesiredWells(tuple(p[1]*um for p in poss),
+                                    tuple(f[1]*MHz for f in freqs),
+                                    tuple(o[1]*meV for o in offsets),
+                                    solver_weights=default_weights,
+                                    desired_potential_params=default_potential_params,
+                                    Ts=Ts)
+        wfs_e = Waveform(wdw_end).samples
+        wf_wdw.samples = np.hstack([wf_wdw.samples[:,:-1], vlinspace(wf_wdw.samples[:,[-1]], wfs_e, interp_end)])
+    return wf_wdw
 
 def conveyor_waveform(pos, freq, offs, timesteps, wfm_desc, linspace_fn=np.linspace):
     pts_for_new_wfm = timesteps//5
