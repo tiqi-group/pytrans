@@ -1,5 +1,6 @@
 *~
 *.pyc
+*.mp4
 global_settings.py
 death_outputs_to_use.txt
 robin_temp/
