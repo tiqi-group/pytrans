@@ -12,7 +12,7 @@ import splitting as sp
 
 def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False):
     """ Generate loading/splitting waveforms, with swept offset """
-    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2Be1Ca_2017_02_08_v04.dwc.json")
+    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2Be1Ca_2017_02_09_v04.dwc.json")
 
     # If file exists already, just load it to save time
     try:
@@ -52,7 +52,9 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False):
             interp_start=40, interp_end=40)
 
         # field_offsets = np.linspace(-300,300,11 - num_reorder_wfms) # Wide scan, to establish what range is reasonable
-        field_offsets = np.linspace(-70, 30, 11-num_reorder_wfms)
+        # field_offsets = np.linspace(-75, -55, 11-num_reorder_wfms)
+        field_offsets = np.linspace(-300, 300, 11-num_reorder_wfms)
+        # field_offsets = [-63]
         wfs_split = []
         for field_offset in field_offsets:
             centre_to_split, wf_split = sp.split_waveforms(0, f_well, conveyor_offset,
@@ -85,7 +87,7 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False):
             animate_wavpots([WavPotential(k) for k in (centre_to_split, wf_split, wf_far_to_exp)], parallel=False, decimation=1, save_video_path='load_and_split.mp4')
         
             
-        wfs_load_and_split.write(wf_path)
+        wfs_load_and_split.write(wf_path, fix_voltage_limits=True)
 
     # Create a single testing waveform, made up of the individual transports
     add_testing_waveform = False
@@ -117,7 +119,7 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False):
 
         print(pot_forward.find_wells(-1))
         pot_for_rev.animate_wfm(decimation=1)
-        wfs_load_and_split.write(wf_path)
+        wfs_load_and_split.write(wf_path, fix_voltage_limits=True)
 
 if __name__ == "__main__":
     load_and_split_2Be1Ca()

@@ -431,26 +431,35 @@ def split_waveforms(
     # field_offset = -33.5 # 2Ca splitting
     # field_offset = -35
     # field_offset = -10 # 2Be splitting
-    
-    interp_steps = 75
-    split_params = [# (1.5e7, None, 500, np.linspace),
-        # (1e6, None, 500, np.linspace),
-        #(0, field_offset, 500, lambda a,b,n: erfspace(a,b,n,1.5)),
-#        (1e6, field_offset, 200, np.linspace), # TODO: uncomment this
-#        (1e6, field_offset, interp_steps//2, np.linspace),        
-        (5e5, field_offset, interp_steps, np.linspace),
-        (0, field_offset, interp_steps//2, np.linspace),
-        # (-3e6, None, 500, np.linspace),
-        (-2.5e6, field_offset, interp_steps//2, np.linspace),
-        (-5e6, field_offset, interp_steps//2, np.linspace),
-        (-7.5e6, field_offset, interp_steps//2, np.linspace),        
-        (-1e7, field_offset, interp_steps//2, np.linspace),
-        (-1.5e7, field_offset, interp_steps//2, np.linspace)]
-        # (-2e7, None, 50, np.linspace),
-        # (-3e7, None, interp_steps, np.linspace),
-        # (-4e7, None, interp_steps, np.linspace),
-        # (-5e7, None, 150, np.linspace),
-        # (-6e7, None, 300, np.linspace)]
+
+    piecewise_polys = True
+    if piecewise_polys:    
+        interp_steps = 70
+        split_params = [# (1.5e7, None, 500, np.linspace),
+            # (1e6, None, 500, np.linspace),
+            #(0, field_offset, 500, lambda a,b,n: erfspace(a,b,n,1.5)),
+    #        (1e6, field_offset, 200, np.linspace), # TODO: uncomment this
+    #        (1e6, field_offset, interp_steps//2, np.linspace),        
+            # (4e5, field_offset, 2*interp_steps//3, np.linspace),
+            (0, field_offset, interp_steps//2, np.linspace),
+            # (-3e6, None, 500, np.linspace),
+            (-2.5e6, field_offset, interp_steps//2, np.linspace),
+            (-5e6, field_offset, interp_steps//2, np.linspace),
+            (-7.5e6, field_offset, interp_steps//2, np.linspace),        
+            (-1e7, field_offset, interp_steps//2, np.linspace),
+            (-1.5e7, field_offset, interp_steps//2, np.linspace),
+
+            # 09.02.2017: extra offsets to get potentials a bit more separated before ramps
+            (-2e7, field_offset, interp_steps//2, np.linspace)
+            # (-3e7, field_offset, interp_steps//2, np.linspace)
+        ]
+            # (-2e7, None, 50, np.linspace),
+            # (-3e7, None, interp_steps, np.linspace),
+            # (-4e7, None, interp_steps, np.linspace),
+            # (-5e7, None, 150, np.linspace),
+            # (-6e7, None, 300, np.linspace)]
+    else:
+        pass
 
     if not split_offset:
         # automatically figure out the potential offset by running the
@@ -467,13 +476,14 @@ def split_waveforms(
         split_offset = wavpot_fit['offsets'][0]/meV
         
     # Initial waveform, transports from start to splitting location
-    wf_split = tu.transport_waveform(
-        [start_loc, split_loc],
-        [start_f, split_f],
-        [start_offset, split_offset], n_transport, start_split_label,
-        interp_start=20)
+    wf_to_splitting = tu.transport_waveform([start_loc, split_loc],
+                                            [start_f, split_f],
+                                            [start_offset, split_offset],
+                                            n_transport, start_split_label,
+                                            interp_start=20,
+                                            interp_end=20)
         
-    latest_death_voltages = wf_split.samples[:,[-1]] # square bracket to return column vector
+    latest_death_voltages = wf_to_splitting.samples[:,[-1]] # square bracket to return column vector
     full_wfm_voltages = latest_death_voltages.copy()
 
     plot_splitting_parts = False
@@ -481,10 +491,11 @@ def split_waveforms(
     for (alpha, slope_offset, npts, linspace_fn) in split_params:
         elec_voltage_set,alpha,beta = solve_poly_ab(polys, alpha,
                                             slope_offset=slope_offset, dc_offset=None)
-        new_death_voltages = latest_death_voltages.copy()
+
+        new_death_voltages = latest_death_voltages.copy() # just for dimensionality
         new_death_voltages[physical_electrode_transform[electrode_subset]] = elec_voltage_set
 
-        # Ramp from old to new voltage set
+        # Ramp from old to new voltage set (interpolate between solver results)
         ramped_voltages = vlinspace(latest_death_voltages, new_death_voltages,
                                     npts, linspace_fn)[:,1:]
         full_wfm_voltages = np.hstack([full_wfm_voltages, ramped_voltages])
@@ -532,7 +543,9 @@ def split_waveforms(
     savgol_smooth = True
     # Smooth the waveform voltages
     if savgol_smooth:
-        full_wfm_voltages_filt = ssig.savgol_filter(full_wfm_voltages, 151, 2, axis=-1)
+        # window = 151 # before 09.02.2017
+        window = 301
+        full_wfm_voltages_filt = ssig.savgol_filter(full_wfm_voltages, window, 2, axis=-1)
     else:
         full_wfm_voltages_filt = full_wfm_voltages
 
@@ -541,7 +554,13 @@ def split_waveforms(
         t_axis = np.arange(full_wfm_voltages.shape[1])        
         fwv_funcs = (sintp.UnivariateSpline(t_axis, fwv, s=10, k=5) for fwv in full_wfm_voltages)
         full_wfm_voltages_filt = np.vstack((fwv_func(t_axis) for fwv_func in fwv_funcs))
-            
+
+    interp_splitting_start = True
+    if interp_splitting_start:
+        # Add extra ramp to interpolate between the end of the
+        # transport and the start of splitting waveforms
+        full_wfm_voltages_filt = np.hstack([vlinspace(wf_to_splitting.samples[:,[-1]], full_wfm_voltages_filt[:,[0]], 10), full_wfm_voltages_filt[:,1:]])
+        
     # splitting_wf = Waveform(split_label, 0, "", full_wfm_voltages)
     splitting_wf = Waveform(split_label+", offset = " + "{0:6.3e}".format(field_offset*um) + " V/m",
                             0, "", full_wfm_voltages_filt)
@@ -577,4 +596,4 @@ def split_waveforms(
         plt.show()
         im_ani.save('im.mp4', writer=writer)
 
-    return wf_split, splitting_wf
+    return wf_to_splitting, splitting_wf

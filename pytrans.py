@@ -72,11 +72,15 @@ physical_electrode_transform = np.array([0,4,8,2,  6,10,14,18,  22,26,30,16,  20
 # physical_electrode_transform = [4, 5, 0, 1]
 
 ## DEATH channel max voltage outputs
+
 max_elec_voltages = np.zeros(30)+8.9
 max_death_voltages = max_elec_voltages[dac_channel_transform]
 
 min_elec_voltages = -max_elec_voltages
 min_death_voltages = -max_death_voltages
+
+# fudge factor to avoid true hardware limit; Ionizer will disallow voltages with a value of max_elec_voltages + max_overhead (or min_elec_voltages - max_overhead). Advised to be nonzero, otherwise the solvers will be overconstrained.
+max_overhead = 0.09 
 
 ## Maximum number of samples the DEATH RAMs can hold
 max_death_samples = 16384
@@ -1059,13 +1063,32 @@ class WaveformSet:
             # Nothing could be understood
             assert False, "Couldn't parse input args"
 
-    def write(self, file_path):
+    def write(self, file_path, fix_voltage_limits=False):
         if os.path.isfile(file_path):
             warnings.warn("File "+file_path+" already exists. Overwriting...")
         with open(file_path, 'w') as fp:
             wfm_dict = {}
             total_samples_written = 0
             for k, wf in enumerate(self.waveforms):
+                min_v = np.tile(min_death_voltages-max_overhead, (wf.samples.shape[1], 1)).T
+                max_v = np.tile(max_death_voltages+max_overhead, (wf.samples.shape[1], 1)).T
+                wfv_too_low = wf.samples < min_v
+                wfv_too_high = wf.samples > max_v
+
+                if fix_voltage_limits:
+                    wf.samples[wfv_too_high] = max_v[wfv_too_high]
+                    wf.samples[wfv_too_low] = max_v[wfv_too_low]
+
+                fix_str = ""
+                if fix_voltage_limits:
+                    warnings.warn("{k} DEATH voltages too high! May not load in Ionizer. {s}".format(k=wfv_too_high.sum(), s=fix_str));
+                
+                if np.any(wfv_too_low):
+                    warnings.warn("{k} DEATH voltages too low! May not load in Ionizer. {s}".format(k=wfv_too_low.sum(), s=fix_str));
+
+                if np.any(wfv_too_high):
+                    warnings.warn("Some DEATH voltages too high! May not load in Ionizer." + fix_str);
+                
                 total_samples_written += wf.samples.shape[1]
                 if total_samples_written > max_death_samples:
                     warnings.warn('Too many DEATH samples desired; truncating waveform file at Waveform ' + str(k+1))
