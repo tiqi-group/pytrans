@@ -432,25 +432,30 @@ def split_waveforms(
     # field_offset = -35
     # field_offset = -10 # 2Be splitting
 
-    piecewise_polys = True
-    if piecewise_polys:    
-        interp_steps = 70
+    piecewise_polys = False
+    if piecewise_polys:
+        initial_interp_steps = 80
+        interp_steps = 50 
         split_params = [# (1.5e7, None, 500, np.linspace),
             # (1e6, None, 500, np.linspace),
             #(0, field_offset, 500, lambda a,b,n: erfspace(a,b,n,1.5)),
     #        (1e6, field_offset, 200, np.linspace), # TODO: uncomment this
     #        (1e6, field_offset, interp_steps//2, np.linspace),        
-            # (4e5, field_offset, 2*interp_steps//3, np.linspace),
-            (0, field_offset, interp_steps//2, np.linspace),
+            (4e5, field_offset, initial_interp_steps, np.linspace),
+            (2e5, field_offset, interp_steps//10, np.linspace),            
+            (0, field_offset, interp_steps//10, np.linspace),
             # (-3e6, None, 500, np.linspace),
-            (-2.5e6, field_offset, interp_steps//2, np.linspace),
-            (-5e6, field_offset, interp_steps//2, np.linspace),
-            (-7.5e6, field_offset, interp_steps//2, np.linspace),        
-            (-1e7, field_offset, interp_steps//2, np.linspace),
-            (-1.5e7, field_offset, interp_steps//2, np.linspace),
+
+            #(-0.9e6, field_offset, interp_steps//4, np.linspace),            
+            #(-2.5e6, field_offset, interp_steps//2, np.linspace),
+
+            (-5e6, field_offset, interp_steps//0.2, np.linspace),
+            (-7.5e6, field_offset, interp_steps//3, np.linspace),        
+            (-1e7, field_offset, interp_steps//3, np.linspace),
+            (-1.5e7, field_offset, interp_steps//3, np.linspace),
 
             # 09.02.2017: extra offsets to get potentials a bit more separated before ramps
-            (-2e7, field_offset, interp_steps//2, np.linspace)
+            # (-2e7, field_offset, interp_steps//2, np.linspace)
             # (-3e7, field_offset, interp_steps//2, np.linspace)
         ]
             # (-2e7, None, 50, np.linspace),
@@ -459,7 +464,12 @@ def split_waveforms(
             # (-5e7, None, 150, np.linspace),
             # (-6e7, None, 300, np.linspace)]
     else:
-        pass
+        if generate_poly_matrix:
+            # Solve for many different alpha values, then interpolate between the resultant voltages easily
+            alphas = np.linspace(5e5, -1.5e7, 50)
+
+            # Separations desired (um)
+            separations = np.linspace(0, 100e-6, 100)
 
     if not split_offset:
         # automatically figure out the potential offset by running the
@@ -500,6 +510,8 @@ def split_waveforms(
                                     npts, linspace_fn)[:,1:]
         full_wfm_voltages = np.hstack([full_wfm_voltages, ramped_voltages])
         latest_death_voltages = new_death_voltages
+
+        print("Alpha {a} with pts {n} finished at idx {i}".format(a=alpha, n=npts, i=full_wfm_voltages.shape[1]))
         
         if plot_splitting_parts:
             new_wf = Waveform("", 0, "", ramped_voltages)
@@ -544,7 +556,8 @@ def split_waveforms(
     # Smooth the waveform voltages
     if savgol_smooth:
         # window = 151 # before 09.02.2017
-        window = 301
+        # window = 251 # 09.02.2017
+        window = 3
         full_wfm_voltages_filt = ssig.savgol_filter(full_wfm_voltages, window, 2, axis=-1)
     else:
         full_wfm_voltages_filt = full_wfm_voltages

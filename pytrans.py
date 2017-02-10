@@ -588,6 +588,9 @@ class Waveform:
         else:
             assert False, "Need some arguments in __init__."
 
+    def __repr__(self):
+        return 'Wfm: "{d}" ({s} long)'.format(d=self.desc, s=self.samples.shape[1])
+
     def solve_potentials(self, wdp):
         """ Convert a desired set of potentials and ROIs into waveform samples
         wdp: waveform desired potential"""
@@ -607,7 +610,7 @@ class Waveform:
         states = []
 
         ## Constrain the end voltages explicitly to match static case
-        ## (i.e. solve separate problem)
+        ## (i.e. solve separate problem first, then constrain main one)
         if wdp.force_static_ends:
             uopt_ends = cvy.Variable(wdp.num_electrodes, 2)
 
@@ -645,12 +648,24 @@ class Waveform:
 
             # Slew rate constraints    
             constr += [-max_slew_rate*wdp.Ts <= (uopt[:,1:]-uopt[:,:-1]), (uopt[:,1:]-uopt[:,:-1]) <= max_slew_rate*wdp.Ts]
-        
-        for kk, (pot, roi) in enumerate(zip(wdp.potentials, wdp.roi_idx)):
+
+            
+        pot_weights = np.ones(len(wdp.potentials))
+        weight_ends = False
+        if weight_ends:
+            # Weight the constraints more heavily at the ends
+            if len(wdp.potentials) > 6:
+                pot_weights[[0,-1]] = 1e7
+                pot_weights[[1,-2]] = 1e5
+                pot_weights[[2,-3]] = 1e4
+                pot_weights[[3,-4]] = 1e3
+                pot_weights[[4,-5]] = 1e2
+                pot_weights[[5,-6]] = 10
+        for kk, (pot, roi, weight) in enumerate(zip(wdp.potentials, wdp.roi_idx, pot_weights)):
             # Cost term capturing how accurately we generate the desired potential well
             # (could also vectorise it like the above, but the ROI
             # indices tend to vary in length between timesteps)
-            cost += cvy.sum_squares(trap_mom.potentials[roi, :]*uopt[:,kk] - pot)
+            cost += weight * cvy.sum_squares(trap_mom.potentials[roi, :]*uopt[:,kk] - pot)
 
         states.append( cvy.Problem(cvy.Minimize(cost), constr) )        
 
@@ -1063,6 +1078,12 @@ class WaveformSet:
             # Nothing could be understood
             assert False, "Couldn't parse input args"
 
+    def __repr__(self):
+        ret = ""
+        for k in self.waveforms:
+            ret += k.__repr__() + "\n"
+        return ret
+
     def write(self, file_path, fix_voltage_limits=False):
         if os.path.isfile(file_path):
             warnings.warn("File "+file_path+" already exists. Overwriting...")
@@ -1081,7 +1102,7 @@ class WaveformSet:
 
                 fix_str = ""
                 if fix_voltage_limits:
-                    warnings.warn("{k} DEATH voltages too high! May not load in Ionizer. {s}".format(k=wfv_too_high.sum(), s=fix_str));
+                    fix_str = " Truncating voltages to limit values specified in pytrans.py."
                 
                 if np.any(wfv_too_low):
                     warnings.warn("{k} DEATH voltages too low! May not load in Ionizer. {s}".format(k=wfv_too_low.sum(), s=fix_str));

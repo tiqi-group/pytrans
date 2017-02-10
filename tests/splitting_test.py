@@ -6,13 +6,13 @@ from pytrans import *
 
 if __name__ == "__main__":
 
-    analytic_plot = False
-    test_split = True
+    analytic_plot = True
+    test_split = False
     
     # Investigate a and b potentials
     if analytic_plot:
-        a = -3
-        b = 2
+        a = -3 # alpha
+        b = 2 # beta
 
         x = np.linspace(-2,2,20000)
         y = a*x**2+b*x**4

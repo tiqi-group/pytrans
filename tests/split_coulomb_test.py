@@ -7,7 +7,7 @@ sys.path.append("../")
 from pytrans import *
 from splitting import *
 
-wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2016_07_15_v01.dwc.json")
+wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2Be1Ca_2017_02_09_v05c.dwc.json")
 
 def coulomb_solve(sample, roi):
     wells = find_coulomb_wells(sample[np.newaxis].T, -422.5*um, roi)
@@ -16,7 +16,7 @@ def coulomb_solve(sample, roi):
 def split_coulomb_test():
     # Solve Coulomb-based repulsion for waveforms
     wfs = WaveformSet(waveform_file=wf_path)
-    wp = wfs.find_waveform("split apart").samples
+    wp = wfs.find_waveform("split apart, offset = 0.000e+00 V/m").samples
     locs = np.zeros((wp.shape[1],2))
     freqs = np.zeros_like(locs)
 
@@ -38,14 +38,21 @@ def split_coulomb_test():
             locs_nc[k], freqs_nc[k], locs[k], freqs[k] = coulomb_solve(sample, roi)
 
     plt.figure()
-    t_axis = np.linspace(0, 0.1*(len(locs_nc)-1), len(locs_nc)) # microseconds (10 MHz sampling)
-    plt.plot(t_axis, locs_nc)
-    plt.plot(t_axis, locs)
+    t_axis = np.linspace(0, 1*(len(locs_nc)-1), len(locs_nc)) # microseconds (1 MHz sampling)
+    #plt.plot(t_axis, locs_nc)
+    #plt.plot(t_axis, locs)
+    plt.plot(locs_nc)
+    plt.plot(locs)
+    plt.xlabel('Time (slowdown of 100)')
     plt.legend(['i1 nc','i2 nc', 'i1', 'i2'])
 
     plt.figure()
-    plt.plot(t_axis, freqs_nc)
-    plt.plot(t_axis, freqs)
+    # plt.plot(t_axis, freqs_nc)
+    # plt.plot(t_axis, freqs)
+    plt.plot(freqs_nc)
+    plt.plot(freqs)
+    plt.xlabel('Time (slowdown of 100)')
+    plt.ylabel('Freq (MHz)')
     plt.legend(['i1 nc','i2 nc', 'i1', 'i2'])    
     plt.show()
 

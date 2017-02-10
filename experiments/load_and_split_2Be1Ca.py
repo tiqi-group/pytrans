@@ -10,9 +10,20 @@ import transport_utils as tu
 import loading_utils as lu
 import splitting as sp
 
-def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False):
+
+def split_wfms(f_well, conveyor_offset, field_offset, n_transport):
+    """ Written at top-level for pickling, so that system can parallelise this """
+    return sp.split_waveforms(0, f_well, conveyor_offset,
+                              [-844, 0], [f_well,f_well], [conveyor_offset, conveyor_offset],
+                              -422.5, f_well,
+                              field_offset=field_offset,
+                              n_transport=n_transport,
+                              electrode_subset=[3,4,5,6,7,18,19,20,21,22]) # left splitting group
+
+def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=False):
     """ Generate loading/splitting waveforms, with swept offset """
-    wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2Be1Ca_2017_02_09_v04.dwc.json")
+    wf_name = "load_split_2Be1Ca_2017_02_09_v05c"
+    wf_path = os.path.join(os.pardir, "waveform_files", wf_name + ".dwc.json")
 
     # If file exists already, just load it to save time
     try:
@@ -56,19 +67,30 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False):
         field_offsets = np.linspace(-300, 300, 11-num_reorder_wfms)
         # field_offsets = [-63]
         wfs_split = []
-        for field_offset in field_offsets:
-            centre_to_split, wf_split = sp.split_waveforms(0, f_well, conveyor_offset,
-                                                           [-844, 0], [f_well,f_well], [conveyor_offset, conveyor_offset],
-                                                           -422.5, f_well,
-                                                           field_offset=field_offset,
-                                                           n_transport=n_transport,
-                                                           electrode_subset=[3,4,5,6,7,18,19,20,21,22]) # left splitting group
+
+        # Solve the wells in parallel
+        from multiprocessing import Pool
+        f_wells = np.full_like(field_offsets, f_well)
+        conveyor_offsets = np.full_like(field_offsets, conveyor_offset)
+        n_transports = np.full_like(field_offsets, n_transport)
+        
+        with Pool(6) as p: # 6 cores:
+            res_list = p.starmap(split_wfms, zip(
+                f_wells, conveyor_offsets, field_offsets, n_transports))
+            for centre_to_split, wf_split in res_list:
+                # Interpolate between end of splitting and start of parallel transport
+                split_trans_interp = vlinspace(wf_split.samples[:,[-1]], wf_far_to_exp.samples[:,[0]], interp_n)
+                wf_split.samples = np.hstack((wf_split.samples, split_trans_interp))
+                wfs_split.append(wf_split)
+
+        # st()
+        
+        # for field_offset in field_offsets:
+        #     # centre_to_split, wf_split = split_fo(field_offset)
 
             
-            # Interpolate between end of splitting and start of parallel transport
-            split_trans_interp = vlinspace(wf_split.samples[:,[-1]], wf_far_to_exp.samples[:,[0]], interp_n)
-            wf_split.samples = np.hstack((wf_split.samples, split_trans_interp))
-            wfs_split.append(wf_split)
+
+
 
         wfs_load_and_split.waveforms.append(centre_to_split)        
         wfs_load_and_split.waveforms += wfs_split       
@@ -82,9 +104,8 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False):
         wfs_load_and_split.waveforms.append(wf_far_to_exp)
         wfs_load_and_split.waveforms.append(wf_recombine_fast)
 
-        animate_split = False
-        if animate_split:
-            animate_wavpots([WavPotential(k) for k in (centre_to_split, wf_split, wf_far_to_exp)], parallel=False, decimation=1, save_video_path='load_and_split.mp4')
+        if save_video:
+            animate_wavpots([WavPotential(k) for k in (centre_to_split, wf_split, wf_far_to_exp)], parallel=False, decimation=1, save_video_path=wf_name+'.mp4')
         
             
         wfs_load_and_split.write(wf_path, fix_voltage_limits=True)
