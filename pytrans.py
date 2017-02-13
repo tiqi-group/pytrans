@@ -136,6 +136,8 @@ def find_coulomb_wells(samples, roi_centre, roi_width, mass=mass_Ca, ions=2, plo
     trap_freqs = []
     trap_locs_no_coulomb = []
     trap_locs = []
+    trap_offsets_no_coulomb = []
+    trap_offsets = []    
     
     start_guess = find_wells_from_samples(samples, roi_centre, roi_width)
     num_wells = len(start_guess['freqs'])
@@ -146,13 +148,14 @@ def find_coulomb_wells(samples, roi_centre, roi_width, mass=mass_Ca, ions=2, plo
         # wrap around/duplicate results for each ion if there are fewer wells than ions
         guess_idx = np.mod(k, num_wells)
         trap_locs_no_coulomb.append(start_guess['locs'][guess_idx])
-        trap_freqs_no_coulomb.append(start_guess['freqs'][guess_idx])         
+        trap_freqs_no_coulomb.append(start_guess['freqs'][guess_idx])
+        trap_offsets_no_coulomb.append(start_guess['offsets'][guess_idx])
 
     potential = np.dot(trap_mom.potentials[:,:len(physical_electrode_transform)],
                        samples[physical_electrode_transform])
     
     pot, z_axis, _ = roi_potential(potential, trap_mom.transport_axis, roi_centre, roi_width)
-    # Potential interpolation type
+    # Potential interpolation type; create a callable electrode potential function
     interp_splines = True
     if interp_splines:
         # s_opt = len(z_axis)*1e-12
@@ -162,7 +165,11 @@ def find_coulomb_wells(samples, roi_centre, roi_width, mass=mass_Ca, ions=2, plo
     else:
         pot_fn = sintp.interp1d(z_axis, pot, kind='quadratic')
 
+    def pot_coulomb(z0, z1):
+        return 2*electron_charge/(4*np.pi*epsilon_0) / np.abs(z1-z0) # 2x because 2 ions
+        
     def total_pot(z):
+        # Calculate total potential (electrodes + ion-ion Coulomb repulsion)
         # z: array of ion positions (NOTE: only implemented for 2 ions for now!)
         # z[1] must be > z[0]
         z0, z1 = z[0], z[1]
@@ -175,8 +182,7 @@ def find_coulomb_wells(samples, roi_centre, roi_width, mass=mass_Ca, ions=2, plo
         pot_electrodes = pot_fn(z0) + pot_fn(z1)
 
         # Coulomb repulsion
-        pot_coulomb = 2*electron_charge/(4*np.pi*epsilon_0) / np.abs(z1-z0) # 2x because 2 ions
-        return pot_electrodes + pot_coulomb
+        return pot_electrodes + pot_coulomb(z0, z1)
     
     minimize_result = sopt.minimize(total_pot,
                                     [roi_centre, roi_centre+0.1*um],
@@ -195,6 +201,10 @@ def find_coulomb_wells(samples, roi_centre, roi_width, mass=mass_Ca, ions=2, plo
 
     trap_locs.append(z0)
     trap_locs.append(z1)
+
+    offsets = pot_fn((z0, z1)) + pot_coulomb(z0, z1)
+    trap_offsets.append(offsets[0])
+    trap_offsets.append(offsets[1])
 
     def curv2freq(vdd):
         # vdd: double derivative of potential w.r.t. distance (in V/m^2)
@@ -220,7 +230,9 @@ def find_coulomb_wells(samples, roi_centre, roi_width, mass=mass_Ca, ions=2, plo
     return {'freqs_no_coulomb':trap_freqs_no_coulomb,
             'freqs':trap_freqs,
             'locs':trap_locs,
-            'locs_no_coulomb':trap_locs_no_coulomb}
+            'locs_no_coulomb':trap_locs_no_coulomb,
+            'offsets':trap_offsets,
+            'offsets_no_coulomb':trap_offsets_no_coulomb}
 
 def calc_potential(samples):
     # Calculate trap potential, ignoring shims, along full trap length

@@ -11,7 +11,8 @@ wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2Be1Ca_2017_02_0
 
 def coulomb_solve(sample, roi):
     wells = find_coulomb_wells(sample[np.newaxis].T, -422.5*um, roi)
-    return wells['locs_no_coulomb'], wells['freqs_no_coulomb'], wells['locs'], wells['freqs']
+    return wells['locs_no_coulomb'], wells['freqs_no_coulomb'], wells['offsets_no_coulomb'], \
+        wells['locs'], wells['freqs'], wells['offsets']
 
 def split_coulomb_test():
     # Solve Coulomb-based repulsion for waveforms
@@ -19,29 +20,33 @@ def split_coulomb_test():
     wp = wfs.find_waveform("split apart, offset = 0.000e+00 V/m").samples
     locs = np.zeros((wp.shape[1],2))
     freqs = np.zeros_like(locs)
+    offsets = np.zeros_like(locs)    
 
     # no Coulomb repulsion included
     locs_nc = np.zeros_like(locs) 
-    freqs_nc = np.zeros_like(locs)    
+    freqs_nc = np.zeros_like(locs)
+    offsets_nc = np.zeros_like(locs)    
     rois = np.linspace(700*um, 700*um, wp.shape[1])
     
     from multiprocessing import Pool
 
-    parallel_solve = True
+    parallel_solve = False
     if parallel_solve:
         with Pool(6) as p: # 6 cores
             data_list = p.starmap(coulomb_solve, zip(wp.T,rois))
-            for k, (l_nc, f_nc, l, f) in enumerate(data_list):
-                locs_nc[k], freqs_nc[k], locs[k], freqs[k] = l_nc, f_nc, l, f
+            for k, (l_nc, f_nc, o_nc, l, f, o) in enumerate(data_list):
+                locs_nc[k], freqs_nc[k], offsets_nc[k], \
+                    locs[k], freqs[k], offsets[k] = l_nc, f_nc, o_nc, l, f, o
     else:
         for k, (sample, roi) in enumerate(zip(wp.T, rois)):
-            locs_nc[k], freqs_nc[k], locs[k], freqs[k] = coulomb_solve(sample, roi)
+            locs_nc[k], freqs_nc[k], offsets_nc[k], \
+                locs[k], freqs[k], offsets[k] = coulomb_solve(sample, roi)
 
-    plt.figure(figsize=(8,7))
+    plt.figure(figsize=(8,11))
     t_axis = np.linspace(0, 1*(len(locs_nc)-1), len(locs_nc)) # microseconds (1 MHz sampling)
     #plt.plot(t_axis, locs_nc)
     #plt.plot(t_axis, locs)
-    plt.subplot(211)
+    plt.subplot(311)
     # plt.plot(locs_nc)
     plt.plot(locs*1e6)
     plt.grid(True)
@@ -53,7 +58,7 @@ def split_coulomb_test():
     freq_min = freqs_av.min()/1e3
     freq_end = freqs_av[-1]/1e3
 
-    plt.subplot(212)
+    plt.subplot(312)
     # plt.plot(t_axis, freqs_nc)
     # plt.plot(t_axis, freqs)
     # plt.plot(freqs_nc)
@@ -62,9 +67,19 @@ def split_coulomb_test():
     plt.xlabel('Time (slowdown of 100)')
     plt.ylabel('Freq (kHz)')
     # plt.legend(['i1 nc','i2 nc', 'i1', 'i2'])
+    # plt.show()
+
+    plt.subplot(313)
+    # plt.plot(t_axis, freqs_nc)
+    # plt.plot(t_axis, freqs)
+    # plt.plot(freqs_nc)
+    plt.plot(offsets)
+    plt.grid(True)
+    plt.xlabel('Time (slowdown of 100)')
+    plt.ylabel('Offset (meV)')
+    
     figname = 'splitting_{:.1f}_{:.1f}_{:.1f}.pdf'.format(freq_start, freq_min, freq_end)
     plt.savefig(os.path.join(os.curdir,'figs',figname))
-    # plt.show()
 
 if __name__ == "__main__":
     split_coulomb_test()

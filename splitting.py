@@ -123,10 +123,12 @@ def v_splev(voltage_splines, x_values):
     """
     return np.array([v(x_values) for v in voltage_splines])
 
+@vectorize
 def ion_sep(d, A, B):
     """ Simply implements Eq. (7) in Home/Steane 2003 paper """
     return B * d**5 + 2 * A * d**3 - electron_charge / (2 *np.pi * epsilon_0)
 
+@vectorize
 def get_sep(alpha, beta):
     """ Find the separation for a given alpha/beta pair, using ion_sep to solve"""
     d = sopt.root(ion_sep, 1000*um, (alpha, beta))
@@ -137,7 +139,8 @@ def get_sep(alpha, beta):
         return 0
 
 def com_w(d, A, B, mass):
-    """ d: ion-ion separation, including Coulomb repulsion
+    """ Calculate the CoM motional frequency of the 2-ion crystal.
+    d: ion-ion separation, including Coulomb repulsion
     A, B: alpha/beta
     mass: ion mass in amu
 
@@ -170,8 +173,7 @@ def split_sep_reparam(polys, alphas, slope_offsets, desired_sep_vec, electrode_s
         split_elec_voltages[:,[k]], true_alphas[k], true_betas[k] = solve_poly_ab(
             polys, alpha, slope_offsets[k])
 
-    get_sep_v = np.vectorize(get_sep)
-    separations = get_sep_v(true_alphas, true_betas)
+    separations = get_sep(true_alphas, true_betas)
 
     v_spl = v_splrep(split_elec_voltages, separations)
     sep_desired = separations[0] + (separations[-1]-separations[0])*desired_sep_vec
@@ -291,7 +293,7 @@ def solve_poly_ab(poly_moments, alpha=0, slope_offset=None, dc_offset=None,
     obj = cvy.Maximize(cvy.sum_entries(beta_co*uopt)) # maximise beta
     obj -= 100*cvy.Minimize(cvy.sum_squares(alph_co*uopt - alpha/alph_norm)) # try to hit target alpha (weight quite heavily)
 
-    if dc_offset is not None: # try to hit desired DC offset
+    if dc_offset is not None: # hit desired DC offset
         constr.append(cvy.sum_entries(dc_co*uopt)==dc_offset/dc_norm) # linear term ~= 0
     if slope_offset is not None:
         # obj -= cvy.Minimize(cvy.sum_squares(gamm_co*uopt - slope_offset/gamm_norm))
