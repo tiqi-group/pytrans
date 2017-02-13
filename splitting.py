@@ -91,9 +91,92 @@ def look_at_wells_manually():
 
 
 
-######## NEW CODE (developed mainly in testing/splitting_constraints_test.py) #########
+# NEW CODE, developed mainly in testing/splitting_constraints_test.py
+# as well as testing/split_d_test.py
 
-import scipy.interpolate as interp
+def v_splrep(voltage_array, x_axis):
+    """ Convert an N x M voltage array (where the N dimension
+    (vertical) is electrode index and M is timestep) into a list N
+    elements long of spline representations of the array. Can easily
+    be used to interpolate between voltage timesteps. 
+
+    Example:
+
+    asdf = np.array([[1,2,3,4],[5,6,7,8],[9,10,11,12]])
+    asdf_interp = v_splrep(asdf, [0,1,2,3])
+    asdf_interp[0](0) # gives 1
+    asdf_interp[0](1.5) # interpolates, gives 2.5"""
+    assert len(x_axis) == voltage_array.shape[1], "Wrong lengths supplied!"
+
+    return [sintp.UnivariateSpline(x_axis, k, s=0, k=3) for k in voltage_array]
+
+def v_splev(voltage_splines, x_values):
+    """Takes a list of UnivariateSplines (output of v_splrep) and returns
+    a voltage set for the given x values, interpolating when it needs
+    to.
+
+    Example: 
+    asdf = np.array([[1,2,3,4],[5,6,7,8],[9,10,11,12]])
+    asdf_interp = v_splrep(asdf, [0,1,2,3])
+    v_splev(asdf_interp, 1.5) # gives array([[2.5, 6.5, 10.5]])
+
+    """
+    return np.array([v(x_values) for v in voltage_splines])
+
+def ion_sep(d, A, B):
+    """ Simply implements Eq. (7) in Home/Steane 2003 paper """
+    return B * d**5 + 2 * A * d**3 - electron_charge / (2 *np.pi * epsilon_0)
+
+def get_sep(alpha, beta):
+    """ Find the separation for a given alpha/beta pair, using ion_sep to solve"""
+    d = sopt.root(ion_sep, 1000*um, (alpha, beta))
+    if d.success:
+        return d.x
+    else:
+        warnings.warn("Didn't converge!")
+        return 0
+
+def com_w(d, A, B, mass):
+    """ d: ion-ion separation, including Coulomb repulsion
+    A, B: alpha/beta
+    mass: ion mass in amu
+
+    Implements Eq. (10) of Home/Steane 2003 paper"""
+    return np.sqrt( (2*A + 3*B*d**2) * electron_charge / mass / atomic_mass_unit )
+
+def split_sep_reparam(polys, alphas, slope_offsets, desired_sep_vec, electrode_subset, plot_sep=True):
+    """Calculate voltages for a vector of Alpha values while maximising
+    Beta, then allow you to reparameterise them so that the separation
+    follows that given by desired_sep_vec as a function of time. If
+    desired_sep_vec is None, no reparameterisation gets performed, and
+    the results are simply those based on the polys and alphas given.
+
+    polys: set of polynomial fits to electrode potentials, see generate_interp_polys() for info
+    alphas: array of alpha values    
+    slope_offsets: array or double of slope offsets
+    desired_sep_vec: desired separation profile; any length (this is used for the final voltage matrix)
+    electrode_subset: electrodes to use for splitting (only ones neighbouring the splitting zone, typically)
+
+    plot_sep: turn on for debugging
+    """
+    n_alphas = alphas.size
+    true_alphas = np.empty(n_alphas)
+    true_betas = np.empty(n_alphas)
+    split_elec_voltages = np.empty((len(electrode_subset), n_alphas))
+    if type(slope_offsets) is not np.ndarray:
+        slope_offsets = np.full(n_alphas, slope_offsets)
+
+    for k, alpha in enumerate(alphas):
+        split_elec_voltages[:,[k]], true_alphas[k], true_betas[k] = solve_poly_ab(
+            polys, alpha, slope_offsets[k])
+
+    get_sep_v = np.vectorize(get_sep)
+    separations = get_sep_v(true_alphas, true_betas)
+
+    v_spl = v_splrep(split_elec_voltages, separations)
+    sep_desired = separations[0] + (separations[-1]-separations[0])*desired_sep_vec
+    v_interp = v_splev(v_spl, sep_desired)
+    return v_interp
 
 def plot_split_voltages(samples, electrodes=[2,3,4,5,6,7,8]):
     plt.plot(samples[physical_electrode_transform[electrodes],:].T)
@@ -101,12 +184,13 @@ def plot_split_voltages(samples, electrodes=[2,3,4,5,6,7,8]):
     plt.show()
 
 def calc_beta(sep, alp):
+    # Note: doesn't take Coulomb into account
     # sep: separation from ion to ion
     # alp: prefactor in quadratic
     return  2*np.abs(alp)/(sep)**2
     
 def interpolate_moments(z_shifted, moments, roi_idxes, order=4):
-        return np.polyfit(z_shifted[roi_idxes], moments[roi_idxes,:], order)
+    return np.polyfit(z_shifted[roi_idxes], moments[roi_idxes,:], order)
 
 def generate_interp_polys(z_axis, moments, centre, roi_dist):
     # z_axis: axis corresponding to moments
@@ -147,16 +231,28 @@ def solve_scaled_constraints(moments, desired_pot, offset, scale_weight):
 
 def solve_poly_ab(poly_moments, alpha=0, slope_offset=None, dc_offset=None,
                   print_voltages=False, enforce_z_symmetry=False,
-                  verbose_solver=False):
-    # slope_offset: extra slope (electric field) to apply along z
-    # direction, in V/m (can read it right off the potential
-    # plots)
-    #
-    # dc_offset: extra potential to apply, in V (can read it right
-    # off the plots)
-    #
-    # alpha: quadratic curvature (note: if the magnitude is too
-    # large, the solver may fail)
+                  verbose_solver=False,
+                  target_curv=None):
+
+    """Tries to 
+
+    slope_offset: extra slope (electric field) to apply along z
+    direction, in V/m (can read it right off the potential plots)
+    
+    dc_offset: extra potential to apply, in V (can read it right off
+    the plots)
+    
+    alpha: quadratic curvature (note: if the magnitude is too large,
+    the solver may fail)
+
+    target_curv: if None, the solver tries to maximise Beta at all
+    times. If it's given, however, it instead tries to hit a
+    particular curvature at the potential minima. When the critical
+    point nears and the trap cannot reach the desired curvature, the
+    solver simply tries to keep it as high as possible.
+
+    """
+
     num_elec = poly_moments.shape[1]
     uopt = cvy.Variable(num_elec,1)
     # Quadratic and quartic terms in poly approximations
@@ -164,17 +260,20 @@ def solve_poly_ab(poly_moments, alpha=0, slope_offset=None, dc_offset=None,
     beta_c = poly_moments[0,:]
     gamm_c = poly_moments[3,:]
     dc_c = poly_moments[4,:]
+
     # for some reason normalisation is needed
     alph_norm = np.min(np.abs(alph_c))
     beta_norm = np.min(np.abs(beta_c))
     gamm_norm = np.min(np.abs(gamm_c))
     dc_norm = np.min(np.abs(dc_c))
+
     alph_co = alph_c/alph_norm
     beta_co = beta_c/beta_norm
     gamm_co = gamm_c/gamm_norm
     dc_co = dc_c/dc_norm
-    # Avoid going over-voltage (don't quite hit the limits)
-    constr = [-max_elec_voltages[0]+0.5 <= uopt, uopt <= max_elec_voltages[0]-0.5] 
+    # Avoid going over-voltage (some overhead built in)
+    overhead = 0.3
+    constr = [-max_elec_voltages[0]+overhead <= uopt, uopt <= max_elec_voltages[0]-overhead] 
 
     # electrode constraint pairs assume electrode moments are
     # adjacent, in order of increasing z and with the bottom row
@@ -188,10 +287,11 @@ def solve_poly_ab(poly_moments, alpha=0, slope_offset=None, dc_offset=None,
     if enforce_z_symmetry:
         for m in range(num_elec//4):
             constr.append(uopt[m] == uopt[-m-1])
-    obj = cvy.Maximize(cvy.sum_entries(beta_co*uopt))
-    obj -= 100*cvy.Minimize(cvy.sum_squares(alph_co*uopt - alpha/alph_norm))
-    # constr.append(cvy.sum_entries(alph_co*uopt)==alpha/alph_norm) # quadratic term
-    if dc_offset is not None:
+            
+    obj = cvy.Maximize(cvy.sum_entries(beta_co*uopt)) # maximise beta
+    obj -= 100*cvy.Minimize(cvy.sum_squares(alph_co*uopt - alpha/alph_norm)) # try to hit target alpha (weight quite heavily)
+
+    if dc_offset is not None: # try to hit desired DC offset
         constr.append(cvy.sum_entries(dc_co*uopt)==dc_offset/dc_norm) # linear term ~= 0
     if slope_offset is not None:
         # obj -= cvy.Minimize(cvy.sum_squares(gamm_co*uopt - slope_offset/gamm_norm))
@@ -401,7 +501,7 @@ if __name__ == "__main__":
 
 
 
-#### Splitting routine used right now for most waveforms (originally from load_and_split.py)    
+#### Splitting routines used right now for most waveforms (originally from load_and_split.py)    
 
 def split_waveforms(
         start_loc, start_f, start_offset,
@@ -440,10 +540,13 @@ def split_waveforms(
             # (1e6, None, 500, np.linspace),
             #(0, field_offset, 500, lambda a,b,n: erfspace(a,b,n,1.5)),
     #        (1e6, field_offset, 200, np.linspace), # TODO: uncomment this
-    #        (1e6, field_offset, interp_steps//2, np.linspace),        
-            (4e5, field_offset, initial_interp_steps, np.linspace),
-            (2e5, field_offset, interp_steps//10, np.linspace),            
-            (0, field_offset, interp_steps//10, np.linspace),
+    #        (1e6, field_offset, interp_steps//2, np.linspace),
+            (0, field_offset, interp_steps//2, np.linspace),
+
+            # (4e5, field_offset, initial_interp_steps, np.linspace),
+            # (2e5, field_offset, interp_steps//10, np.linspace),            
+            # (0, field_offset, interp_steps//10, np.linspace),
+            
             # (-3e6, None, 500, np.linspace),
 
             #(-0.9e6, field_offset, interp_steps//4, np.linspace),            
@@ -511,7 +614,7 @@ def split_waveforms(
         full_wfm_voltages = np.hstack([full_wfm_voltages, ramped_voltages])
         latest_death_voltages = new_death_voltages
 
-        print("Alpha {a} with pts {n} finished at idx {i}".format(a=alpha, n=npts, i=full_wfm_voltages.shape[1]))
+        # print("Alpha {a} with pts {n} finished at idx {i}".format(a=alpha, n=npts, i=full_wfm_voltages.shape[1]))
         
         if plot_splitting_parts:
             new_wf = Waveform("", 0, "", ramped_voltages)
@@ -529,7 +632,6 @@ def split_waveforms(
     split_freqs = np.array(final_splitting_params['freqs'])/MHz
     split_offsets = np.array(final_splitting_params['offsets'])/meV
     assert split_locs.size == 2, "Wrong number of wells detected after splitting"
-
                                                                      
     # Final waveform, extends separation by 150um either way and goes to default well settings
     # (starting values must be set to the results of the splitting!)
@@ -556,8 +658,8 @@ def split_waveforms(
     # Smooth the waveform voltages
     if savgol_smooth:
         # window = 151 # before 09.02.2017
-        # window = 251 # 09.02.2017
-        window = 3
+        window = 201 # 09.02.2017
+        # window = 3
         full_wfm_voltages_filt = ssig.savgol_filter(full_wfm_voltages, window, 2, axis=-1)
     else:
         full_wfm_voltages_filt = full_wfm_voltages
@@ -608,5 +710,97 @@ def split_waveforms(
 
         plt.show()
         im_ani.save('im.mp4', writer=writer)
+
+    return wf_to_splitting, splitting_wf
+
+def split_waveforms_reparam(
+        start_loc, start_f, start_offset,
+        final_locs, final_fs, final_offsets,
+        split_loc, split_f, dc_offset=None,
+        n_transport=2000,        
+        field_offset=0,
+        electrode_subset=None,
+        start_split_label='trans from start -> split start',
+        split_label='split apart',
+        plot_splits=False):
+    """ Specify the starting well properties (the experimental zone
+    usually) and the splitting well properties, which will be used in
+    the linear ramp between the combined well and the first stage of
+    the quartic polynomial solver.  Note: final_locs, final_freqs,
+    final_offsets are in um, MHz, meV (I think!). """
+    
+    # centre of the central splitting electrode moment
+    split_centre = split_loc*um 
+    polyfit_range = 200*um
+
+    polys = generate_interp_polys(trap_mom.transport_axis,
+                                trap_mom.potentials[:, electrode_subset],
+                                split_centre, polyfit_range)
+
+    n_alphas = 60
+    start_alpha = 1e7
+    end_alpha = -2e7
+    alphas = np.hstack([np.linspace(start_alpha, 1e6, n_alphas//3),
+                        np.linspace(0.9e6, -1.9e6, n_alphas//3),
+                        np.linspace(-2e6, end_alpha, n_alphas//3)])
+
+    tau = np.linspace(0, 1, 100)
+    # desired_sep_vec = tau # linear separation, no funny business
+    desired_sep_vec = tau**2*np.sin(np.pi/2*tau)**2 # sin^2 parabola
+    
+    split_voltages = split_sep_reparam(polys, alphas, field_offset, desired_sep_vec, electrode_subset)
+    split_voltages_elec = np.zeros((num_elecs, split_voltages.shape[1]))
+    split_voltages_elec[physical_electrode_transform[electrode_subset], :] = split_voltages
+
+    # automatically figure out the potential offset by running the
+    # solver for the initial splitting conditions and fitting to it
+    wavpot_fit_start = find_wells_from_samples(split_voltages_elec[:,[0]], split_centre, polyfit_range)
+    assert len(wavpot_fit_start['offsets']) == 1, "Error, found too many wells in ROI at start of splitting."
+    split_dc_offset = wavpot_fit_start['offsets'][0]/meV
+
+    # Initial waveform, transports from start to splitting location
+    wf_to_splitting = tu.transport_waveform([start_loc, split_loc],
+                                            [start_f, split_f],
+                                            [start_offset, split_dc_offset],
+                                            n_transport, start_split_label,
+                                            interp_start=20,
+                                            interp_end=20)    
+
+    # Ramp from single well to start of splitting routine
+    start_ramp_steps = 50
+    split_start_ramp = vlinspace(wf_to_splitting.samples[:,[-1]], split_voltages_elec[:,[0]], start_ramp_steps)
+    
+    # Final waveform, extends separation by 150um either way and goes to default well settings
+    final_splitting_params = find_wells_from_samples(
+        split_voltages_elec[:,[-1]], split_centre, polyfit_range)
+    split_end_locs = np.array(final_splitting_params['locs'])/um
+    split_end_freqs = np.array(final_splitting_params['freqs'])/MHz
+    split_end_dc_offsets = np.array(final_splitting_params['offsets'])/meV
+    assert split_end_locs.size == 2, "Wrong number of wells detected after splitting"
+    
+    # wavpot_fit_end = find_wells_from_samples(, split_centre, polyfit_range)
+    # st()
+    # assert len(wavpot_fit_end['offsets']) == 2, "Error, found wrong number of wells in ROI at end of splitting."
+    # split_end_dc_offsets = wavpot_fit_start['offsets']/meV
+    
+    wf_finish_split = tu.transport_waveform_multiple(
+        [[split_end_locs[0], final_locs[0]],[split_end_locs[1], final_locs[1]]],
+        [[split_end_freqs[0],final_fs[0]],[split_end_freqs[1],final_fs[1]]],
+        [[split_end_dc_offsets[0], final_offsets[0]],[split_end_dc_offsets[1], final_offsets[1]]],
+        n_transport, "", interp_end=20)
+
+    # Ramp from end of splitting routine to discrete wells (start of final waveform)    
+    end_ramp_steps = 60
+    split_end_ramp = vlinspace(split_voltages_elec[:,[-1]], wf_finish_split.samples[:,[0]], end_ramp_steps)
+
+    # Combine all waveforms
+    full_wfm_voltages = np.hstack([split_start_ramp, split_voltages_elec,
+                                   split_end_ramp, wf_finish_split.samples])
+
+    # TODO: maybe add smoothing here for better parameterisation of
+    # waveforms; would need to solve and interpolate
+    splitting_wf = Waveform(split_label+", offset = " + "{0:6.3e}".format(field_offset*um) + " V/m",
+                        0, "", full_wfm_voltages)
+    splitting_wf.set_new_uid()
 
     return wf_to_splitting, splitting_wf

@@ -37,24 +37,34 @@ def split_coulomb_test():
         for k, (sample, roi) in enumerate(zip(wp.T, rois)):
             locs_nc[k], freqs_nc[k], locs[k], freqs[k] = coulomb_solve(sample, roi)
 
-    plt.figure()
+    plt.figure(figsize=(8,7))
     t_axis = np.linspace(0, 1*(len(locs_nc)-1), len(locs_nc)) # microseconds (1 MHz sampling)
     #plt.plot(t_axis, locs_nc)
     #plt.plot(t_axis, locs)
-    plt.plot(locs_nc)
-    plt.plot(locs)
+    plt.subplot(211)
+    # plt.plot(locs_nc)
+    plt.plot(locs*1e6)
+    plt.grid(True)
     plt.xlabel('Time (slowdown of 100)')
-    plt.legend(['i1 nc','i2 nc', 'i1', 'i2'])
+    plt.ylabel('Position (um)')
+    # plt.legend(['i1 nc','i2 nc', 'i1', 'i2'])
+    freqs_av = freqs.mean(1)
+    freq_start = freqs_av[0]/1e3
+    freq_min = freqs_av.min()/1e3
+    freq_end = freqs_av[-1]/1e3
 
-    plt.figure()
+    plt.subplot(212)
     # plt.plot(t_axis, freqs_nc)
     # plt.plot(t_axis, freqs)
-    plt.plot(freqs_nc)
-    plt.plot(freqs)
+    # plt.plot(freqs_nc)
+    plt.plot(freqs/1e3)
+    plt.grid(True)
     plt.xlabel('Time (slowdown of 100)')
-    plt.ylabel('Freq (MHz)')
-    plt.legend(['i1 nc','i2 nc', 'i1', 'i2'])    
-    plt.show()
+    plt.ylabel('Freq (kHz)')
+    # plt.legend(['i1 nc','i2 nc', 'i1', 'i2'])
+    figname = 'splitting_{:.1f}_{:.1f}_{:.1f}.pdf'.format(freq_start, freq_min, freq_end)
+    plt.savefig(os.path.join(os.curdir,'figs',figname))
+    # plt.show()
 
 if __name__ == "__main__":
     split_coulomb_test()

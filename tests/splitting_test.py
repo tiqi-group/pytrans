@@ -12,7 +12,7 @@ if __name__ == "__main__":
     # Investigate a and b potentials
     if analytic_plot:
         a = -3 # alpha
-        b = 2 # beta
+        b = 5 # beta
 
         x = np.linspace(-2,2,20000)
         y = a*x**2+b*x**4
@@ -21,8 +21,9 @@ if __name__ == "__main__":
 
         print(x_min)
         plt.plot(x,y)
-        plt.plot(x, 2*np.abs(a)*(x-x_min)**2+(a*x_min**2+b*x_min**4))
-        plt.plot(x, 2*np.abs(a)*(x+x_min)**2+(a*x_min**2+b*x_min**4))
+        dc_offs = (a*x_min**2+b*x_min**4)
+        plt.plot(x, 2*np.abs(a)*(x-x_min)**2+dc_offs)
+        plt.plot(x, 2*np.abs(a)*(x+x_min)**2+dc_offs)
 
         plt.show()
 
