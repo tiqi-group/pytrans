@@ -25,8 +25,8 @@ def split_coulomb_test():
     # no Coulomb repulsion included
     locs_nc = np.zeros_like(locs) 
     freqs_nc = np.zeros_like(locs)
-    offsets_nc = np.zeros_like(locs)    
-    rois = np.linspace(700*um, 700*um, wp.shape[1])
+    offsets_nc = np.zeros_like(locs)
+    rois = np.full_like(locs, 700*um)
     
     from multiprocessing import Pool
 

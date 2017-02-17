@@ -4,6 +4,8 @@
 
 #+BEGIN_SRC ipython :session sesh :exports both
   %matplotlib inline
+  %load_ext autoreload
+  %autoreload 2
   import sys
   sys.path.append("../")
   from pytrans import *
@@ -128,7 +130,7 @@ Now let's use it to look at how the frequency at the critical point
 As we might expect there is a peak in frequency at -1.4V, and a
 decline as it is raised.
 
-What exact offset is the frequency maximised at, you ask?
+What exact offset is the frequency maximised at?
 
 #+BEGIN_SRC ipython :session sesh :exports both :results output
   print("Sep: ", d[np.argmax(w)]*1e6, ", freq: ", np.max(w)/2/np.pi/1e3)
@@ -140,3 +142,63 @@ What exact offset is the frequency maximised at, you ask?
 which is close to when the solver's DC offset is unconstrained
 (i.e. it just maximised $\beta$).
 
+* Splitting behaviour with respect to desired offset
+
+Let's see how the splitting behaviour changes with offset. Use the
+=split_sep_reparam()= function.
+
+#+BEGIN_SRC ipython :session sesh :exports both :results output
+  field_offset = 0
+  n_alphas = 60
+  start_alpha = 1e7
+  end_alpha = -2e7
+  alphas = np.hstack([np.linspace(start_alpha, 1e6, n_alphas//3),
+                      np.linspace(0.9e6, -1.9e6, n_alphas//3),
+                      np.linspace(-2e6, end_alpha, n_alphas//3)])
+
+  n_tau = 100
+  tau = np.linspace(0, 1, n_tau)
+
+  desired_sep_vec = tau**2*np.sin(np.pi/2*tau)**2 # sin^2 parabola
+
+  # Generate electrode voltage set
+  split_voltages = sp.split_sep_reparam(polys, alphas, desired_sep_vec, electrode_subset, field_offset)
+  split_voltages_elec = np.zeros((num_elecs, split_voltages.shape[1]))
+  split_voltages_elec[physical_electrode_transform[electrode_subset], :] = split_voltages
+#+END_SRC
+
+#+RESULTS:
+
+Now we plot the results:
+
+#+BEGIN_SRC ipython :session sesh :exports both :file figs/split_dfo_unconstrained.png
+  sp.plot_split_dfo(split_voltages_elec)
+#+END_SRC
+
+#+RESULTS:
+[[file:figs/split_dfo_unconstrained.png]]
+
+Now let's try with a fixed DC offset:
+
+#+BEGIN_SRC ipython :session sesh :exports both :file figs/split_dfo_dc_offs.png
+  split_voltages_offs = sp.split_sep_reparam(polys, alphas, desired_sep_vec, electrode_subset, 
+                                             slope_offsets=0, dc_offsets=0)
+  split_voltages_elec_offs = np.zeros((num_elecs, split_voltages_offs.shape[1]))
+  split_voltages_elec_offs[physical_electrode_transform[electrode_subset], :] = split_voltages_offs
+
+  # Overlapped plot
+  old_axes = sp.plot_split_dfo(split_voltages_elec, parallel_solve=True)
+  sp.plot_split_dfo(split_voltages_elec_offs, axes=old_axes, parallel_solve=True)
+#+END_SRC
+
+#+RESULTS:
+[[file:figs/split_dfo_dc_offs.png]]
+
+* Interpolate between polynomial solver and regular waveforms
+
+  Need to have code which
+
+  - takes initial freq/pos/offset and transports to splitting
+    position, in a smooth fashion (poly?), with selectable end offset
+
+  - if end offset is not specified

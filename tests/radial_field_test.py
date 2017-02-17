@@ -4,7 +4,7 @@ import sys
 sys.path.append("../")
 sys.path.append("../experiments")
 from pytrans import *
-from loading_conveyor import static_waveform, transport_waveform
+import transport_utils as tu
 
 def radial_field_test():
     wf = Waveform("", 0, "", np.zeros((32,1)))

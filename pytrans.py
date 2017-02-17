@@ -959,9 +959,9 @@ class WavPotential:
         # strengths and their associated axes.
         A = np.array( [ [a, d/2, e/2], [d/2, b, f/2 ], [e/2, f/2, c] ] )
         eigenvalues, axes =  np.linalg.eig(A) # each column of axes corresponds to one eigenvector
-        omegas = np.sqrt(eigenvalues*2*electron_charge / (self.ion_mass*atomic_mass_unit) )/(2*np.pi) # Freq in Hz
+        freqs = np.sqrt(eigenvalues*2*electron_charge / (self.ion_mass*atomic_mass_unit) )/(2*np.pi) # Freq in Hz
         
-        if any(w < 0 for w in omegas):
+        if any(w < 0 for w in freqs):
             warnings.warn('Potential is anti-confining.')        
         
         # Extract the trapping location by solving for the point where grad V = 0:
@@ -977,7 +977,7 @@ class WavPotential:
         # Overall offset
         offset = p[-1] # j
 
-        # Sort the results such that omegas[0] and axes[:,0] correspond to the axial mode
+        # Sort the results such that freqs[0] and axes[:,0] correspond to the axial mode
         axial_mode_idx = np.abs(axes[0,:]).argmax() # idx of eigenvector with largest component along axial direction x
         if axial_mode_idx != 0:
             if axial_mode_idx == 1:    
@@ -985,7 +985,7 @@ class WavPotential:
             elif axial_mode_idx == 2:
                 permutation = np.array([axial_mode_idx,0,1],dtype='int')
             # Put axial first                
-            omegas = omegas[permutation]
+            freqs = freqs[permutation]
             axes = axes[:,permutation]
 
         # align both radial eigenvectors in the upper half of the yz plane
@@ -994,7 +994,7 @@ class WavPotential:
         if axes[2,2] < 0:
             axes[:,2] = -axes[:,2]
     
-        return omegas, axes, r0, offset, V
+        return freqs, axes, r0, offset, V
         
     def plot_radials(self,time_idx, ax=None, mode='3d', ax_title=None):
         """ Plots the potential in the radial plane together with the radial directions,
@@ -1004,11 +1004,11 @@ class WavPotential:
             ax = fig.add_subplot(1,1,1)
 
         if mode == '3d':
-            omegas, axes, r0, offset, V_3d = self.find_radials_3d(time_idx)
+            freqs, axes, r0, offset, V_3d = self.find_radials_3d(time_idx)
             # Pick required 2d slice from 3d potential:
             V = V_3d.reshape((11,trap_mom.pot3d.ny,trap_mom.pot3d.nz))[5,:,:]
         elif mode == '2d':
-            omegas, axes, r0, offset, V = self.find_radials_2d(time_idx)
+            freqs, axes, r0, offset, V = self.find_radials_2d(time_idx)
         else:
             assert False, "Input argument 'mode' only supports mode='2d' or mode='3d'."
         
@@ -1034,9 +1034,9 @@ class WavPotential:
         ax.quiver(X0,Y0,XV,YV,scale_units='xy',scale=1/scalefactor,color='white')
         
         # Annotate plot with trap freqs. and origin of well
-        ax.text(r0[1]/um + extent/4, r0[2]/um, 'Ax: ' +'{:.2f}'.format(omegas[0]/MHz) + ' MHz', color='white') # Axial freq
-        ax.text(r0[1]/um + scalefactor*axes[1,1], r0[2]/um + scalefactor*axes[2,1], '{:.2f}'.format(omegas[1]/MHz) + ' MHz', color='white') # Radial 1
-        ax.text(r0[1]/um + scalefactor*axes[1,2], r0[2]/um + scalefactor*axes[2,2], '{:.2f}'.format(omegas[2]/MHz) + ' MHz', color='white') # Radial 2
+        ax.text(r0[1]/um + extent/4, r0[2]/um, 'Ax: ' +'{:.2f}'.format(freqs[0]/MHz) + ' MHz', color='white') # Axial freq
+        ax.text(r0[1]/um + scalefactor*axes[1,1], r0[2]/um + scalefactor*axes[2,1], '{:.2f}'.format(freqs[1]/MHz) + ' MHz', color='white') # Radial 1
+        ax.text(r0[1]/um + scalefactor*axes[1,2], r0[2]/um + scalefactor*axes[2,2], '{:.2f}'.format(freqs[2]/MHz) + ' MHz', color='white') # Radial 2
         ax.text(-extent/4, -extent/2, 'x0 = ' + '{:.2f}'.format(r0[0]/um) + ' um\n' + 'y0 = ' + '{:.2f}'.format(r0[1]/um) + ' um\n' + 'z0 = ' + '{:.2f}'.format(r0[2]/um) + ' um', color='white') # Centre locations
         
         # Format plot

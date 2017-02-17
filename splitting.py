@@ -123,12 +123,12 @@ def v_splev(voltage_splines, x_values):
     """
     return np.array([v(x_values) for v in voltage_splines])
 
-@vectorize
+@np.vectorize
 def ion_sep(d, A, B):
     """ Simply implements Eq. (7) in Home/Steane 2003 paper """
     return B * d**5 + 2 * A * d**3 - electron_charge / (2 *np.pi * epsilon_0)
 
-@vectorize
+@np.vectorize
 def get_sep(alpha, beta):
     """ Find the separation for a given alpha/beta pair, using ion_sep to solve"""
     d = sopt.root(ion_sep, 1000*um, (alpha, beta))
@@ -147,7 +147,7 @@ def com_w(d, A, B, mass):
     Implements Eq. (10) of Home/Steane 2003 paper"""
     return np.sqrt( (2*A + 3*B*d**2) * electron_charge / mass / atomic_mass_unit )
 
-def split_sep_reparam(polys, alphas, slope_offsets, desired_sep_vec, electrode_subset, plot_sep=True):
+def split_sep_reparam(polys, alphas, desired_sep_vec, electrode_subset, slope_offsets, dc_offsets=None, plot_sep=True):
     """Calculate voltages for a vector of Alpha values while maximising
     Beta, then allow you to reparameterise them so that the separation
     follows that given by desired_sep_vec as a function of time. If
@@ -169,9 +169,12 @@ def split_sep_reparam(polys, alphas, slope_offsets, desired_sep_vec, electrode_s
     if type(slope_offsets) is not np.ndarray:
         slope_offsets = np.full(n_alphas, slope_offsets)
 
+    if type(dc_offsets) is not np.ndarray:
+        dc_offsets = np.full(n_alphas, dc_offsets)
+
     for k, alpha in enumerate(alphas):
         split_elec_voltages[:,[k]], true_alphas[k], true_betas[k] = solve_poly_ab(
-            polys, alpha, slope_offsets[k])
+            polys, alpha, slope_offsets[k], dc_offsets[k])
 
     separations = get_sep(true_alphas, true_betas)
 
@@ -180,11 +183,70 @@ def split_sep_reparam(polys, alphas, slope_offsets, desired_sep_vec, electrode_s
     v_interp = v_splev(v_spl, sep_desired)
     return v_interp
 
-def plot_split_voltages(samples, electrodes=[2,3,4,5,6,7,8]):
+def plot_split_voltages(samples, electrodes=[2,3,4,5,6,7,8], ax=None):
+    """ Plot electrode voltages as a function of timestep """
+    if ax is None:
+        f = plt.figure()
+        ax = f.add_subplot(111)
     plt.plot(samples[physical_electrode_transform[electrodes],:].T)
     plt.legend(list(str(k) for k in electrodes))
     plt.show()
 
+def plot_split_dfo(samples, roi=700*um, split_centre=-422.5*um, axes=None,
+                   parallel_solve=False, savefig=False):
+    """Plot splitting in three subplots: separation, frequency and
+    offset. Assumes that samples is going from 1 to 2 wells, around
+    the centre and in the ROI range given.
+    
+    axes: 3-long list of axes, to plot locations, frequencies and
+    offsets as a fn of timestep
+
+    """
+    if axes is None:
+        f = plt.figure(figsize=(8,11))        
+        axes = [f.add_subplot(311), f.add_subplot(312), f.add_subplot(313)]
+
+    ts = samples.shape[1]
+    ion_locs = np.zeros((ts,2))
+    freqs = np.zeros_like(ion_locs)
+    offsets = np.zeros_like(ion_locs)
+
+    split_centres = np.full(ts, split_centre)
+    rois = np.full(ts, roi)
+
+    if parallel_solve:
+        from multiprocessing import Pool
+        with Pool(6) as p: # 6 cores
+            data_list = p.starmap(find_coulomb_wells, zip(samples.T, split_centres, rois))
+            for k, dl in enumerate(data_list):
+                ion_locs[k], freqs[k], offsets[k] = dl['locs'], dl['freqs'], dl['offsets']
+    else:
+        for k, (sve, srl, roi) in enumerate(zip(samples.T, split_centres, rois)):
+            dl = find_coulomb_wells(sve, srl, roi)
+            ion_locs[k], freqs[k], offsets[k] = dl['locs'], dl['freqs'], dl['offsets']
+
+    axes[0].plot(ion_locs/um)
+    axes[0].set_ylabel('Positions (um)')
+    axes[0].grid(True)
+
+    axes[1].plot(freqs/kHz)
+    axes[1].set_ylabel('Freqs (kHz)')
+    axes[1].grid(True)
+
+    axes[2].plot(offsets)
+    axes[2].set_ylabel('Offset (meV)')
+    axes[2].grid(True)
+
+    if savefig:
+        freqs_av = freqs.mean(1)
+        freq_start = freqs_av[0]/1e3
+        freq_min = freqs_av.min()/1e3
+        freq_end = freqs_av[-1]/1e3
+        figname = 'splitting_{:.1f}_{:.1f}_{:.1f}.pdf'.format(freq_start, freq_min, freq_end)
+        f.savefig(os.path.join(os.curdir,'figs',figname))
+
+    return axes
+    
 def calc_beta(sep, alp):
     # Note: doesn't take Coulomb into account
     # sep: separation from ion to ion
@@ -750,7 +812,7 @@ def split_waveforms_reparam(
     # desired_sep_vec = tau # linear separation, no funny business
     desired_sep_vec = tau**2*np.sin(np.pi/2*tau)**2 # sin^2 parabola
     
-    split_voltages = split_sep_reparam(polys, alphas, field_offset, desired_sep_vec, electrode_subset)
+    split_voltages = split_sep_reparam(polys, alphas, desired_sep_vec, electrode_subset, field_offset)
     split_voltages_elec = np.zeros((num_elecs, split_voltages.shape[1]))
     split_voltages_elec[physical_electrode_transform[electrode_subset], :] = split_voltages
 

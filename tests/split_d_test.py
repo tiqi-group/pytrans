@@ -11,7 +11,7 @@ from pytrans import *
 import splitting as sp
 
 def split_d_test():
-    """ This code has been incorporated into sp.split_reparam() """
+    """ This code has been incorporated into sp.split_waveforms_reparam() """
     # d stands for ion-ion distance
     # Generate trap polynomial approximations
     split_centre = -422.5*um
@@ -48,8 +48,7 @@ def split_d_test():
         plt.ylabel("Equation offset (correct separation when it's equal to 0")
         plt.show()
 
-    get_sep_v = np.vectorize(sp.get_sep)
-    separations = get_sep_v(true_alphas, true_betas)
+    separations = sp.get_sep(true_alphas, true_betas)
     freqs = sp.com_w(separations, true_alphas, true_betas, mass_Ca)/2/np.pi
 
     # Desired separation profile: sin**2
