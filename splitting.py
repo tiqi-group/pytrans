@@ -807,7 +807,7 @@ def split_waveforms_reparam(
     n_alphas = 60
     # originally: start_alpha, end_alpha = 1e7, -2e7
     start_alpha = 9e6 # must be tweaked, to ensure desired starting well frequency
-    end_alpha = -1.2e7 # must be tweaked, to ensure desired ending well frequency
+    end_alpha = -9e6 # must be tweaked, to ensure desired ending well frequency
     alphas = np.hstack([np.linspace(start_alpha, 1e6, n_alphas//3),
                         np.linspace(0.9e6, -1.9e6, n_alphas//3),
                         np.linspace(-2e6, end_alpha, n_alphas//3)])
@@ -816,7 +816,7 @@ def split_waveforms_reparam(
     # desired_sep_vec = tau # linear separation, no funny business
 
     # sin^2 parabola, tau's power tuned for slow-enough separation to avoid hitting slew rate issues
-    desired_sep_vec = (tau**0.7)*np.sin(np.pi/2*tau)**2
+    desired_sep_vec = (tau**0.8)*np.sin(np.pi/2*tau)**2
     # desired_sep_vec = (tau**2)*np.sin(np.pi/2*tau)**2
     
     split_voltages, split_sep_desired = split_sep_reparam(
@@ -835,6 +835,7 @@ def split_waveforms_reparam(
                                             [start_f, split_f],
                                             [start_offset, split_dc_offset],
                                             n_transport, start_split_label,
+                                            linspace_fn=zpspace,
                                             interp_start=20,
                                             interp_end=20)    
 
@@ -868,6 +869,7 @@ def split_waveforms_reparam(
     # velocity to reach the final destinations (won't be quite the
     # same for the 2 wells, so we take the mean)
     extra_steps_needed = int(( (final_locs - split_locs_last)/split_vels_last ).mean())
+    print("Ramp steps needed: {a}".format(a=extra_steps_needed))
     
     wf_finish_split = tu.transport_waveform_multiple(
         [[separation_locs_first[0], final_locs[0]],[separation_locs_first[1], final_locs[1]]],
@@ -887,7 +889,7 @@ def split_waveforms_reparam(
     savgol_smooth = True
     if savgol_smooth:
         # window = 151 # before 09.02.2017
-        window = 51 # 09.02.2017
+        window = 101 # 09.02.2017
         # window = 3
         full_wfm_voltages = ssig.savgol_filter(full_wfm_voltages, window, 2, axis=-1)
     

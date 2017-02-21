@@ -22,7 +22,7 @@ def split_wfms(f_well, conveyor_offs, field_offset, n_transport):
 
 def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=False):
     """ Generate loading/splitting waveforms, with swept offset """
-    wf_name = "load_split_2Be1Ca_2017_02_21_v01"
+    wf_name = "load_split_2Be1Ca_2017_02_21_v03"
     wf_path = os.path.join(os.pardir, "waveform_files", wf_name + ".dwc.json")
 
     # If file exists already, just load it to save time
@@ -60,11 +60,12 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
             [[conveyor_offs,conveyor_offs],[conveyor_offs,conveyor_offs]],
             2.5*n_transport,
             "-far to centre, centre to +far",
+            linspace_fn=zpspace,
             interp_start=40, interp_end=40)
 
         # field_offsets = np.linspace(-300,300,11 - num_reorder_wfms) # Wide scan, to establish what range is reasonable
         # field_offsets = np.linspace(-75, -55, 11-num_reorder_wfms)
-        field_offsets = np.linspace(-300, 300, 11-num_reorder_wfms)
+        field_offsets = np.linspace(-100, 100, 11-num_reorder_wfms)
         # field_offsets = [-63]
         wfs_split = []
 
