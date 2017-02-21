@@ -99,12 +99,14 @@ def erfspace(a, b, npts, erf_scaling=2.5):
 
 # Linspace replacement, producing a zero-pole curve with adjustable width + smoothness
 # Test in linspace_fn_test.org
-def zpspace(a, b, npts, k=3, gap=1.5):
+def zpspace(a, b, npts, k=3, gap=1.5, gap2=None):
+    if gap2 is None:
+        gap2 = gap
     w0 = np.exp(-k)
-    w1 = np.exp(k)        
-    sc = 2*k
-    w = np.exp(np.linspace(-gap*k, gap*k, npts))
-    return a + (b-a) * (1 + np.log(np.abs( (w - 1j*w0)/(w - 1j*w1) )) / sc)
+    w1 = np.exp(k)
+    w = np.exp(np.linspace(-gap*k, gap2*k, npts))
+    y = np.log(np.abs( (w - 1j*w0)/(w - 1j*w1) ))
+    return a + (b-a) * (y - y.min())/(y.max()-y.min())
 
 # Linspace replacement, producing a line with 2 identical points at
 # the start and the end looking like a _/-

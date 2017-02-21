@@ -16,13 +16,13 @@ def split_wfms(f_well, conveyor_offs, field_offset, n_transport):
                                       [-844, 0], [f_well,f_well], [conveyor_offs, conveyor_offs],
                                       -422.5, f_well,
                                       field_offset=field_offset,
-                                      # dc_offset=0*meV,
+                                      # dc_offset=1000*meV,
                                       n_transport=n_transport,
                                       electrode_subset=[3,4,5,6,7,18,19,20,21,22]) # left splitting group
 
 def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=False):
     """ Generate loading/splitting waveforms, with swept offset """
-    wf_name = "load_split_2Be1Ca_2017_02_21_v03"
+    wf_name = "load_split_2Be1Ca_2017_02_21_v04"
     wf_path = os.path.join(os.pardir, "waveform_files", wf_name + ".dwc.json")
 
     # If file exists already, just load it to save time

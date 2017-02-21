@@ -812,11 +812,14 @@ def split_waveforms_reparam(
                         np.linspace(0.9e6, -1.9e6, n_alphas//3),
                         np.linspace(-2e6, end_alpha, n_alphas//3)])
 
-    tau = np.linspace(0, 1, 100)
+    sep_pts = 300
+    tau = np.linspace(0, 1, sep_pts)
     # desired_sep_vec = tau # linear separation, no funny business
+    # desired_sep_vec = tau**1.5
 
     # sin^2 parabola, tau's power tuned for slow-enough separation to avoid hitting slew rate issues
-    desired_sep_vec = (tau**0.8)*np.sin(np.pi/2*tau)**2
+    # desired_sep_vec = (tau**1.5)*np.sin(np.pi/2*tau)**2
+    desired_sep_vec = tau**3
     # desired_sep_vec = (tau**2)*np.sin(np.pi/2*tau)**2
     
     split_voltages, split_sep_desired = split_sep_reparam(
@@ -886,12 +889,12 @@ def split_waveforms_reparam(
                                    split_end_ramp, wf_finish_split.samples])
 
     # Smooth the waveform voltages
-    savgol_smooth = True
+    savgol_smooth = False
     if savgol_smooth:
         # window = 151 # before 09.02.2017
         window = 101 # 09.02.2017
         # window = 3
-        full_wfm_voltages = ssig.savgol_filter(full_wfm_voltages, window, 2, axis=-1)
+        full_wfm_voltages = ssig.savgol_filter(full_wfm_voltages, window, 2, axis=-1, mode='nearest')
     
     # TODO: maybe add smoothing here for better parameterisation of
     # waveforms; would need to solve and interpolate
