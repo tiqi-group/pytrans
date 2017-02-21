@@ -805,8 +805,9 @@ def split_waveforms_reparam(
                                 split_centre, polyfit_range)
 
     n_alphas = 60
-    start_alpha = 9e6
-    end_alpha = -2e7
+    # originally: start_alpha, end_alpha = 1e7, -2e7
+    start_alpha = 9e6 # must be tweaked, to ensure desired starting well frequency
+    end_alpha = -1.2e7 # must be tweaked, to ensure desired ending well frequency
     alphas = np.hstack([np.linspace(start_alpha, 1e6, n_alphas//3),
                         np.linspace(0.9e6, -1.9e6, n_alphas//3),
                         np.linspace(-2e6, end_alpha, n_alphas//3)])
@@ -872,7 +873,7 @@ def split_waveforms_reparam(
         [[separation_locs_first[0], final_locs[0]],[separation_locs_first[1], final_locs[1]]],
         [[split_freqs_last[0],final_fs[0]],[split_freqs_last[1],final_fs[1]]],
         [[split_dc_offsets_last[0], final_offsets[0]],[split_dc_offsets_last[1], final_offsets[1]]],
-        extra_steps_needed, "", interp_start=finish_split_interp_n, interp_end=20)
+        extra_steps_needed, "", interp_start=0, interp_end=20)
 
     # Ramp from end of polynomial solver to discrete wells
     split_end_ramp = vlinspace(split_voltages_elec[:,[-1]],
@@ -882,6 +883,14 @@ def split_waveforms_reparam(
     full_wfm_voltages = np.hstack([split_start_ramp, split_voltages_elec,
                                    split_end_ramp, wf_finish_split.samples])
 
+    # Smooth the waveform voltages
+    savgol_smooth = True
+    if savgol_smooth:
+        # window = 151 # before 09.02.2017
+        window = 51 # 09.02.2017
+        # window = 3
+        full_wfm_voltages = ssig.savgol_filter(full_wfm_voltages, window, 2, axis=-1)
+    
     # TODO: maybe add smoothing here for better parameterisation of
     # waveforms; would need to solve and interpolate
     splitting_wf = Waveform(split_label+", offset = " + "{0:6.3e}".format(field_offset*um) + " V/m",

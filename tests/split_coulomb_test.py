@@ -5,14 +5,19 @@
 import sys
 sys.path.append("../")
 from pytrans import *
-from splitting import *
+import splitting as sp
 
-wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2Be1Ca_2017_02_09_v05c.dwc.json")
+wf_path = os.path.join(os.pardir, "waveform_files", "load_split_2Be1Ca_2017_02_21_v01.dwc.json")
 
 def coulomb_solve(sample, roi):
     wells = find_coulomb_wells(sample[np.newaxis].T, -422.5*um, roi)
     return wells['locs_no_coulomb'], wells['freqs_no_coulomb'], wells['offsets_no_coulomb'], \
         wells['locs'], wells['freqs'], wells['offsets']
+
+def split_coulomb_test_new():
+    wfs = WaveformSet(waveform_file=wf_path)
+    wp = wfs.find_waveform("split apart, offset = 0.000e+00 V/m").samples
+    sp.plot_split_dfo(wp, parallel_solve=True, savefig=True)
 
 def split_coulomb_test():
     # Solve Coulomb-based repulsion for waveforms
@@ -26,11 +31,11 @@ def split_coulomb_test():
     locs_nc = np.zeros_like(locs) 
     freqs_nc = np.zeros_like(locs)
     offsets_nc = np.zeros_like(locs)
-    rois = np.full_like(locs, 700*um)
+    rois = np.full(wp.shape[1], 700*um)
     
     from multiprocessing import Pool
 
-    parallel_solve = False
+    parallel_solve = True
     if parallel_solve:
         with Pool(6) as p: # 6 cores
             data_list = p.starmap(coulomb_solve, zip(wp.T,rois))
@@ -82,4 +87,5 @@ def split_coulomb_test():
     plt.savefig(os.path.join(os.curdir,'figs',figname))
 
 if __name__ == "__main__":
-    split_coulomb_test()
+    split_coulomb_test_new()
+    # split_coulomb_test()

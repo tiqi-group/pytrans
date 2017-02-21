@@ -10,13 +10,13 @@ import transport_utils as tu
 import loading_utils as lu
 import splitting as sp
 
-
 def split_wfms(f_well, conveyor_offs, field_offset, n_transport):
     """ Written at top-level for pickling, so that system can parallelise this """
     return sp.split_waveforms_reparam(0, f_well, conveyor_offs,
                                       [-844, 0], [f_well,f_well], [conveyor_offs, conveyor_offs],
                                       -422.5, f_well,
                                       field_offset=field_offset,
+                                      # dc_offset=0*meV,
                                       n_transport=n_transport,
                                       electrode_subset=[3,4,5,6,7,18,19,20,21,22]) # left splitting group
 
@@ -141,4 +141,4 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
         wfs_load_and_split.write(wf_path, fix_voltage_limits=True)
 
 if __name__ == "__main__":
-    load_and_split_2Be1Ca(save_video=True)
+    load_and_split_2Be1Ca(save_video=False)
