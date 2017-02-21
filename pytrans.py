@@ -97,6 +97,15 @@ def erfspace(a, b, npts, erf_scaling=2.5):
     vout_zc = erf_y*slope/erf_y_slope # scale slope
     return vout_zc + a - vout_zc[0] # shift range
 
+# Linspace replacement, producing a zero-pole curve with adjustable width + smoothness
+# Test in linspace_fn_test.org
+def zpspace(a, b, npts, k=3, gap=1.5):
+    w0 = np.exp(-k)
+    w1 = np.exp(k)        
+    sc = 2*k
+    w = np.exp(np.linspace(-gap*k, gap*k, npts))
+    return a + (b-a) * (1 + np.log(np.abs( (w - 1j*w0)/(w - 1j*w1) )) / sc)
+
 # Linspace replacement, producing a line with 2 identical points at
 # the start and the end looking like a _/-
 # def rampspace(a, b, npts, pad=1):
@@ -1153,6 +1162,7 @@ class WaveformSet:
                 if get_index:
                     return k
                 return w
+        warnings.warn("Could not find Waveform {w} in WaveformSet!".format(w=name_str))
 
 if __name__ == "__main__":
     # Debugging stuff -- write unit tests from the below at some point

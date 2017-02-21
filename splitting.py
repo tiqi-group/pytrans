@@ -34,6 +34,8 @@ def scan_alpha_beta():
     plt.show()
 
 def ion_distance_ab(alpha, beta, d):
+    """Equation whose root gives the distance d; not used directly, just
+    fed into a solver"""
     if d<0: # to constrain the solver
         return abs(d)*1e5+1e2
     return beta*d**5+2*alpha*d**3-electron_charge/2/np.pi/epsilon_0
@@ -59,7 +61,6 @@ def reproduce_fig2_home_steane():
 
     w1_y = np.sqrt(2*alpha_x + 3*beta*d_y**2*electron_charge/atomic_mass_unit/40)
 
-    st()
 
 def look_at_wells_manually():
     alpha = 1.4e8
@@ -181,7 +182,7 @@ def split_sep_reparam(polys, alphas, desired_sep_vec, electrode_subset, slope_of
     v_spl = v_splrep(split_elec_voltages, separations)
     sep_desired = separations[0] + (separations[-1]-separations[0])*desired_sep_vec
     v_interp = v_splev(v_spl, sep_desired)
-    return v_interp
+    return v_interp, sep_desired
 
 def plot_split_voltages(samples, electrodes=[2,3,4,5,6,7,8], ax=None):
     """ Plot electrode voltages as a function of timestep """
@@ -787,11 +788,13 @@ def split_waveforms_reparam(
         start_split_label='trans from start -> split start',
         split_label='split apart',
         plot_splits=False):
-    """ Specify the starting well properties (the experimental zone
-    usually) and the splitting well properties, which will be used in
-    the linear ramp between the combined well and the first stage of
-    the quartic polynomial solver.  Note: final_locs, final_freqs,
-    final_offsets are in um, MHz, meV (I think!). """
+    """Generate trans -> split and splitting waveforms. Specify the
+    starting well properties (the experimental zone usually) and the
+    splitting well properties, which will be used in the linear ramp
+    between the combined well and the first stage of the quartic
+    polynomial solver.  Note: input quantities (eg final_locs,
+    final_freqs, final_offsets) are in um, MHz, meV (I think!).
+    """
     
     # centre of the central splitting electrode moment
     split_centre = split_loc*um 
@@ -802,7 +805,7 @@ def split_waveforms_reparam(
                                 split_centre, polyfit_range)
 
     n_alphas = 60
-    start_alpha = 1e7
+    start_alpha = 9e6
     end_alpha = -2e7
     alphas = np.hstack([np.linspace(start_alpha, 1e6, n_alphas//3),
                         np.linspace(0.9e6, -1.9e6, n_alphas//3),
@@ -810,9 +813,13 @@ def split_waveforms_reparam(
 
     tau = np.linspace(0, 1, 100)
     # desired_sep_vec = tau # linear separation, no funny business
-    desired_sep_vec = tau**2*np.sin(np.pi/2*tau)**2 # sin^2 parabola
+
+    # sin^2 parabola, tau's power tuned for slow-enough separation to avoid hitting slew rate issues
+    desired_sep_vec = (tau**0.7)*np.sin(np.pi/2*tau)**2
+    # desired_sep_vec = (tau**2)*np.sin(np.pi/2*tau)**2
     
-    split_voltages = split_sep_reparam(polys, alphas, desired_sep_vec, electrode_subset, field_offset)
+    split_voltages, split_sep_desired = split_sep_reparam(
+        polys, alphas, desired_sep_vec, electrode_subset, field_offset, dc_offsets=dc_offset)
     split_voltages_elec = np.zeros((num_elecs, split_voltages.shape[1]))
     split_voltages_elec[physical_electrode_transform[electrode_subset], :] = split_voltages
 
@@ -835,27 +842,41 @@ def split_waveforms_reparam(
     split_start_ramp = vlinspace(wf_to_splitting.samples[:,[-1]], split_voltages_elec[:,[0]], start_ramp_steps)
     
     # Final waveform, extends separation by 150um either way and goes to default well settings
-    final_splitting_params = find_wells_from_samples(
+    split_params_2ndlast = find_wells_from_samples(
+        split_voltages_elec[:,[-2]], split_centre, polyfit_range)
+    split_params_last = find_wells_from_samples(
         split_voltages_elec[:,[-1]], split_centre, polyfit_range)
-    split_end_locs = np.array(final_splitting_params['locs'])/um
-    split_end_freqs = np.array(final_splitting_params['freqs'])/MHz
-    split_end_dc_offsets = np.array(final_splitting_params['offsets'])/meV
-    assert split_end_locs.size == 2, "Wrong number of wells detected after splitting"
+
+    split_locs_2ndlast = np.array(split_params_2ndlast['locs'])/um
+    split_locs_last = np.array(split_params_last['locs'])/um
+    split_freqs_last = np.array(split_params_last['freqs'])/MHz
+    split_dc_offsets_last = np.array(split_params_last['offsets'])/meV
+    assert split_locs_last.size == 2, "Wrong number of wells detected after splitting"
     
-    # wavpot_fit_end = find_wells_from_samples(, split_centre, polyfit_range)
-    # st()
-    # assert len(wavpot_fit_end['offsets']) == 2, "Error, found wrong number of wells in ROI at end of splitting."
-    # split_end_dc_offsets = wavpot_fit_start['offsets']/meV
+    ## Merge end of poly-algorithm solver with beginning of regular-algorithm solver
+    finish_split_interp_n = 20 # timesteps over which to carry out the merge
+
+    # Figure out the velocity of the ions in the final 2 timesteps of
+    # the splitting waveform, and continue out with this velocity for
+    # the interpolation ramps and the normally-solved separation
+    # waveform. Units: um per timestep
+    split_vels_last = split_locs_last - split_locs_2ndlast
+    separation_locs_first = split_locs_last + split_vels_last*(finish_split_interp_n-1)
+
+    # Figure out roughly how many more steps are needed at this
+    # velocity to reach the final destinations (won't be quite the
+    # same for the 2 wells, so we take the mean)
+    extra_steps_needed = int(( (final_locs - split_locs_last)/split_vels_last ).mean())
     
     wf_finish_split = tu.transport_waveform_multiple(
-        [[split_end_locs[0], final_locs[0]],[split_end_locs[1], final_locs[1]]],
-        [[split_end_freqs[0],final_fs[0]],[split_end_freqs[1],final_fs[1]]],
-        [[split_end_dc_offsets[0], final_offsets[0]],[split_end_dc_offsets[1], final_offsets[1]]],
-        n_transport, "", interp_end=20)
+        [[separation_locs_first[0], final_locs[0]],[separation_locs_first[1], final_locs[1]]],
+        [[split_freqs_last[0],final_fs[0]],[split_freqs_last[1],final_fs[1]]],
+        [[split_dc_offsets_last[0], final_offsets[0]],[split_dc_offsets_last[1], final_offsets[1]]],
+        extra_steps_needed, "", interp_start=finish_split_interp_n, interp_end=20)
 
-    # Ramp from end of splitting routine to discrete wells (start of final waveform)    
-    end_ramp_steps = 60
-    split_end_ramp = vlinspace(split_voltages_elec[:,[-1]], wf_finish_split.samples[:,[0]], end_ramp_steps)
+    # Ramp from end of polynomial solver to discrete wells
+    split_end_ramp = vlinspace(split_voltages_elec[:,[-1]],
+                               wf_finish_split.samples[:,[0]], finish_split_interp_n)
 
     # Combine all waveforms
     full_wfm_voltages = np.hstack([split_start_ramp, split_voltages_elec,

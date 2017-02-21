@@ -22,7 +22,7 @@ def split_wfms(f_well, conveyor_offs, field_offset, n_transport):
 
 def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=False):
     """ Generate loading/splitting waveforms, with swept offset """
-    wf_name = "load_split_2Be1Ca_2017_02_09_v05c"
+    wf_name = "load_split_2Be1Ca_2017_02_21_v01"
     wf_path = os.path.join(os.pardir, "waveform_files", wf_name + ".dwc.json")
 
     # If file exists already, just load it to save time
@@ -81,17 +81,12 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
                 res_list = p.starmap(split_wfms, zip(
                     f_wells, transport_offsets, field_offsets, n_transports))
                 for centre_to_split, wf_split in res_list:
-                    # Interpolate between end of splitting and start of parallel transport
-                    split_trans_interp = vlinspace(wf_split.samples[:,[-1]], wf_far_to_exp.samples[:,[0]], interp_n)
-                    wf_split.samples = np.hstack((wf_split.samples, split_trans_interp))
                     wfs_split.append(wf_split)
         else:
             # serial solver, for debugging
             for field_offset in field_offsets:
                 # centre_to_split wastefully defined repeatedly at the moment
                 centre_to_split, wf_split = split_wfms(f_well, default_offs, field_offset, n_transport)
-                split_trans_interp = vlinspace(wf_split.samples[:,[-1]], wf_far_to_exp.samples[:,[0]], interp_n)
-                wf_split.samples = np.hstack((wf_split.samples, split_trans_interp))
                 wfs_split.append(wf_split)
 
         wfs_load_and_split.waveforms.append(centre_to_split)        
@@ -107,7 +102,9 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
         wfs_load_and_split.waveforms.append(wf_recombine_fast)
 
         if save_video:
-            animate_wavpots([WavPotential(k) for k in (centre_to_split, wf_split, wf_far_to_exp)], parallel=False, decimation=1, save_video_path=wf_name+'.mp4')
+            merged_videos = [centre_to_split, wf_split, wf_far_to_exp] # all 3 together
+            # merged_videos = [wf_split] # just splitting
+            animate_wavpots([WavPotential(k) for k in merged_videos], parallel=False, decimation=1, save_video_path=wf_name+'.mp4')
                     
         wfs_load_and_split.write(wf_path, fix_voltage_limits=True)
 
@@ -144,4 +141,4 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
         wfs_load_and_split.write(wf_path, fix_voltage_limits=True)
 
 if __name__ == "__main__":
-    load_and_split_2Be1Ca()
+    load_and_split_2Be1Ca(save_video=True)

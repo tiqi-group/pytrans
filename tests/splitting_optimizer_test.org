@@ -202,3 +202,5 @@ Now let's try with a fixed DC offset:
     position, in a smooth fashion (poly?), with selectable end offset
 
   - if end offset is not specified
+
+    [CONTINUE HERE]

@@ -1,0 +1,61 @@
+#+TITLE: Plot video of a particular waveform
+
+* Prerequisite setup
+
+#+BEGIN_SRC ipython :session sesh :exports both
+  %matplotlib inline
+  %load_ext autoreload
+  %autoreload 2
+  import sys
+  sys.path.append("../")
+  from pytrans import *
+  import splitting as sp
+#+END_SRC
+
+#+RESULTS:
+
+* Select a waveform
+
+#+BEGIN_SRC ipython :session sesh :exports both :file figs/test.png
+wfs = WaveformSet(waveform_file="../waveform_files/load_trans_offs_2Be1Ca_2017_02_20_v02.dwc.json")
+# wf = wfs.find_waveform("960.0")
+wf = wfs.find_waveform("900")
+# wf = wfs.find_waveform("300.0")
+wf_pot = WavPotential(wf)
+#+END_SRC
+
+* Animate the waveform
+
+This only works for 100 frames, annoyingly. It's not clear why the limit is present at the moment.
+
+#+BEGIN_SRC ipython :session sesh :exports both :file figs/test.png
+  # Set up formatting for the movie files
+  def movie():
+      Writer = anim.writers['ffmpeg']
+      writer = Writer(fps=30, metadata=dict(artist='Me'), bitrate=1800)
+
+      fig = plt.figure()
+      ax = fig.add_subplot(1,1,1)
+      ax.set_ylim([-4,4])
+      line, = ax.plot(wf_pot.trap_axis/um, wf_pot.potentials[:,0])
+      def update(data):
+          line.set_ydata(data)
+          return line
+
+      def data_gen():
+          # for pot in wf_pot.potentials.T[::10]:
+          for k, pot in enumerate(wf_pot.potentials.T[:150]):
+              print(k)
+              yield pot
+
+      im_ani = anim.FuncAnimation(fig, func=update, frames=data_gen, interval=30)
+
+      #plt.show()
+      im_ani.save('video_test.mp4', writer=writer)
+
+  movie()
+#+END_SRC
+
+#+RESULTS:
+[[file:figs/test.png]]
+
