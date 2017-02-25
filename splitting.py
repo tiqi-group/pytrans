@@ -787,6 +787,7 @@ def split_waveforms_reparam(
         electrode_subset=None,
         start_split_label='trans from start -> split start',
         split_label='split apart',
+        savgol_smooth=True,
         plot_splits=False):
     """Generate trans -> split and splitting waveforms. Specify the
     starting well properties (the experimental zone usually) and the
@@ -806,8 +807,8 @@ def split_waveforms_reparam(
 
     n_alphas = 60
     # originally: start_alpha, end_alpha = 1e7, -2e7
-    start_alpha = 9e6 # must be tweaked, to ensure desired starting well frequency
-    end_alpha = -9e6 # must be tweaked, to ensure desired ending well frequency
+    start_alpha = 5e6 # must be tweaked, to ensure desired starting well frequency
+    end_alpha = -7e6 # must be tweaked, to ensure desired ending well frequency
     alphas = np.hstack([np.linspace(start_alpha, 1e6, n_alphas//3),
                         np.linspace(0.9e6, -1.9e6, n_alphas//3),
                         np.linspace(-2e6, end_alpha, n_alphas//3)])
@@ -889,7 +890,6 @@ def split_waveforms_reparam(
                                    split_end_ramp, wf_finish_split.samples])
 
     # Smooth the waveform voltages
-    savgol_smooth = False
     if savgol_smooth:
         # window = 151 # before 09.02.2017
         window = 101 # 09.02.2017

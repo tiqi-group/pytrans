@@ -22,7 +22,7 @@ def split_wfms(f_well, conveyor_offs, field_offset, n_transport):
 
 def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=False):
     """ Generate loading/splitting waveforms, with swept offset """
-    wf_name = "load_split_2Be1Ca_2017_02_21_v04"
+    wf_name = "load_split_2Be1Ca_2017_02_24_v01"
     wf_path = os.path.join(os.pardir, "waveform_files", wf_name + ".dwc.json")
 
     # If file exists already, just load it to save time
@@ -32,8 +32,14 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
         print("Loaded waveform ",wf_path)
     except FileNotFoundError:
         print("Generating waveform ", wf_path)
+
+        default_freq = 0.9
+        default_offs = 1000
+        
         # use existing loading conveyor file to save time - need to regenerate if not available
-        wfs_load = lu.get_loading_wfms("loading_2Be1Ca_2017_01_25_v01.dwc.json",
+        wfs_load = lu.get_loading_wfms(os.path.join(os.pardir, "waveform_files", "loading_3Be_2017_02_24_v01.dwc.json"),
+                                       default_freq=default_freq,
+                                       default_offs=default_offs,
                                        add_reordering=True, ion_chain='2Be1Ca')
         
         # truncate waveforms after the first shallow one
@@ -44,9 +50,6 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
         else:
             wfs_load_and_split = WaveformSet(
                 wfs_load.waveforms[:wfs_load.find_waveform("shallow", get_index=True)+1])
-
-        default_freq = 1.1
-        default_offs = 1000
         
         conveyor_offs = default_offs
 

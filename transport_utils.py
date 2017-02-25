@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pytrans import *
+import splitting as sp
 
 default_weights = {'r0':1e-5,
                  'r0_u_weights':np.ones(30), # all electrodes uniform
@@ -89,6 +90,67 @@ def transport_waveform_multiple(poss, freqs, offsets, timesteps, wfm_desc,
         wfs_e = Waveform(wdw_end).samples
         wf_wdw.samples = np.hstack([wf_wdw.samples[:,:-1], vlinspace(wf_wdw.samples[:,[-1]], wfs_e, interp_end)])
     return wf_wdw
+
+def conveyor_rec_waveform(loc, freq, offs, timesteps, wfm_desc, linspace_fn=np.linspace):
+    """Similar purpose to conveyor_waveform, but aim is to recombine
+    wells in the splitting zone using optimal solver"""
+    load_to_rec_ts = timesteps//4 #loading -> recombination start transport
+    rec_ts = timesteps//4 # recombine -> end up in splitting zone [WARNING: NOT USED FOR NOW]
+    split_to_exp_ts = timesteps//4 # splitting -> experimental transport
+
+    load_loc = loc[0]
+    load_freq = freq[0]
+    load_offs = offs[0]
+
+    exp_loc = loc[1]
+    exp_freq = freq[1]
+    exp_offs = offs[1]
+    
+    rec_loc = -844
+    # interpolate recombine params
+    rec_ratio = (exp_loc - rec_loc)/(exp_loc - load_loc)
+    rec_freq = exp_freq + (load_freq - exp_freq) * rec_ratio
+    rec_offs = exp_offs + (load_offs - exp_offs) * rec_ratio
+    
+    split_loc = -422.5
+    # interpolate split params
+    split_ratio = (exp_loc - split_loc)/(exp_loc - load_loc)
+    split_freq = exp_freq + (load_freq - exp_freq) * split_ratio
+    split_offs = exp_offs + (load_offs - exp_offs) * split_ratio
+    
+    # (Load, exp) -> (rec, exp)
+    wf_load_to_rec = transport_waveform_multiple(
+        [[load_loc, rec_loc], [exp_loc, exp_loc]],
+        [[load_freq, rec_freq], [exp_freq, rec_freq]],
+        [[load_offs, rec_offs], [exp_offs, rec_offs]],
+        load_to_rec_ts,
+        "",
+        linspace_fn=zpspace,
+        # linspace_fn=np.linspace,
+        interp_start=50, interp_end=50)
+
+    wf_exp_to_split, wf_split = sp.split_waveforms_reparam(
+        exp_loc, exp_freq, exp_offs,
+        [rec_loc, exp_loc],
+        [rec_freq, rec_freq],
+        [rec_offs, rec_offs],
+        split_loc, split_freq, None,
+        split_to_exp_ts,
+        electrode_subset=[3,4,5,6,7,18,19,20,21,22],
+        savgol_smooth=False)
+
+    total_samples = np.hstack([
+        wf_load_to_rec.samples, np.fliplr(wf_split.samples), np.fliplr(wf_exp_to_split.samples)])
+
+    # Recreate loading-zone well
+    total_samples = np.hstack([total_samples, vlinspace(total_samples[:,[-1]], total_samples[:,[0]], timesteps//5, lin_fn=zpspace) ])
+    
+    wf_load_conveyor = Waveform(
+        wfm_desc+" conveyor, {:.3f}->{:.3f} MHz, {:.1f}->{:.1f} meV".format(
+            load_freq, exp_freq, load_offs, exp_offs),
+        0, "", total_samples)
+
+    return wf_load_conveyor
 
 def conveyor_waveform(pos, freq, offs, timesteps, wfm_desc, linspace_fn=np.linspace):
     pts_for_new_wfm = timesteps//5

@@ -53,8 +53,11 @@ num_elecs = dac_channel_transform.size
 # locations of electrode voltages in the waveform files produced by
 # the system right now (0 -> 29) (i.e. values represent which DEATH
 # output drives each electrode, from 0 -> 29)
-physical_electrode_transform = np.array([0,4,8,2,  6,10,14,18,  22,26,30,16,  20,24,13,
-                                         1,5,9,3,  7,11,15,19,  23,27,31,17,  21,25,29])
+
+# This array is written to geometrically show which electrodes
+# are controlled by which DEATH channels. 4, 3, 1, 3, 4 = load, split, exp, split, load.
+physical_electrode_transform = np.array([0,4,8,2,  6,10,14,  18,  22,26,30,  16,20,24,13,
+                                         1,5,9,3,  7,11,15,  19,  23,27,31,  17,21,25,29])
 
 # indices of electrodes to be used for each DAC channel in the waveform file (0 -> 31)
 # (i.e. which electrodes does each DEATH channel drive)
@@ -671,7 +674,6 @@ class Waveform:
 
             # Slew rate constraints    
             constr += [-max_slew_rate*wdp.Ts <= (uopt[:,1:]-uopt[:,:-1]), (uopt[:,1:]-uopt[:,:-1]) <= max_slew_rate*wdp.Ts]
-
             
         pot_weights = np.ones(len(wdp.potentials))
         weight_ends = False
@@ -1131,7 +1133,7 @@ class WaveformSet:
                     warnings.warn("{k} DEATH voltages too low! May not load in Ionizer. {s}".format(k=wfv_too_low.sum(), s=fix_str));
 
                 if np.any(wfv_too_high):
-                    warnings.warn("Some DEATH voltages too high! May not load in Ionizer." + fix_str);
+                    warnings.warn("{k} DEATH voltages too high! May not load in Ionizer. {s}".format(k=wfv_too_high.sum(), s=fix_str));
                 
                 total_samples_written += wf.samples.shape[1]
                 if total_samples_written > max_death_samples:
