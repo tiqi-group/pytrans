@@ -204,7 +204,7 @@ def plot_split_dfo(samples, roi=700*um, split_centre=-422.5*um, axes=None,
 
     """
     if axes is None:
-        f = plt.figure(figsize=(8,11))        
+        f = plt.figure(figsize=(8,11), dpi=300)        
         axes = [f.add_subplot(311), f.add_subplot(312), f.add_subplot(313)]
 
     ts = samples.shape[1]
@@ -243,8 +243,11 @@ def plot_split_dfo(samples, roi=700*um, split_centre=-422.5*um, axes=None,
         freq_start = freqs_av[0]/1e3
         freq_min = freqs_av.min()/1e3
         freq_end = freqs_av[-1]/1e3
-        figname = 'splitting_{:.1f}_{:.1f}_{:.1f}.pdf'.format(freq_start, freq_min, freq_end)
-        f.savefig(os.path.join(os.curdir,'figs',figname))
+        figname = 'splitting_{:.1f}_{:.1f}_{:.1f}'.format(freq_start, freq_min, freq_end)
+        if type(savefig) is not bool:
+            # assume it's a string
+            figname += savefig
+        f.savefig(os.path.join(os.curdir,'figs',figname+'.png'))
 
     return axes
     
