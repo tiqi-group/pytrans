@@ -18,11 +18,12 @@ def split_wfms(f_well, conveyor_offs, field_offset, n_transport):
                                       field_offset=field_offset,
                                       # dc_offset=1000*meV,
                                       n_transport=n_transport,
-                                      electrode_subset=[3,4,5,6,7,18,19,20,21,22]) # left splitting group
+                                      electrode_subset=[3,4,5,6,7,18,19,20,21,22], # left splitting group
+                                      savgol_smooth=False)
 
 def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=False):
     """ Generate loading/splitting waveforms, with swept offset """
-    wf_name = "load_split_2Be1Ca_2017_02_24_v01"
+    wf_name = "load_split_2Be1Ca_2017_03_10_v02"
     wf_path = os.path.join(os.pardir, "waveform_files", wf_name + ".dwc.json")
 
     # If file exists already, just load it to save time
@@ -33,11 +34,11 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
     except FileNotFoundError:
         print("Generating waveform ", wf_path)
 
-        default_freq = 0.9
+        default_freq = 1.2
         default_offs = 1000
         
         # use existing loading conveyor file to save time - need to regenerate if not available
-        wfs_load = lu.get_loading_wfms(os.path.join(os.pardir, "waveform_files", "loading_3Be_2017_02_24_v01.dwc.json"),
+        wfs_load = lu.get_loading_wfms(os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2017_03_10_v02.dwc.json"),
                                        default_freq=default_freq,
                                        default_offs=default_offs,
                                        add_reordering=True, ion_chain='2Be1Ca')
