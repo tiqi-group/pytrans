@@ -536,7 +536,7 @@ class WavDesiredWells(WavDesired):
                  num_electrodes=30,
                  desc=None,
                  solver_weights=None,
-                 force_static_ends=False):
+                 force_static_ends=True):
         
         potentials, roi_idx = self.desiredPotentials(positions, freqs, offsets,
                                                      mass, desired_potential_params)
@@ -635,11 +635,6 @@ class Waveform:
         uopt = cvy.Variable(wdp.num_electrodes, N)
         states = []
 
-        ## Constrain the end voltages explicitly to match static case
-        ## (i.e. solve separate problem first, then constrain main one)
-        if wdp.force_static_ends:
-            uopt_ends = cvy.Variable(wdp.num_electrodes, 2)
-
         # Global constraints
         assert (N < 2) or (N > 3), "Cannot have this number of timesteps, due to finite-diff approximations"
 
@@ -650,10 +645,41 @@ class Waveform:
         # Absolute voltage constraints
         min_elec_voltages_m = np.tile(min_elec_voltages, (N,1)).T
         max_elec_voltages_m = np.tile(max_elec_voltages, (N,1)).T
-        constr = [min_elec_voltages_m <= uopt, uopt <= max_elec_voltages_m]
 
-        # Absolute symmetry constraints
-        constr += [uopt[:15,:] == uopt[15:,:]]
+        if wdp.force_static_ends:
+            constr = [min_elec_voltages_m[:,1:-1] <= uopt[:,1:-1],
+                      uopt[:,1:-1] <= max_elec_voltages_m[:,1:-1]]
+
+            # Absolute symmetry constraints
+            constr += [uopt[:15,1:-1] == uopt[15:,1:-1]]
+        else:
+            constr = [min_elec_voltages_m <= uopt, uopt <= max_elec_voltages_m]
+
+            # Absolute symmetry constraints
+            constr += [uopt[:15,:] == uopt[15:,:]]
+
+        ## Constrain the end voltages explicitly to match static case
+        ## (i.e. solve separate problem first, then constrain main one)
+        if wdp.force_static_ends:
+            uopt_e = cvy.Variable(wdp.num_electrodes, 2)
+            # min_elec_voltages_e = np.tile(min_elec_voltages, (2,1)).T
+            # max_elec_voltages_e = np.tile(max_elec_voltages, (2,1)).T
+            min_elec_voltages_e = min_elec_voltages_m[:,[0,-1]]
+            max_elec_voltages_e = max_elec_voltages_m[:,[0,-1]]
+            
+            constr_e = [min_elec_voltages_e <= uopt_e, uopt_e <= max_elec_voltages_e] # absolute voltage
+            constr_e += [uopt_e[:15,:] == uopt_e[15:,:]]
+            # sw_r0_u_ss_m_e = np.tile(sw['r0_u_ss'], (2,1)).T # matrixized
+            sw_r0_u_ss_m_e = sw_r0_u_ss_m[:,[0,-1]]
+            # penalise deviations from default voltage
+            cost_e = sw['r0'] * cvy.sum_squares(sw['r0_u_weights'] * (uopt_e - sw_r0_u_ss_m_e)) 
+            cost_e += cvy.sum_squares(trap_mom.potentials[
+                wdp.roi_idx[0]] * uopt_e[:,0] - wdp.potentials[0])
+            cost_e += cvy.sum_squares(trap_mom.potentials[
+                wdp.roi_idx[-1]] * uopt_e[:,-1] - wdp.potentials[-1])
+            prob = cvy.Problem(cvy.Minimize(cost_e), constr_e)
+            prob.solve(solver=global_solver, verbose=global_solver_verbose)
+            uopt_ev = uopt_e.value
 
         # Approximate costs on first and second derivative of u with finite differences
         # Here, we use 2nd order approximations. For a table with coefficients see 
@@ -677,7 +703,10 @@ class Waveform:
             
         pot_weights = np.ones(len(wdp.potentials))
         weight_ends = False
-        if weight_ends:
+        if wdp.force_static_ends:
+            constr += [uopt[:,0] == uopt_ev[:,0], uopt[:,-1] == uopt_ev[:,-1]]
+            
+        if weight_ends and not wdp.force_static_ends:
             # Weight the constraints more heavily at the ends
             if len(wdp.potentials) > 6:
                 pot_weights[[0,-1]] = 1e7
@@ -698,7 +727,7 @@ class Waveform:
         prob = sum(states)
         prob.solve(solver=global_solver, verbose=global_solver_verbose)
 
-        if False:
+        if True:
             # DEBUGGING ONLY
             plt.plot(trap_mom.transport_axis, trap_mom.potentials*uopt.value[:,0])
             plt.plot(trap_mom.transport_axis[wdp.roi_idx[0]], wdp.potentials[0],'--')
