@@ -482,7 +482,7 @@ class WavDesired:
     def __init__(self,
                  potentials, # list of arrays; each array is a potential for a timestep; volts
                  roi_idx, # Element indices for global trap axis position array; dims must match potentials
-                 Ts=100*ns, # slowdown of 0 -> 10 ns/step, slowdown of 30 (typical) -> (10*(30+1)) = 310 ns/step
+                 Ts=210*ns, # slowdown of 0 -> 10 ns/step, slowdown of 20 (typical) -> (10*(20+1)) = 210 ns/step
                  mass=mass_Ca,
                  num_electrodes=30,
                  desc=None,
@@ -624,7 +624,7 @@ class Waveform:
         # max_elec_voltages should be copied from config_local.h in ionpulse_sdk
         # max_elec_voltages = np.ones(wdp.num_electrodes)*9.0 
         # min_elec_voltages = -max_elec_voltages
-        max_slew_rate = 5 / us # (volts / s)
+        max_slew_rate = 5 / us # (units of volts / s)
 
         # Cost function parameters
         sw = wdp.solver_weights
@@ -651,7 +651,7 @@ class Waveform:
                       uopt[:,1:-1] <= max_elec_voltages_m[:,1:-1]]
 
             # Absolute symmetry constraints
-            constr += [uopt[:15,1:-1] == uopt[15:,1:-1]]
+            constr = [uopt[:15,1:-1] == uopt[15:,1:-1]]
         else:
             constr = [min_elec_voltages_m <= uopt, uopt <= max_elec_voltages_m]
 
@@ -687,8 +687,8 @@ class Waveform:
 
         if N > 3:
             # Middle: central finite-difference approx
-            cost += sw['r1']*cvy.sum_squares(0.5*(uopt[:,2:]-uopt[:,:-2]) )
-            cost += sw['r2']*cvy.sum_squares(uopt[:,2:] -2 * uopt[:,1:-1] + uopt[:,:-2])
+            cost += sw['r1']*cvy.sum_squares(0.5*(uopt[:,2:]-uopt[:,:-2]) ) # deriv
+            cost += sw['r2']*cvy.sum_squares(uopt[:,2:] -2 * uopt[:,1:-1] + uopt[:,:-2]) # 2nd deriv
 
             # Start: use forward finite difference approximation of derivatives
             cost += sw['r1']*cvy.sum_squares(-0.5*uopt[:,2] + 2*uopt[:,1] - 1.5*uopt[:,0])
@@ -698,16 +698,17 @@ class Waveform:
             cost += sw['r1']*cvy.sum_squares(1.5*uopt[:,-1] - 2*uopt[:,-2] + 0.5*uopt[:,-3])
             cost += sw['r2']*cvy.sum_squares(2*uopt[:,-1] - 5*uopt[:,-2] + 4*uopt[:,-3] - uopt[:,-4]) 
 
-            # Slew rate constraints    
-            constr += [-max_slew_rate*wdp.Ts <= (uopt[:,1:]-uopt[:,:-1]), (uopt[:,1:]-uopt[:,:-1]) <= max_slew_rate*wdp.Ts]
+            # Slew rate penalty
+            # constr += [max_slew_rate*wdp.Ts >= cvy.abs(uopt[:,1:]-uopt[:,:-1])]
+            # cost += 1*cvy.sum_squares(cvy.abs(uopt[:,1:]-uopt[:,:-1]))
             
         pot_weights = np.ones(len(wdp.potentials))
         weight_ends = False
         if wdp.force_static_ends:
-            constr += [uopt[:,0] == uopt_ev[:,0], uopt[:,-1] == uopt_ev[:,-1]]
+            constr += [uopt[:,[0,-1]] == uopt_ev]
             
         if weight_ends and not wdp.force_static_ends:
-            # Weight the constraints more heavily at the ends
+            # Weight the constraints more heavily at the ending timesteps
             if len(wdp.potentials) > 6:
                 pot_weights[[0,-1]] = 1e7
                 pot_weights[[1,-2]] = 1e5
@@ -726,12 +727,12 @@ class Waveform:
         # ECOS is faster than CVXOPT, but can crash for larger problems
         prob = sum(states)
         prob.solve(solver=global_solver, verbose=global_solver_verbose)
-
-        if True:
-            # DEBUGGING ONLY
-            plt.plot(trap_mom.transport_axis, trap_mom.potentials*uopt.value[:,0])
-            plt.plot(trap_mom.transport_axis[wdp.roi_idx[0]], wdp.potentials[0],'--')
         
+        if False:
+            # DEBUGGING ONLY, TRACKING DESIRED CONSTRAINTS
+            plt.plot(trap_mom.transport_axis, trap_mom.potentials*uopt.value[:,0], '--')
+            plt.plot(trap_mom.transport_axis[wdp.roi_idx[0]], wdp.potentials[0])
+
         return uopt.value
 
     def set_new_uid(self):
@@ -800,26 +801,58 @@ class WavPotential:
         ax.set_ylabel('potential (V)')
         return ax
 
-    def plot_electrodes(self, idx, ax=None):
+    def plot_voltages(self, timesteps=-1, electrode_idx=range(15), ax=None):
+        """ Plot the electrode voltages as a function of timestep.
+        timesteps: int or iterable. Int: Number of timesteps, Iterable: desired timesteps. If -1, then plot every timestep.
+        electrode_idx: index(es) of the electrode(s) to plot
+        ax: Matplotlib axes """
+        if type(timesteps) is int:
+            # integer, specifying number of points
+            if timesteps == -1:
+                timesteps = self.potentials.shape[1]
+            time_idces = np.linspace(0, self.potentials.shape[1]-1, timesteps, dtype='int')
+        else:
+            # iterable
+            time_idces = timesteps
+        
+        if not ax:
+            fig = plt.figure()
+            ax = fig.add_subplot(1,1,1)
+
+        ax.grid(True)
+        ax.xrange(time_idces[0]-(time_idces[1]-time_idces[0])*0.2, 
+        if type(electrode_idx) is int:
+            idx = [electrode_idx]
+        for id in electrode_idx:
+            ax.plot(time_idces, self.waveform_samples[id, time_idces])
+        ax.legend(electrode_idx)
+
+    def plot_electrodes(self, idx=range(15), ax=None):
         """ Plot the potential along the trap axis due to individual electrodes.
-        idx: index of the electrode(s) to plot
+        idx: index(es) of the electrode(s) to plot
         ax: Matplotlib axes """
         if not ax:
             fig = plt.figure()
             ax = fig.add_subplot(1,1,1)
-        
-        for id in [idx]:
-            ax.plot(trap_mom.potentials[:,id])
 
-    def plot_range_of_wfms(self, timesteps, ax=None):
+        ax.grid(True)
+        if type(idx) is int:
+            idx = [idx]
+        for id in idx:
+            ax.plot(self.trap_axis/um, trap_mom.potentials[:,id])
+        ax.legend(idx)
+
+    def plot_range_of_wfms(self, timesteps=-1, ax=None):
         """ Plot the potential along the trap axis at various timesteps.
-        timesteps: int or iterable. Int: Number of timesteps, Iterable: desired timesteps
+        timesteps: int or iterable. Int: Number of timesteps, Iterable: desired timesteps. If -1, then plot every timestep.
         ax: Matplotlib axes """
         if not ax:
             fig = plt.figure()
             ax = fig.add_subplot(1,1,1)
         if type(timesteps) is int:
             # integer, specifying number of points
+            if timesteps == -1:
+                timesteps = self.potentials.shape[1]
             idces = np.linspace(0, self.potentials.shape[1]-1, timesteps, dtype='int')
         else:
             # iterable
@@ -830,25 +863,47 @@ class WavPotential:
         ax.set_ylabel('potential (V)')
         return ax
 
-    def animate_wfm(self, decimation=10):
+    def animate_wfm(self, decimation=10, wdp=None):
+        """Decimation: how many timesteps to skip for every frame (set to 1 to
+        see every timestep)
+      
+        wdp: the WavDesiredPotential object used to
+        generate the Waveform; will be plotted alongside the actual
+        waveform if specified
+
+        """
         Writer = anim.writers['ffmpeg']
         writer = Writer(fps=30, metadata=dict(artist="vnegnev"), bitrate=1800)
 
         fig = plt.figure()
         ax = fig.add_subplot(1,1,1)
         ax.set_xlim([-2350,2350])
-        ax.set_ylim([-4,4])
+        ax.set_ylim([-3,5])
+        ax.grid(True)
         ax.set_xlabel('trap location (um)')
         ax.set_ylabel('potential (V)')
         
-        line, = ax.plot(self.trap_axis/um, self.potentials[:,0])
-        def update(data):
-            line.set_ydata(data)
-            return line
+        pot_line, = ax.plot(self.trap_axis/um, self.potentials[:,0])
+        lines = [pot_line]
+        if wdp:
+            des_line, = ax.plot(self.trap_axis[wdp.roi_idx[0]]/um, wdp.potentials[0])
+            lines.append(des_line)
 
-        def data_gen():
-            for pot in self.potentials.T[::decimation]:
-                yield pot
+        def update(data):
+            for l, (dx, dy) in zip(lines, data):
+                l.set_data(dx, dy)
+            return lines
+
+        if wdp:
+            def data_gen():
+                for pot, des_roi_idx, des_pot in zip(self.potentials.T[::decimation],
+                                                 wdp.roi_idx[::decimation],
+                                                 wdp.potentials[::decimation]):
+                    yield [(self.trap_axis/um, pot), (self.trap_axis[des_roi_idx]/um, des_pot)]
+        else:
+            def data_gen():
+                for pot in self.potentials.T[::decimation]:
+                    yield [(self.trap_axis/um, pot)]
 
         im_ani = anim.FuncAnimation(fig, update, data_gen, interval=30) # interval: ms between new frames
         plt.show()
