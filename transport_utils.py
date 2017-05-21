@@ -7,7 +7,7 @@ default_weights = {'r0':1e-5,
                    'r0_u_ss':np.ones(30)*8,
                    'r1':1e-6,'r2':1e-7}
 
-default_potential_params={'energy_threshold':10*meV}
+default_potential_params={'energy_threshold':7*meV}
 
 def static_waveform(pos, freq, offs, wfm_desc, solv_wghts=default_weights):
     wdw = WavDesiredWells([pos*um],[freq*MHz],[offs*meV],

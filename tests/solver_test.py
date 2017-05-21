@@ -44,7 +44,7 @@ def simple_waveform_test():
 
 def transport_waveform_multiple_test():
     tsteps = 501
-    fw = 0.6
+    fw = 1.1
     wf = tu.transport_waveform_multiple(
         [[-800,0],[0,800]],
         [[fw,fw],[fw,fw]],

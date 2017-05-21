@@ -481,8 +481,9 @@ class WavDesired:
     """ Specifications describing potential wells to solve for"""
     def __init__(self,
                  potentials, # list of arrays; each array is a potential for a timestep; volts
-                 roi_idx, # Element indices for global trap axis position array; dims must match potentials
-                 Ts=200*ns, # slowdown of 0 -> 10 ns/step, slowdown of 19 (typical) -> (10*(19+1)) = 110 ns/step
+                 weights, # list of arrays; each weights is applied to the potentials to adjust how the solver weighs each error
+                 roi_idx, # Element indices for global trap axis position array; dims must match potentials, weights
+                 Ts=200*ns, # slowdown of 0 -> 10 ns/step, slowdown of 19 (typical) -> (10*(19+1)) = 200 ns/step
                  mass=mass_Ca,
                  num_electrodes=30,
                  desc=None,
@@ -490,6 +491,7 @@ class WavDesired:
                  force_static_ends=False): # force solver result for 1st + last timesteps to be equal to the static case (exclude all effects like slew rate etc)
         self.desc = desc
         self.potentials = potentials
+        self.weights = weights
         self.roi_idx = roi_idx
         self.Ts = Ts
         self.mass = mass
@@ -538,20 +540,18 @@ class WavDesiredWells(WavDesired):
                  solver_weights=None,
                  force_static_ends=True):
         
-        potentials, roi_idx = self.desiredPotentials(positions, freqs, offsets,
+        potentials, weights, roi_idx = self.desiredPotentials(positions, freqs, offsets,
                                                      mass, desired_potential_params)
         
-        super().__init__(potentials, roi_idx, Ts, mass, num_electrodes,
+        super().__init__(potentials, weights, roi_idx, Ts, mass, num_electrodes,
                          desc, solver_weights, force_static_ends)
 
     def desiredPotentials(self, pos, freq, off, mass, des_pot_parm=None):
-        # lists as a function of timestep [STILL ASSUMING ONE WELL PER POTENTIAL]
-        pot = []
-        roi = []
+        # Rough threshold width for 1 SD in solver potential
         if des_pot_parm is not None:
             energy_threshold = des_pot_parm['energy_threshold']
         else:
-            energy_threshold = 150*meV
+            energy_threshold = 50*meV
 
         assert type(pos) is type(freq) is type(off), "Input types inconsistent"
         if type(pos) is list or tuple:
@@ -561,21 +561,60 @@ class WavDesiredWells(WavDesired):
             freq = np.vstack(freq).T
             off = np.vstack(off).T
 
-        for po, fr, of in zip(pos,freq,off): # iterate over timesteps
-            assert len(po) is not 0, "Desired wells supplied in incorrect format: must be list of lists or 2D array"
-            pot_l = np.empty(0)
-            roi_l = np.empty(0, dtype='int')
+        # Estimate range of ROI indices to use
+        a = (2*np.pi*freq[0][0])**2 * (mass * atomic_mass_unit) / (2*electron_charge)
+        v_desired = a * (trap_mom.transport_axis - pos[0][0])**2
+        width_1sd = (v_desired < energy_threshold).sum()
 
-            for po_l, fr_l, of_l in zip(po, fr, of): # iterate over discrete wells
+        # distance 1 std dev from centre
+        dist_1sd = width_1sd * (trap_mom.transport_axis[1]-trap_mom.transport_axis[0]) / 2 
+        width_roi = 4*width_1sd # extend ROI to 4x distance of 1 standard deviation from the central point
+        if (width_roi % 2 == 0):
+            width_roi += 1 # make sure it's an odd number
+
+        dims = list(pos.shape)
+        dims[1] *= width_roi
+        pots = np.empty(dims)
+        wghts = np.empty(dims)
+        rois = np.empty(dims, dtype='int')
+        
+        # lists as a function of timestep
+        pot_list = []
+        roi_list = []
+
+        if False: # old code, eventually remove it 
+            for po, fr, of in zip(pos,freq,off): # iterate over timesteps
+                assert len(po) is not 0, "Desired wells supplied in incorrect format: must be list of lists or 2D array"
+                pot_l = np.empty(0)
+                roi_l = np.empty(0, dtype='int')
+
+                for po_l, fr_l, of_l in zip(po, fr, of): # iterate over discrete wells
+                    a = (2*np.pi*fr_l)**2 * (mass * atomic_mass_unit) / (2*electron_charge)
+                    v_desired = a * (trap_mom.transport_axis - po_l)**2 + of_l
+                    relevant_idx = np.argwhere(v_desired < of_l + energy_threshold).flatten()
+                    pot_l = np.hstack((pot_l, v_desired[relevant_idx])) # TODO: make more efficient
+                    roi_l = np.hstack((roi_l, relevant_idx))
+
+                pot_list.append(pot_l)
+                roi_list.append(roi_l)
+
+        for k, (po, fr, of) in enumerate(zip(pos,freq,off)): # iterate over timesteps
+            assert len(po) is not 0, "Desired wells supplied in incorrect format: must be list of lists or 2D array"
+
+            for m, (po_l, fr_l, of_l) in enumerate(zip(po, fr, of)): # iterate over discrete wells
                 a = (2*np.pi*fr_l)**2 * (mass * atomic_mass_unit) / (2*electron_charge)
                 v_desired = a * (trap_mom.transport_axis - po_l)**2 + of_l
-                relevant_idx = np.argwhere(v_desired < of_l + energy_threshold).flatten()
-                pot_l = np.hstack((pot_l, v_desired[relevant_idx])) # TODO: make more efficient
-                roi_l = np.hstack((roi_l, relevant_idx))
+                central_idx = np.argmin(v_desired) # could equally do argmin(abs(x axis - x centre))
+                idces = np.arange(central_idx - width_roi//2, central_idx + width_roi//2 + 1, dtype=int)
 
-            pot.append(pot_l)
-            roi.append(roi_l)
-        return pot, roi
+                rois[k, m*width_roi:(m+1)*width_roi] = idces
+                pots[k, m*width_roi:(m+1)*width_roi] = v_desired[idces]
+
+                wght_x = trap_mom.transport_axis[idces] - po_l
+                wght_gauss = np.exp(-wght_x**2 / (2 * dist_1sd**2)) # Gaussian centred on well centre
+                wghts[k, m*width_roi:(m+1)*width_roi] = wght_gauss
+            
+        return pots, wghts, rois
 
     def plot(self, idx, trap_axis, ax=None):
         """ ax: Matplotlib axes """
@@ -703,26 +742,33 @@ class Waveform:
             # Slew rate penalty
             constr += [max_slew_rate*wdp.Ts >= cvy.abs(uopt[:,1:]-uopt[:,:-1])]
             # cost += 0.1*cvy.sum_squares(cvy.abs(uopt[:,1:]-uopt[:,:-1]))
-            
-        pot_weights = np.ones(len(wdp.potentials))
-        weight_ends = False
+
         if static_ends:
             constr += [uopt[:,[0,-1]] == uopt_ev]
             
-        if weight_ends and not static_ends:
-            # Weight the constraints more heavily at the ending timesteps
-            if len(wdp.potentials) > 6:
-                pot_weights[[0,-1]] = 1e7
-                pot_weights[[1,-2]] = 1e5
-                pot_weights[[2,-3]] = 1e4
-                pot_weights[[3,-4]] = 1e3
-                pot_weights[[4,-5]] = 1e2
-                pot_weights[[5,-6]] = 10
-        for kk, (pot, roi, weight) in enumerate(zip(wdp.potentials, wdp.roi_idx, pot_weights)):
+        if False:
+            pot_weights = np.ones(len(wdp.potentials))
+            weight_ends = False
+            if weight_ends and not static_ends:
+                # Weight the constraints more heavily at the ending timesteps
+                if len(wdp.potentials) > 6:
+                    pot_weights[[0,-1]] = 1e7
+                    pot_weights[[1,-2]] = 1e5
+                    pot_weights[[2,-3]] = 1e4
+                    pot_weights[[3,-4]] = 1e3
+                    pot_weights[[4,-5]] = 1e2
+                    pot_weights[[5,-6]] = 10
+        # for kk, (pot, roi, weight) in enumerate(zip(wdp.potentials, wdp.roi_idx, pot_weights)):
+        st()
+        roi_moments = # CONTINUE HERE
+        cvy.sum_squares(cvy.mul_elemwise(wdp.weights.T, roi_moments*uopt - wdp.potentials.T
+        
+        for kk, (pot, roi, weights) in enumerate(zip(wdp.potentials, wdp.roi_idx, wdp.weights)):
             # Cost term capturing how accurately we generate the desired potential well
             # (could also vectorise it like the above, but the ROI
             # indices tend to vary in length between timesteps)
-            cost += weight * cvy.sum_squares(trap_mom.potentials[roi, :]*uopt[:,kk] - pot)
+            # cost += weight * cvy.sum_squares(trap_mom.potentials[roi, :]*uopt[:,kk] - pot)
+            cost += cvy.sum_squares(cvy.mul_elemwise(weights, trap_mom.potentials[roi, :]*uopt[:,kk] - pot))
 
         states.append( cvy.Problem(cvy.Minimize(cost), constr) )        
 
