@@ -482,7 +482,7 @@ class WavDesired:
     def __init__(self,
                  potentials, # list of arrays; each array is a potential for a timestep; volts
                  roi_idx, # Element indices for global trap axis position array; dims must match potentials
-                 Ts=210*ns, # slowdown of 0 -> 10 ns/step, slowdown of 20 (typical) -> (10*(20+1)) = 210 ns/step
+                 Ts=200*ns, # slowdown of 0 -> 10 ns/step, slowdown of 19 (typical) -> (10*(19+1)) = 110 ns/step
                  mass=mass_Ca,
                  num_electrodes=30,
                  desc=None,
@@ -531,7 +531,7 @@ class WavDesiredWells(WavDesired):
                  freqs, # array, same dimensions as positions
                  offsets, # array, same dimensions as positions
                  desired_potential_params=None,
-                 Ts=10*ns,
+                 Ts=200*ns, # slowdown of 0 -> 10 ns/step, slowdown of 19 (typical) -> (10*(19+1)) = 200 ns/step
                  mass=mass_Ca,
                  num_electrodes=30,
                  desc=None,
@@ -621,10 +621,7 @@ class Waveform:
         """ Convert a desired set of potentials and ROIs into waveform samples
         wdp: waveform desired potential"""
         # TODO: make this more flexible, i.e. arbitrary-size voltages
-        # max_elec_voltages should be copied from config_local.h in ionpulse_sdk
-        # max_elec_voltages = np.ones(wdp.num_electrodes)*9.0 
-        # min_elec_voltages = -max_elec_voltages
-        max_slew_rate = 5 / us # (units of volts / s)
+        max_slew_rate = 20 / us # (units of volts / s, quarter of DEATH AD8021 op-amps)
 
         # Cost function parameters
         sw = wdp.solver_weights
@@ -637,6 +634,10 @@ class Waveform:
 
         # Global constraints
         assert (N < 2) or (N > 3), "Cannot have this number of timesteps, due to finite-diff approximations"
+        if N == 1:
+            static_ends = False # static by default for 1 timestep
+        else:
+            static_ends = wdp.force_static_ends
 
         # Penalise deviations from default voltage        
         sw_r0_u_ss_m = np.tile(sw['r0_u_ss'], (N,1)).T # matrixized
@@ -646,21 +647,22 @@ class Waveform:
         min_elec_voltages_m = np.tile(min_elec_voltages, (N,1)).T
         max_elec_voltages_m = np.tile(max_elec_voltages, (N,1)).T
 
-        if wdp.force_static_ends:
-            constr = [min_elec_voltages_m[:,1:-1] <= uopt[:,1:-1],
-                      uopt[:,1:-1] <= max_elec_voltages_m[:,1:-1]]
+        constr = []
+        if static_ends:
+            constr += [min_elec_voltages_m[:,1:-1] <= uopt[:,1:-1],
+                       uopt[:,1:-1] <= max_elec_voltages_m[:,1:-1]]
 
             # Absolute symmetry constraints
-            constr = [uopt[:15,1:-1] == uopt[15:,1:-1]]
+            constr += [uopt[:15,1:-1] == uopt[15:,1:-1]]
         else:
-            constr = [min_elec_voltages_m <= uopt, uopt <= max_elec_voltages_m]
+            constr += [min_elec_voltages_m <= uopt, uopt <= max_elec_voltages_m]
 
             # Absolute symmetry constraints
             constr += [uopt[:15,:] == uopt[15:,:]]
 
         ## Constrain the end voltages explicitly to match static case
         ## (i.e. solve separate problem first, then constrain main one)
-        if wdp.force_static_ends:
+        if static_ends:
             uopt_e = cvy.Variable(wdp.num_electrodes, 2)
             # min_elec_voltages_e = np.tile(min_elec_voltages, (2,1)).T
             # max_elec_voltages_e = np.tile(max_elec_voltages, (2,1)).T
@@ -699,15 +701,15 @@ class Waveform:
             cost += sw['r2']*cvy.sum_squares(2*uopt[:,-1] - 5*uopt[:,-2] + 4*uopt[:,-3] - uopt[:,-4]) 
 
             # Slew rate penalty
-            # constr += [max_slew_rate*wdp.Ts >= cvy.abs(uopt[:,1:]-uopt[:,:-1])]
-            # cost += 1*cvy.sum_squares(cvy.abs(uopt[:,1:]-uopt[:,:-1]))
+            constr += [max_slew_rate*wdp.Ts >= cvy.abs(uopt[:,1:]-uopt[:,:-1])]
+            # cost += 0.1*cvy.sum_squares(cvy.abs(uopt[:,1:]-uopt[:,:-1]))
             
         pot_weights = np.ones(len(wdp.potentials))
         weight_ends = False
-        if wdp.force_static_ends:
+        if static_ends:
             constr += [uopt[:,[0,-1]] == uopt_ev]
             
-        if weight_ends and not wdp.force_static_ends:
+        if weight_ends and not static_ends:
             # Weight the constraints more heavily at the ending timesteps
             if len(wdp.potentials) > 6:
                 pot_weights[[0,-1]] = 1e7
@@ -726,13 +728,20 @@ class Waveform:
 
         # ECOS is faster than CVXOPT, but can crash for larger problems
         prob = sum(states)
-        prob.solve(solver=global_solver, verbose=global_solver_verbose)
+        try:
+            prob.solve(solver=global_solver, verbose=global_solver_verbose)
+        except cvy.error.SolverError:
+            st()
         
         if False:
             # DEBUGGING ONLY, TRACKING DESIRED CONSTRAINTS
             plt.plot(trap_mom.transport_axis, trap_mom.potentials*uopt.value[:,0], '--')
             plt.plot(trap_mom.transport_axis[wdp.roi_idx[0]], wdp.potentials[0])
 
+        if prob.status == 'infeasible':
+            warnings.warn("Waveform problem is infeasible. Try reducing assumed slowdown.")
+            st()
+        
         return uopt.value
 
     def set_new_uid(self):
@@ -820,7 +829,8 @@ class WavPotential:
             ax = fig.add_subplot(1,1,1)
 
         ax.grid(True)
-        ax.xrange(time_idces[0]-(time_idces[1]-time_idces[0])*0.2, 
+        time_xrange = time_idces[-1]-time_idces[0]
+        ax.set_xlim([time_idces[0]-0.3*time_xrange, time_idces[-1]])
         if type(electrode_idx) is int:
             idx = [electrode_idx]
         for id in electrode_idx:

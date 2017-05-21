@@ -24,7 +24,7 @@ def get_loading_wfms(wfm_path, force_regen_wfm=False,
     except FileNotFoundError:
         print("Generating loading waveform ",wfm_path)
         n_load = 1001
-        n_freq_change = 200
+        n_freq_change = 501
 
         # List of experimental-zone setting tuples
         exp_settings = [(0, default_freq, default_offs, "exp " + ion_chain)]
@@ -34,11 +34,11 @@ def get_loading_wfms(wfm_path, force_regen_wfm=False,
         wf_load = tu.transport_waveform(
             [-1870, 0], [0.7, default_freq], [600, conveyor_offs], n_load, "Load -> exp")
         wf_load_conveyor = tu.conveyor_rec_waveform(
-            [-1870, 0], [0.7, default_freq], [600, conveyor_offs], n_load, "Load -> exp")
+            [-1870, 0], [0.7, default_freq], [600, conveyor_offs], 2*n_load, "Load -> exp")
         wf_exp_static = tu.static_waveform(
             0, default_freq, conveyor_offs, "static")
         wf_exp_shallow = tu.transport_waveform(
-            [0, 0], [default_freq, shallow_freq], [conveyor_offs, shallow_offs], n_freq_change, "shallow", interp_start=10)
+            [0, 0], [default_freq, shallow_freq], [conveyor_offs, shallow_offs], n_freq_change, "shallow")
         wf_list = [wf_load, wf_load_conveyor,
                    wf_exp_static, wf_exp_shallow]
 
@@ -71,7 +71,7 @@ def get_loading_wfms(wfm_path, force_regen_wfm=False,
             wf_exp_static = tu.static_waveform(
                 pos, freq, offs, label)
             wf_exp_shallow = tu.transport_waveform(
-                [pos, pos], [freq, shallow_freq], [offs, shallow_offs+1000], n_freq_change, "shallow", interp_start=10)
+                [pos, pos], [freq, shallow_freq], [offs, shallow_offs+1000], n_freq_change, "shallow")
             wf_exp_static_deep = tu.static_waveform(
                 pos, freq, offs, label + " deep", solv_wghts=deep_weights)
 

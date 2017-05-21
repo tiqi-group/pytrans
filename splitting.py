@@ -660,9 +660,7 @@ def split_waveforms(
     wf_to_splitting = tu.transport_waveform([start_loc, split_loc],
                                             [start_f, split_f],
                                             [start_offset, split_offset],
-                                            n_transport, start_split_label,
-                                            interp_start=20,
-                                            interp_end=20)
+                                            n_transport, start_split_label)
         
     latest_death_voltages = wf_to_splitting.samples[:,[-1]] # square bracket to return column vector
     full_wfm_voltages = latest_death_voltages.copy()
@@ -842,9 +840,7 @@ def split_waveforms_reparam(
                                             [start_f, split_f],
                                             [start_offset, split_dc_offset],
                                             n_transport, start_split_label,
-                                            linspace_fn=zpspace,
-                                            interp_start=20,
-                                            interp_end=20)    
+                                            linspace_fn=zpspace)
 
     # Ramp from single well to start of splitting routine
     start_ramp_steps = 50
@@ -882,7 +878,7 @@ def split_waveforms_reparam(
         [[separation_locs_first[0], final_locs[0]],[separation_locs_first[1], final_locs[1]]],
         [[split_freqs_last[0],final_fs[0]],[split_freqs_last[1],final_fs[1]]],
         [[split_dc_offsets_last[0], final_offsets[0]],[split_dc_offsets_last[1], final_offsets[1]]],
-        extra_steps_needed, "", interp_start=0, interp_end=20)
+        extra_steps_needed, "")
 
     # Ramp from end of polynomial solver to discrete wells
     split_end_ramp = vlinspace(split_voltages_elec[:,[-1]],
