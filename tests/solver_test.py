@@ -43,17 +43,22 @@ def simple_waveform_test():
     wfp_stat.animate_wfm(decimation=1, wdp=wf_d_stat)
 
 def transport_waveform_multiple_test():
-    tsteps = 501
-    fw = 1.1
+    tsteps = 101
+    fw = 0.7
     wf = tu.transport_waveform_multiple(
-        [[-800,0],[0,800]],
+        [[-1800,-400],[400,1800]],
         [[fw,fw],[fw,fw]],
         [[1000,1000],[1000,1000]],
         tsteps,
         linspace_fn=zpspace,
         wfm_desc="Trans wf multiple test")
     wfp = WavPotential(wf)
-    wfp.animate_wfm(decimation=1)
+    wfp.animate_wfm(decimation=1, wdp=wf.wdp)
+    # wfp.plot('img')
+    # wfp.animate_wfm(decimation=1)    
+    # animate_wavpots([wfp], parallel=False, decimation=1, save_video_path='solver_test.mp4')
+    plt.show()
 
 if __name__ == "__main__":
     transport_waveform_multiple_test()
+    # simple_waveform_test()

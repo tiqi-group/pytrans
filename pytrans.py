@@ -88,6 +88,9 @@ max_overhead = 0.09
 ## Maximum number of samples the DEATH RAMs can hold
 max_death_samples = 16384
 
+# Global default electrode voltage, for solvers etc
+default_elec_voltage = 8
+
 ## Electrode starts and ends in um, ordered from Electrode 0 -> 29
 electrode_coords = np.array([[-2535,-1535],[-1515,-1015],[-995,-695],[-675,-520],[-500,-345],[-325,-170],[-150,150],[170,325],[345,500],[520,675],[695,995],[1015,1515],[1535,2535],[-2535,-1535],[-1515,-1015],[-995,-695],[-675,-520],[-500,-345],[-325,-170],[-150,150],[170,325],[345,500],[520,675],[695,995],[1015,1515],[1535,2535]])
 
@@ -340,6 +343,7 @@ def animate_wavpots(wavpots, parallel=True, decimation=10, save_video_path=None)
     fig = plt.figure()
     ax = fig.add_subplot(1,1,1)
     ax.set_ylim([-4,4])
+    ax.grid(True)
     ax.set_xlabel('trap location (um)')
     ax.set_ylabel('potential (V)')    
 
@@ -488,7 +492,7 @@ class WavDesired:
                  num_electrodes=30,
                  desc=None,
                  solver_weights=None,
-                 force_static_ends=False): # force solver result for 1st + last timesteps to be equal to the static case (exclude all effects like slew rate etc)
+                 force_static_ends=True): # force solver result for 1st + last timesteps to be equal to the static case (exclude all effects like slew rate etc)
         self.desc = desc
         self.potentials = potentials
         self.weights = weights
@@ -502,13 +506,13 @@ class WavDesired:
             self.desc = "No description specified"
         self.solver_weights = {
             # Cost function parameters
-            'r0': 1e-4, # punishes deviations from r0_u_ss. Can be used to set default voltages for irrelevant electrodes.
-            'r1': 1e-3, # punishes the first time derivative of u, thus limiting the slew rate
-            'r2': 1e-4, # punishes the second time derivative of u, thus further enforcing smoothness
+            'r0': 1e-15, # punishes deviations from r0_u_ss. Can be used to set default voltages for less relevant electrodes.
+            'r1': 1e-5, # punishes the first time derivative of u, thus reducing the slew rate
+            'r2': 0, # punishes the second time derivative of u, thus further enforcing smoothness
 
             # default voltage for the electrodes. any deviations from
             # this will be punished, weighted by r0 and r0_u_weights
-            'r0_u_ss': np.ones(num_electrodes)*0.5, # default voltages for the electrodes
+            'r0_u_ss': np.ones(num_electrodes)*default_elec_voltage, # default voltages for the electrodes
             'r0_u_weights': np.ones(num_electrodes) # use this to put different weights on outer electrodes
             }
         if solver_weights:
@@ -641,13 +645,13 @@ class Waveform:
             self.samples = np.array(args[3])
         elif isinstance(args[0],  WavDesired): # check if a child of WavDesired
 			# Create waveform based on WavDesired by setting up and solving an optimal control problem
-            wdp = args[0]
-            raw_samples = self.solve_potentials(wdp) # ordered by electrode
+            self.wdp = args[0]
+            raw_samples = self.solve_potentials(self.wdp) # ordered by electrode
             num_elec, num_timesteps = raw_samples.shape
             self.samples = np.zeros((num_elec+2,num_timesteps)) # Add two DEATH monitor channels
             self.samples[:,:] = raw_samples[list(abs(k) for k in dac_channel_transform),:] # Transform as required
 
-            self.desc = wdp.desc
+            self.desc = self.wdp.desc
             self.set_new_uid()
             self.generated = ""
         else:
@@ -660,7 +664,7 @@ class Waveform:
         """ Convert a desired set of potentials and ROIs into waveform samples
         wdp: waveform desired potential"""
         # TODO: make this more flexible, i.e. arbitrary-size voltages
-        max_slew_rate = 20 / us # (units of volts / s, quarter of DEATH AD8021 op-amps)
+        max_slew_rate = 5 / us # (units of volts / s, quarter of DEATH AD8021 op-amps)
 
         # Cost function parameters
         sw = wdp.solver_weights
@@ -759,9 +763,9 @@ class Waveform:
                     pot_weights[[4,-5]] = 1e2
                     pot_weights[[5,-6]] = 10
         # for kk, (pot, roi, weight) in enumerate(zip(wdp.potentials, wdp.roi_idx, pot_weights)):
-        st()
-        roi_moments = # CONTINUE HERE
-        cvy.sum_squares(cvy.mul_elemwise(wdp.weights.T, roi_moments*uopt - wdp.potentials.T
+        # st()
+        # roi_moments = # CONTINUE HERE
+        # cvy.sum_squares(cvy.mul_elemwise(wdp.weights.T, roi_moments*uopt - wdp.potentials.T
         
         for kk, (pot, roi, weights) in enumerate(zip(wdp.potentials, wdp.roi_idx, wdp.weights)):
             # Cost term capturing how accurately we generate the desired potential well
@@ -825,8 +829,9 @@ class WavPotential:
 
     ### Functions for analyzing/plotting the potential along the trap axis
 
-    def plot(self, ax=None):
-        """ Plot the whole waveform.
+    def plot(self, style='img', ax=None):
+        """ Plot the whole waveform in 3D.
+        style: either 'img' or 'surf'; controls the plot shown.
         ax: Matplotlib axes """
         trap_axis_spacing = self.trap_axis[1]-self.trap_axis[0]
         # Since plot is showing quadrilaterals
@@ -835,10 +840,18 @@ class WavPotential:
         trap_axis_pts *= 1000 # convert from m to um
         px, py = np.meshgrid(np.arange(self.potentials.shape[1]+1), trap_axis_pts)
 
-        if not ax:
-            fig = plt.figure()
-            ax = fig.add_subplot(1,1,1)
-        pcm = ax.pcolormesh(px, py, self.potentials, cmap='gray')
+        if style == 'img':            
+            if not ax:
+                fig = plt.figure()
+                ax = fig.add_subplot(1,1,1)
+            pcm = ax.pcolormesh(px, py, self.potentials, cmap='coolwarm')
+        elif style == 'surf':            
+            if not ax:
+                from mpl_toolkits.mplot3d import Axes3D
+                fig = plt.figure()
+                ax = fig.add_subplot(1,1,1, projection='3d')
+            px, py = np.meshgrid(np.arange(self.potentials.shape[1]), trap_axis_pts[:-1]) # without the edge points above, since centred now
+            pcm = ax.plot_surface(px, py, self.potentials, cmap='coolwarm')
         fig.colorbar(pcm)
         ax.set_xlabel('timestep')
         ax.set_ylabel('trap z axis (um)')
@@ -1329,7 +1342,7 @@ if __name__ == "__main__":
             
             local_weights = {'r0':1e-6,
                  'r0_u_weights':np.ones(30)*1e-4,
-                 'r0_u_ss':np.ones(30)*8,
+                 'r0_u_ss':np.ones(30)*default_elec_voltage,
                  'r1':1e-6,'r2':1e-7}
                  
             local_potential_params={'energy_threshold':10*meV}

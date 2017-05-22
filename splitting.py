@@ -90,7 +90,7 @@ def look_at_wells_manually():
 
 
 
-
+####################################################################
 
 # NEW CODE, developed mainly in testing/splitting_constraints_test.py
 # as well as testing/split_d_test.py
@@ -826,7 +826,8 @@ def split_waveforms_reparam(
     
     split_voltages, split_sep_desired = split_sep_reparam(
         polys, alphas, desired_sep_vec, electrode_subset, field_offset, dc_offsets=dc_offset)
-    split_voltages_elec = np.zeros((num_elecs, split_voltages.shape[1]))
+    split_voltages_elec = np.ones((num_elecs, split_voltages.shape[1]))*default_elec_voltage
+    # split_voltages_elec = np.ones((num_elecs, split_voltages.shape[1]))*0.5 # lower default voltage
     split_voltages_elec[physical_electrode_transform[electrode_subset], :] = split_voltages
 
     # automatically figure out the potential offset by running the
@@ -856,7 +857,9 @@ def split_waveforms_reparam(
     split_locs_last = np.array(split_params_last['locs'])/um
     split_freqs_last = np.array(split_params_last['freqs'])/MHz
     split_dc_offsets_last = np.array(split_params_last['offsets'])/meV
-    assert split_locs_last.size == 2, "Wrong number of wells detected after splitting"
+
+    if False:
+        assert split_locs_last.size == 2, "Wrong number of wells detected after splitting"
     
     ## Merge end of poly-algorithm solver with beginning of regular-algorithm solver
     finish_split_interp_n = 20 # timesteps over which to carry out the merge

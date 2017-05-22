@@ -35,6 +35,7 @@ def get_loading_wfms(wfm_path, force_regen_wfm=False,
             [-1870, 0], [0.7, default_freq], [600, conveyor_offs], n_load, "Load -> exp")
         wf_load_conveyor = tu.conveyor_rec_waveform(
             [-1870, 0], [0.7, default_freq], [600, conveyor_offs], 2*n_load, "Load -> exp")
+        st()
         wf_exp_static = tu.static_waveform(
             0, default_freq, conveyor_offs, "static")
         wf_exp_shallow = tu.transport_waveform(

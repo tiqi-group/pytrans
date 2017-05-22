@@ -2,10 +2,20 @@
 from pytrans import *
 import splitting as sp
 
-default_weights = {'r0':1e-5,
+# default_weights = {'r0':1e-4,
+#                    'r0_u_weights':np.ones(30), # all electrodes uniform
+#                    'r0_u_ss':np.ones(30)*8,
+#                    'r1':3e-5,'r2':3e-6}
+
+# Testing: derivative/2nd deriv/default voltage constraints set to 0
+# default_weights = {'r0':1e-15,
+#                    'r0_u_weights':np.ones(30), # all electrodes uniform
+#                    'r0_u_ss':np.ones(30)*8,
+#                    'r1':5e-7,'r2':0}
+default_weights = {'r0':1e-9,
                    'r0_u_weights':np.ones(30), # all electrodes uniform
-                   'r0_u_ss':np.ones(30)*8,
-                   'r1':1e-6,'r2':1e-7}
+                   'r0_u_ss':np.ones(30)*default_elec_voltage,
+                   'r1':5e-5,'r2':0}
 
 default_potential_params={'energy_threshold':7*meV}
 
@@ -49,7 +59,7 @@ def transport_waveform_multiple(poss, freqs, offsets, timesteps, wfm_desc,
         solver_weights=default_weights,
         desired_potential_params=default_potential_params,
         Ts=Ts,
-        force_static_ends=False,
+        # force_static_ends=True,
         desc=wfm_desc+" {:d} wells".format(len(poss)))    
     wf_wdw = Waveform(wdw)
     return wf_wdw
