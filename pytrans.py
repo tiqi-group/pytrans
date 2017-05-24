@@ -76,7 +76,8 @@ physical_electrode_transform = np.array([0,4,8,2,  6,10,14,  18,  22,26,30,  16,
 
 ## DEATH channel max voltage outputs
 
-max_elec_voltages = np.zeros(30)+8.9
+max_elec_voltage = 8.9
+max_elec_voltages = np.zeros(30)+max_elec_voltage
 max_death_voltages = max_elec_voltages[dac_channel_transform]
 
 min_elec_voltages = -max_elec_voltages

@@ -35,51 +35,76 @@ def single_waveform():
     # wf = Waveform(w_desired)
     wf_list.append(wf)
 
-    # electrode_offsets = [[-10],[-10],[-10],[10],[10],[5],[1.5],[0.5],[1.5],[5],[10],[10],[-10],[-10],[-10],
-    #                      [-10],[-10],[-10],[10],[10],[5],[1.5],[0.5],[1.5],[5],[10],[10],[-10],[-10],[-10]]
-
-    # electrode_combos = [[0],[1],[2],[3],[4],[5],[6],[7],[8],[9],[10],[11],[12],[13],[14],
-    #                     [15],[16],[17],[18],[19],[20],[21],[22],[23],[24],[25],[26],[27],[28],[29]]
-    # electrode_offsets = [[-0.15], [+0.15]]
-    # electrode_combos = [[7],[7]]
-
     big_shift = 5
-    
-    electrode_offsets = [[-0.4], [+0.4], [-0.4], [0.4],
-                         [-1], [1], [-1], [1], 
-                         [-4],[4],[-4],[4],
-                         [-big_shift],[big_shift],[-big_shift],[big_shift],
-                         [-0.4], [+0.4], [-0.4], [0.4],
-                         [-1], [1], [-1], [1], 
-                         [-4],[4],[-4],[4],
-                         [-big_shift],[big_shift],[-big_shift],[big_shift],
-                         # end electrodes, need strong voltages
-                         [-big_shift,-big_shift,-big_shift],[big_shift,big_shift,big_shift],
-                         [-big_shift,-big_shift,-big_shift],[big_shift,big_shift,big_shift],
-                         [-big_shift,-big_shift,-big_shift],[big_shift,big_shift,big_shift],
-                         [-big_shift,-big_shift,-big_shift],[big_shift,big_shift,big_shift]]
-    
-    electrode_combos = [[6],[6], [8],[8],
-                        [5],[5], [9],[9],
-                        [4],[4],[10],[10],
-                        [3],[3],[11],[11],
-                        [21],[21], [23],[23],
-                        [20],[20], [24],[24],
-                        [19],[19],[25],[25],
-                        [18],[18],[26],[26],
-                        # end electrodes, need strong voltages
-                        [0,1,2],[0,1,2],
-                        [12,13,14],[12,13,14],
-                        [15,16,17],[15,16,17],
-                        [27,28,29],[27,28,29]]
 
-    for ec, eo in zip(electrode_combos, electrode_offsets):
+    electrode_shifts = [
+         [ [6],[-0.4] ],
+         [ [6],[+0.4] ],
+         [ [8],[-0.4] ],
+         [ [8],[+0.4] ],
+         
+         [ [5],[-1.0] ],
+         [ [5],[+1.0] ],
+         [ [9],[-1.0] ],
+         [ [9],[+1.0] ],
+
+         [ [4],[-4.0] ],
+         [ [4],[+4.0] ],
+         [ [10],[-4.0] ],
+         [ [10],[+4.0] ],
+
+         [ [3],[-big_shift] ],
+         [ [3],[+big_shift] ],
+         [ [11],[-big_shift] ],
+         [ [11],[+big_shift] ],
+
+         [ [21],[-0.4] ],
+         [ [21],[+0.4] ],
+         [ [23],[-0.4] ],
+         [ [23],[+0.4] ],
+
+         [ [20],[-1.0] ],
+         [ [20],[+1.0] ],
+         [ [24],[-1.0] ],
+         [ [24],[+1.0] ],
+
+         [ [19],[-4.0] ],
+         [ [19],[+4.0] ],
+         [ [25],[-4.0] ],
+         [ [25],[+4.0] ],
+
+         [ [18],[-big_shift] ],
+         [ [18],[+big_shift] ],
+         [ [26],[-big_shift] ],
+         [ [26],[+big_shift] ],
+
+         [ [0,1,2],[-big_shift,-big_shift,-big_shift] ],
+         [ [0,1,2],[+big_shift,+big_shift,+big_shift] ],
+
+         [ [12,13,14],[-big_shift,-big_shift,-big_shift] ],
+         [ [12,13,14],[+big_shift,+big_shift,+big_shift] ],
+         
+         [ [15,16,17],[-big_shift,-big_shift,-big_shift] ],
+         [ [15,16,17],[+big_shift,+big_shift,+big_shift] ],
+         
+         [ [27,28,29],[-big_shift,-big_shift,-big_shift] ],
+         [ [27,28,29],[+big_shift,+big_shift,+big_shift] ]
+         ]
+
+    # for ec, eo in zip(electrode_combos, electrode_offsets):
+    for ec, eo in electrode_shifts:
         voltages = wf.samples[physical_electrode_transform[ec]]
-        st()
         # print("Voltages for elec " + str(ec) + " are " + str(voltages))
 
-    for ec, eo in zip(electrode_combos, electrode_offsets):
+    for ec, eo in electrode_shifts:
         assert len(ec) == len(eo), "Different number of electrodes and offsets requested!"
+
+        orig_v = wf.samples[physical_electrode_transform[ec]]
+        max_ev = np.zeros_like(eo) + max_elec_voltage
+        min_ev = np.zeros_like(eo) - max_elec_voltage
+        v_too_hi = orig_v + np.array(eo) > max_elec_voltage
+        v_too_lo = orig_v + np.array(eo) < max_elec_voltage
+        
         wf2 = cp.deepcopy(wf)
         wf2.set_new_uid()
         wf2.desc = ""
