@@ -3,32 +3,43 @@
 import sys
 sys.path.append("../../")
 from pytrans import *
+import transport_utils as tu
 
 import os
 import csv
 import copy as cp
 
-local_weights = {'r0':1e-6,
-                 'r0_u_weights':np.ones(30)*1e-4,
-                 'r0_u_ss':np.ones(30)*8,
-                 'r1':1e-6,'r2':1e-7}
+# local_weights = {'r0':1e-6,
+#                  'r0_u_weights':np.ones(30)*1e-4,
+#                  'r0_u_ss':np.ones(30)*8,
+#                  'r1':1e-6,'r2':1e-7}
 
-local_potential_params={'energy_threshold':10*meV}
+# default_weights = {'r0':1e-9,
+#                    'r0_u_weights':np.ones(30), # all electrodes uniform
+#                    'r0_u_ss':np.ones(30)*default_elec_voltage,
+#                    'r1':5e-5,'r2':0}
 
-wf_path = os.path.join(os.pardir, os.pardir, "waveform_files", "static_potential_offsets_05_06_2016_v01.dwc.json")
+# local_potential_params={'energy_threshold':10*meV}
+
+wf_path = os.path.join(os.pardir, os.pardir, "waveform_files", "static_potential_offsets_2017_05_24_v01.dwc.json")
 
 
 def single_waveform(Gain_Error_Analysis=False, Gain_Error=1.0, Fault_Analysis=False, Faulty_Voltage=0.0, New_DEATH_Gain_Error=False):
-    w_desired = WavDesiredWells([np.array([0])*um],
+    # w_desired = WavDesiredWells(0, 1.6, 70, "Single waveform test")
+    #                             [np.array([1.6])*MHz],
+    #                             [np.array([70])*meV],
+                                
+    #                             solver_weights=local_weights,
+    #                             desired_potential_params=local_potential_params,                                
+                                
+    #                             desc="Single waveform test")
+
+    wf_list = []
+    wf = tu.transport_waveform([np.array([0])*um],
                                 [np.array([1.6])*MHz],
                                 [np.array([70])*meV],
-                                
-                                solver_weights=local_weights,
-                                desired_potential_params=local_potential_params,                                
-                                
-                                desc="Single waveform test")
-    wf_list = []
-    wf = Waveform(w_desired)
+
+        
     if New_DEATH_Gain_Error:
         for i in range(16):
             wf.samples[i][0] *= 1.027
