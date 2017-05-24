@@ -30,7 +30,7 @@ def single_waveform():
     solv_wghts = cp.copy(tu.default_weights)
     solv_wghts['r0_u_ss'] = np.zeros(30)
     
-    wf = tu.static_waveform(0, 1.6, 70, "Single waveform test", solv_wghts)
+    wf = tu.static_waveform(0, 1.8, 1600, "Single waveform test", solv_wghts)
     
     # wf = Waveform(w_desired)
     wf_list.append(wf)
@@ -43,7 +43,7 @@ def single_waveform():
     # electrode_offsets = [[-0.15], [+0.15]]
     # electrode_combos = [[7],[7]]
 
-    big_shift = 8.0
+    big_shift = 5
     
     electrode_offsets = [[-0.4], [+0.4], [-0.4], [0.4],
                          [-1], [1], [-1], [1], 
@@ -72,6 +72,11 @@ def single_waveform():
                         [12,13,14],[12,13,14],
                         [15,16,17],[15,16,17],
                         [27,28,29],[27,28,29]]
+
+    for ec, eo in zip(electrode_combos, electrode_offsets):
+        voltages = wf.samples[physical_electrode_transform[ec]]
+        st()
+        # print("Voltages for elec " + str(ec) + " are " + str(voltages))
 
     for ec, eo in zip(electrode_combos, electrode_offsets):
         assert len(ec) == len(eo), "Different number of electrodes and offsets requested!"
