@@ -53,7 +53,8 @@ def transport_waveform_multiple_test():
         linspace_fn=zpspace,
         wfm_desc="Trans wf multiple test")
     wfp = WavPotential(wf)
-    wfp.animate_wfm(decimation=1, wdp=wf.wdp)
+    # wfp.animate_wfm(decimation=1, wdp=wf.wdp)
+    st()
     # wfp.plot('img')
     # wfp.animate_wfm(decimation=1)    
     # animate_wavpots([wfp], parallel=False, decimation=1, save_video_path='solver_test.mp4')
