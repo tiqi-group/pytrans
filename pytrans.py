@@ -1322,6 +1322,19 @@ class WaveformSet:
                 return w
         warnings.warn("Could not find Waveform {w} in WaveformSet!".format(w=name_str))
 
+    def find_waveforms(self, name_str, get_index=False):
+        """ Tries to find a list of waveforms whose description partially or fully matches name_str """
+        matching_wfms = []
+        for k, w in enumerate(self.waveforms):
+            if name_str in w.desc:
+                if get_index:
+                    matching_wfms.append(k)
+                else:
+                    matching_wfms.append(w)
+        if not matching_wfms:
+            warnings.warn("Could not find Waveform {w} in WaveformSet!".format(w=name_str))
+        return matching_wfms
+
 if __name__ == "__main__":
     # Debugging stuff -- write unit tests from the below at some point
     # wfs.write("waveform_files/test_splitting_zone_Ts_620_vn_2016_04_14_v03.dwc.json")
