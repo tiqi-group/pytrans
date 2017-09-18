@@ -27,10 +27,10 @@ def add_interp_wfms(wfm_file, wfm1, wfm2, new_wfms,
     return wfs
 
 if __name__ == "__main__":
-    wfs = add_interp_wfms("../waveform_files/load_split_2Be1Ca_2017_02_21_v04_mod_v03.dwc.json",
-                          "to -6.0 um",
-                          "to -4.0 um",
+    wfs = add_interp_wfms("../waveform_files/load_split_2Be1Ca_2017_02_21_v04_mod_v06.dwc.json",
+                          "to -11.6 um",
+                          "to -11.2 um",
                           11,
-                          lambda fact: "interp profiling to {:.1f} um".format( (1-fact)*(-6) + fact*(-4) ))
+                          lambda fact: "interp profiling to {:.2f} um".format( (1-fact)*(-11.6) + fact*(-11.2) ))
 
-    wfs.write("../waveform_files/load_split_2Be1Ca_2017_02_21_v04_mod_v04.dwc.json")
+    wfs.write("../waveform_files/load_split_2Be1Ca_2017_02_21_v04_mod_v07.dwc.json")
