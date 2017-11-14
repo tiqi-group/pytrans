@@ -20,7 +20,7 @@ def load_to_exp():
 
     # If file exists already, just load it to save time
     try:
-        #raise FileNotFoundError # always generate for debugging
+        raise FileNotFoundError # always generate for debugging
         wfs_load = WaveformSet(waveform_file=wf_path)
         print("Loaded waveform ",wf_path)
     except FileNotFoundError:
@@ -28,9 +28,9 @@ def load_to_exp():
         n_load = 101
         # Desired constraints
         w_load = WavDesiredWells(
-            [np.linspace(-1870,0,n_load)*um],
-            [np.linspace(1.1,1.3,n_load)*MHz],
-            [np.linspace(600,1000,n_load)*meV],
+            [np.linspace(-1870, 0, n_load)*um],
+            [np.linspace(1.1, 1.3, n_load)*MHz],
+            [np.linspace(600, 1000, n_load)*meV],
             solver_weights={'energy_threshold':200*meV,
              'r0_u_weights':np.ones(30)*3e-2,
              'r0_u_ss':np.ones(30)*8},
@@ -42,5 +42,10 @@ def load_to_exp():
     pot = calculate_potentials(trap_mom, wfs_load.get_waveform(1))
     plot_selection(pot)
 
+def loading_transport_test():
+    
+    
 if __name__ == "__main__":
-    load_to_exp()
+    # load_to_exp()
+
+    loading_transport_test()

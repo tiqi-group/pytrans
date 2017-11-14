@@ -36,7 +36,8 @@ returns it.
 
 =com_w()= is similar, accepting the separation $d$, $\alpha$, $\beta$,
 and the ion mass (single-species). It simply implements 
-$$ \omega_1 = \sqrt{ (2\alpha + 3\beta d^2) q/m} $$.
+$$ \omega_1 = \sqrt{ (2\alpha + 3\beta d^2) q/m} $$ and returns the 
+motional frequency.
 
 We write a function =solve_wfm()= that gives us the frequency and
 separation for a given DC offset and $\alpha$ value; this helps
@@ -69,17 +70,17 @@ What's the critical frequency at the critical point
 
 #+RESULTS:
 #+begin_example
-separation (um):  [ 21.72813124] freq (kHz):  [ 231.80169951] electrodes: 
- [[ 8.59999969]
+separation (um):  [ 21.72824727] freq (kHz):  [ 231.80195556] electrodes: 
+ [[ 8.59999999]
  [-8.6       ]
- [-1.2518053 ]
- [-8.58980931]
- [ 8.59999997]
- [ 8.59999969]
+ [-1.25180442]
+ [-8.58980919]
+ [ 8.6       ]
+ [ 8.59999999]
  [-8.6       ]
- [-1.2518053 ]
- [-8.58980931]
- [ 8.59999997]]
+ [-1.25180442]
+ [-8.58980919]
+ [ 8.6       ]]
 #+end_example
 
 Now let's use it to look at how the frequency at the critical point
@@ -133,11 +134,12 @@ decline as it is raised.
 What exact offset is the frequency maximised at?
 
 #+BEGIN_SRC ipython :session sesh :exports both :results output
-  print("Sep: ", d[np.argmax(w)]*1e6, ", freq: ", np.max(w)/2/np.pi/1e3)
+  k = np.argmax(w)
+  print("Offs: ", offsets[k], "V, " "Sep: ", d[k]*1e6, "um, freq: ", w[k]/2/np.pi/1e3, "kHz")
 #+END_SRC
 
 #+RESULTS:
-: Sep:  21.8418102801 , freq:  231.852111874
+: Offs:  -1.39195979899 V, Sep:  21.8395889523 um, freq:  231.846899573
 
 which is close to when the solver's DC offset is unconstrained
 (i.e. it just maximised $\beta$).
