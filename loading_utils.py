@@ -9,6 +9,7 @@ import reorder as ror
 
 def get_loading_wfms(wfm_path, force_regen_wfm=False,
                      default_freq=1.1, default_offs=1000, # used for static and return-from-shallow
+                     # shallow_freq=0.3, shallow_offs=-550, # used for shallow well
                      shallow_freq=0.3, shallow_offs=-550, # used for shallow well
                      add_reordering=False,
                      add_deep_wells=False,
@@ -24,7 +25,7 @@ def get_loading_wfms(wfm_path, force_regen_wfm=False,
     except FileNotFoundError:
         print("Generating loading waveform ",wfm_path)
         n_load = 1001
-        n_freq_change = 501
+        n_freq_change = 101
 
         # List of experimental-zone setting tuples
         exp_settings = [(0, default_freq, default_offs, "exp " + ion_chain)]
@@ -41,15 +42,53 @@ def get_loading_wfms(wfm_path, force_regen_wfm=False,
         wf_exp_static = tu.static_waveform(
             0, default_freq, conveyor_offs, "static")
         wf_list = [wf_load, wf_load_conveyor, wf_exp_static]
-        wf_exp_shallow = tu.transport_waveform(
-            [0, 0], [default_freq, shallow_freq], [conveyor_offs, shallow_offs], n_freq_change, "shallow", linspace_fn=zpspace)
+        # wf_exp_shallow = tu.transport_waveform(
+        #     [0, 0], [default_freq, shallow_freq], [conveyor_offs, shallow_offs], n_freq_change, "shallow", linspace_fn=zpspace)
+        # wf_list.append(wf_exp_shallow)
 
-        # Generate a few different shallow waveforms at a range of positions, to compensate any trap offsets/stray fields
-        for pos in [-10,-3,0,3,10]:
-            wf_list.append(
-                tu.transport_waveform(
-                    [0, pos], [default_freq, shallow_freq], [conveyor_offs, shallow_offs],
-                    n_freq_change, "shallow, shifted {:d} um".format(pos), linspace_fn=zpspace))
+        # Generate shallow wells with a range of compensation forces; left-vs-right and top-vs-bottom.
+        # lr_offsets = np.linspace(-0.2, 0.2, 11)
+        # tb_offsets = np.linspace(-0.2, 0.2, 11)
+        lr_offsets = [-0.08]
+        tb_offsets = [-0.08]
+        for lr_offset in lr_offsets:
+            for tb_offset in tb_offsets:
+                shallow_wfm = tu.transport_waveform(
+                    [0,0],
+                    [default_freq, shallow_freq],
+                    [conveyor_offs, shallow_offs],
+                    n_freq_change, "shallow with T>B offs {:.3f}, L>R offs {:.3f}".format(tb_offset, lr_offset), linspace_fn=zpspace
+                    )
+                lr_offset_vec = np.vstack([np.full([7,1], lr_offset/2), 0, np.full([7,1], -lr_offset/2)])
+                top_offset_vec = lr_offset_vec + tb_offset/2
+                bot_offset_vec = lr_offset_vec - tb_offset/2
+
+                shallow_wfm.samples[physical_electrode_transform,:] += vlinspace(
+                    np.zeros([30,1]), np.vstack([top_offset_vec, bot_offset_vec]), n_freq_change)
+                wf_list.append(shallow_wfm)
+
+        # for offs in lr_offsets:
+        #     for level in ['top', 'bottom']:
+        #         shallow_wfm = tu.transport_waveform(
+        #             [0,0],
+        #             [default_freq, 0.4],
+        #             [conveyor_offs, -300],
+        #             n_freq_change, "shallow with T>B offs {:.3f}, L>R offs {:.3f}".format(offs_tb, offs_lr), linspace_fn=zpspace)
+        #         if side == 'left':
+        #             offsets = np.vstack([np.full([7,1], offs), np.zeros([8,1])])
+        #         else:
+        #             offsets = np.vstack([np.zeros([8,1]), np.full([7,1], offs)])
+        #         if level == 'top':
+        #             top_offset = offsets
+        #             bot_offset = -offsets
+        #         else:
+        #             top_offset = -offsets
+        #             bot_offset = offsets
+
+        #         shallow_wfm.samples[physical_electrode_transform,:] += vlinspace(
+        #             np.zeros([30,1]), np.vstack([top_offset, bot_offset]), n_freq_change)
+        #         wf_list.append(shallow_wfm)
+                    
 
         analyse_static_radials = False
         if analyse_static_radials:
@@ -94,7 +133,6 @@ def get_loading_wfms(wfm_path, force_regen_wfm=False,
                                                  [1.0,1.5,2.0,2.5], [0], 100)
 
         wfs_load = WaveformSet(wf_list)
-        st()
         wfs_load.write(wfm_path)
 
     if analyse_wfms:

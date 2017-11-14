@@ -55,7 +55,8 @@ num_elecs = dac_channel_transform.size
 # output drives each electrode, from 0 -> 29)
 
 # This array is written to geometrically show which electrodes
-# are controlled by which DEATH channels. 4, 3, 1, 3, 4 = load, split, exp, split, load.
+# are controlled by which DEATH channels.
+# Grouping of 4, 3, 1, 3, 4 refers to load, split, exp, split, load.
 physical_electrode_transform = np.array([0,4,8,2,  6,10,14,  18,  22,26,30,  16,20,24,13,
                                          1,5,9,3,  7,11,15,  19,  23,27,31,  17,21,25,29])
 

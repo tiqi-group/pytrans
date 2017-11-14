@@ -41,6 +41,7 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
         wfs_load = lu.get_loading_wfms(os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2017_11_14_v01.dwc.json"),
                                        default_freq=default_freq,
                                        default_offs=default_offs,
+                                       shallow_freq=0.5, shallow_offs=-300, # experimentally optimal for current solver vals
                                        add_reordering=True, ion_chain='2Be1Ca',
                                        force_regen_wfm=True) # Set to True for debug only, otherwise takes a long time!
         
@@ -104,10 +105,10 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
 
         wfs_load_and_split.waveforms.append(wf_far_to_exp)
         wfs_load_and_split.waveforms.append(wf_recombine_fast)
-
-        st()
                     
         wfs_load_and_split.write(wf_path, fix_voltage_limits=True)
+
+        st()
         
         if save_video:
             merged_videos = [centre_to_split, wf_split, wf_far_to_exp] # all 3 together
