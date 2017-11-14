@@ -823,17 +823,21 @@ def split_waveforms_reparam(
     # desired_sep_vec = (tau**1.5)*np.sin(np.pi/2*tau)**2
     desired_sep_vec = tau**3
     # desired_sep_vec = (tau**2)*np.sin(np.pi/2*tau)**2
-    
+
+    # Voltages only for electrodes involved in splitting
     split_voltages, split_sep_desired = split_sep_reparam(
         polys, alphas, desired_sep_vec, electrode_subset, field_offset, dc_offsets=dc_offset)
     split_voltages_elec = np.ones((num_elecs, split_voltages.shape[1]))*default_elec_voltage
     # split_voltages_elec = np.ones((num_elecs, split_voltages.shape[1]))*0.5 # lower default voltage
+    # Put splitting voltages into full electrode voltage array
     split_voltages_elec[physical_electrode_transform[electrode_subset], :] = split_voltages
 
     # automatically figure out the potential offset by running the
     # solver for the initial splitting conditions and fitting to it
     wavpot_fit_start = find_wells_from_samples(split_voltages_elec[:,[0]], split_centre, polyfit_range)
-    assert len(wavpot_fit_start['offsets']) == 1, "Error, found too many wells in ROI at start of splitting."
+    if len(wavpot_fit_start['offsets']) != 1:
+        warnings.warn("Found wrong number of  wells in ROI at start of splitting.")
+        st()
     split_dc_offset = wavpot_fit_start['offsets'][0]/meV
 
     # Initial waveform, transports from start to splitting location
@@ -858,8 +862,9 @@ def split_waveforms_reparam(
     split_freqs_last = np.array(split_params_last['freqs'])/MHz
     split_dc_offsets_last = np.array(split_params_last['offsets'])/meV
 
-    if False:
-        assert split_locs_last.size == 2, "Wrong number of wells detected after splitting"
+    if split_locs_last.size != 2:
+        warnings.warn("Wrong number of wells detected after splitting")
+        st()
     
     ## Merge end of poly-algorithm solver with beginning of regular-algorithm solver
     finish_split_interp_n = 20 # timesteps over which to carry out the merge

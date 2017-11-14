@@ -12,12 +12,13 @@ import splitting as sp
 #                    'r0_u_weights':np.ones(30), # all electrodes uniform
 #                    'r0_u_ss':np.ones(30)*8,
 #                    'r1':5e-7,'r2':0}
-default_weights = {'r0':1e-9,
+
+default_weights = {'r0':1e-11,
                    'r0_u_weights':np.ones(30), # all electrodes uniform
                    'r0_u_ss':np.ones(30)*default_elec_voltage,
-                   'r1':5e-5,'r2':2e-6}
+                   'r1':5e-4,'r2':2e-6}
 
-default_potential_params={'energy_threshold':7*meV}
+default_potential_params={'energy_threshold':2*meV}
 
 def static_waveform(pos, freq, offs, wfm_desc, solv_wghts=default_weights):
     wdw = WavDesiredWells([pos*um],[freq*MHz],[offs*meV],

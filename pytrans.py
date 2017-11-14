@@ -672,7 +672,7 @@ class Waveform:
 
         N = len(wdp.potentials) # timesteps
 
-        ## Setup and solve optimisation problem
+        ## Set up and solve optimisation problem
         uopt = cvy.Variable(wdp.num_electrodes, N)
         states = []
 
@@ -979,6 +979,7 @@ class WavPotential:
         plt.show()
 
     def find_wells(self, time_idx, mode='quick', smoothing_ratio=80, polyfit_ratio=60, freq_threshold=10*kHz, roi_centre=0*um, roi_width=2356*um):
+        """ Wrapper for pytrans.find_wells() """
         return find_wells(self.potentials[:,time_idx], self.trap_axis, self.ion_mass, mode, smoothing_ratio, polyfit_ratio, freq_threshold, roi_centre, roi_width)
 
     ### Functions for analyzing/plotting the potential in 2d (radials), and 3d (axial+radials)

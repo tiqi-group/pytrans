@@ -23,7 +23,7 @@ def split_wfms(f_well, conveyor_offs, field_offset, n_transport):
 
 def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=False):
     """ Generate loading/splitting waveforms, with swept offset """
-    wf_name = "load_split_2Be1Ca_2017_06_09_v01"
+    wf_name = "load_split_2Be1Ca_2017_11_14_v01"
     wf_path = os.path.join(os.pardir, "waveform_files", wf_name + ".dwc.json")
 
     # If file exists already, just load it to save time
@@ -38,11 +38,11 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
         default_offs = 1000
         
         # use existing loading conveyor file to save time - need to regenerate if not available
-        wfs_load = lu.get_loading_wfms(os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2017_06_09_v01.dwc.json"),
+        wfs_load = lu.get_loading_wfms(os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2017_11_14_v01.dwc.json"),
                                        default_freq=default_freq,
                                        default_offs=default_offs,
                                        add_reordering=True, ion_chain='2Be1Ca',
-                                       force_regen_wfm=True) # DEBUG ONLY!
+                                       force_regen_wfm=True) # Set to True for debug only, otherwise takes a long time!
         
         # truncate waveforms after the first shallow one
         reordering = True
@@ -51,7 +51,7 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
             wfs_load_and_split = wfs_load
         else:
             wfs_load_and_split = WaveformSet(
-                wfs_load.waveforms[:wfs_load.find_waveform("shallow", get_index=True)+1])
+                wfs_load.waveforms[:wfs_load.find_waveform("reorder", get_index=True)-1])
         
         conveyor_offs = default_offs
 
@@ -68,13 +68,13 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
 
         # field_offsets = np.linspace(-300,300,11 - num_reorder_wfms) # Wide scan, to establish what range is reasonable
         # field_offsets = np.linspace(-75, -55, 11-num_reorder_wfms)
-        field_offsets = np.linspace(-100, 100, 11-num_reorder_wfms)
+        field_offsets = np.linspace(-20, 20, 5)
         # field_offsets = [-63]
         wfs_split = []
 
         # Solve the wells in parallel (saves a lot of time)
 
-        parallel = True
+        parallel = False
         if parallel:
             from multiprocessing import Pool
             
@@ -104,6 +104,8 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
 
         wfs_load_and_split.waveforms.append(wf_far_to_exp)
         wfs_load_and_split.waveforms.append(wf_recombine_fast)
+
+        st()
                     
         wfs_load_and_split.write(wf_path, fix_voltage_limits=True)
         

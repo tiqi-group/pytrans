@@ -28,20 +28,28 @@ def get_loading_wfms(wfm_path, force_regen_wfm=False,
 
         # List of experimental-zone setting tuples
         exp_settings = [(0, default_freq, default_offs, "exp " + ion_chain)]
-        # conveyor_offs = 960
         conveyor_offs = default_offs
         
         wf_load = tu.transport_waveform(
             [-1870, 0], [0.7, default_freq], [600, conveyor_offs], n_load, "Load -> exp", linspace_fn=zpspace)
-        wf_load_conveyor = tu.conveyor_rec_waveform(
+        if False:
+            conv_fn = tu.conveyor_rec_waveform # recombine section using polynomial solver
+        else:
+            conv_fn = tu.conveyor_waveform # recombine section using regular solver
+        wf_load_conveyor = conv_fn(
             [-1870, 0], [0.7, default_freq], [600, conveyor_offs], 2*n_load, "Load -> exp", linspace_fn=zpspace)
-        st()
         wf_exp_static = tu.static_waveform(
             0, default_freq, conveyor_offs, "static")
+        wf_list = [wf_load, wf_load_conveyor, wf_exp_static]
         wf_exp_shallow = tu.transport_waveform(
             [0, 0], [default_freq, shallow_freq], [conveyor_offs, shallow_offs], n_freq_change, "shallow", linspace_fn=zpspace)
-        wf_list = [wf_load, wf_load_conveyor,
-                   wf_exp_static, wf_exp_shallow]
+
+        # Generate a few different shallow waveforms at a range of positions, to compensate any trap offsets/stray fields
+        for pos in [-10,-3,0,3,10]:
+            wf_list.append(
+                tu.transport_waveform(
+                    [0, pos], [default_freq, shallow_freq], [conveyor_offs, shallow_offs],
+                    n_freq_change, "shallow, shifted {:d} um".format(pos), linspace_fn=zpspace))
 
         analyse_static_radials = False
         if analyse_static_radials:
@@ -67,27 +75,26 @@ def get_loading_wfms(wfm_path, force_regen_wfm=False,
         # Create more deeply confining wells (maybe does not help?)
         deep_weights=dict(tu.default_weights)
         deep_weights['r0'] = 1e-3
-        
-        for pos, freq, offs, label in exp_settings:
-            wf_exp_static = tu.static_waveform(
-                pos, freq, offs, label)
-            wf_exp_shallow = tu.transport_waveform(
-                [pos, pos], [freq, shallow_freq], [offs, shallow_offs+1000], n_freq_change, "shallow")
-            wf_exp_static_deep = tu.static_waveform(
-                pos, freq, offs, label + " deep", solv_wghts=deep_weights)
 
-            wf_list += [wf_exp_static, wf_exp_shallow]
-            if add_deep_wells:
-                wf_exp_static_deep = tu.static_waveform(
-                    pos, freq, offs, label + " deep", solv_wghts=deep_weights)
-                wf_list += [wf_exp_static_deep]
+        if False:
+            for pos, freq, offs, label in exp_settings:
+                wf_exp_static = tu.static_waveform(
+                    pos, freq, offs, label)
+                wf_exp_shallow = tu.transport_waveform(
+                    [pos, pos], [freq, shallow_freq], [offs, shallow_offs+1000], n_freq_change, "shallow")
+
+                wf_list += [wf_exp_static, wf_exp_shallow]
+                if add_deep_wells:
+                    wf_exp_static_deep = tu.static_waveform(
+                        pos, freq, offs, label + " deep", solv_wghts=deep_weights)
+                    wf_list += [wf_exp_static_deep]
 
         if add_reordering:
             wf_list += ror.generate_reorder_wfms(wf_exp_dual_species,
                                                  [1.0,1.5,2.0,2.5], [0], 100)
 
         wfs_load = WaveformSet(wf_list)
-        # st()
+        st()
         wfs_load.write(wfm_path)
 
     if analyse_wfms:
@@ -97,3 +104,31 @@ def get_loading_wfms(wfm_path, force_regen_wfm=False,
         print(pot.find_wells(100, mode='precise'))
     
     return wfs_load
+
+if __name__ == "__main__":
+    import datetime as dt
+    default_freq = 1.1
+    conveyor_offs = 1000
+    n_load = 1001
+
+    # Loading conveyor waveform
+    wf_load_conveyor = tu.conveyor_waveform(
+        [-1870, 0], [0.7, default_freq], [600, conveyor_offs],
+        2*n_load, "Load -> exp", linspace_fn=zpspace)
+    wp_load_conveyor = WavPotential(wf_load_conveyor)
+
+    if True:
+        wf_load_conveyor_rec = tu.conveyor_rec_waveform(
+            [-1870, 0], [0.7, default_freq], [600, conveyor_offs],
+            2*n_load, "Load -> exp", linspace_fn=zpspace)
+        wp_lcr = WavPotential(wf_load_conveyor_rec)
+
+    wp = wp_load_conveyor
+    wp_old = WavPotential(WaveformSet(waveform_file="waveform_files/load_split_2Be1Ca_2017_02_21_v04.dwc.json").get_waveform(1))
+    st()
+    # new_wells = 
+    
+    now = dt.datetime.now()
+    load_wfm_path = os.path.join("temp", "TEST_loading_" + now.strftime("%Y_%m_%d.%H_%M"))
+
+    
