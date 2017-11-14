@@ -23,7 +23,7 @@ def split_wfms(f_well, conveyor_offs, field_offset, n_transport):
 
 def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=False):
     """ Generate loading/splitting waveforms, with swept offset """
-    wf_name = "load_split_2Be1Ca_2017_11_14_v01"
+    wf_name = "load_split_2Be1Ca_2017_11_14_v02"
     wf_path = os.path.join(os.pardir, "waveform_files", wf_name + ".dwc.json")
 
     # If file exists already, just load it to save time
@@ -105,6 +105,13 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
 
         wfs_load_and_split.waveforms.append(wf_far_to_exp)
         wfs_load_and_split.waveforms.append(wf_recombine_fast)
+
+        ## Add a range of static waveforms, for choosing one with optimal mode freqs.
+        if True:
+            for bias in np.linspace(-500,500,51):
+                wf_exp_static = tu.static_waveform(
+                    0, default_freq, conveyor_offs + bias, "static")
+                wfs_load_and_split.waveforms.append(wf_exp_static)
                     
         wfs_load_and_split.write(wf_path, fix_voltage_limits=True)
 
