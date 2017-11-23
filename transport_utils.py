@@ -13,7 +13,7 @@ import splitting as sp
 #                    'r0_u_ss':np.ones(30)*8,
 #                    'r1':5e-7,'r2':0}
 
-default_weights = {'r0':1e-11,
+default_weights = {'r0':5e-10,
                    'r0_u_weights':np.ones(30), # all electrodes uniform
                    'r0_u_ss':np.ones(30)*default_elec_voltage,
                    'r1':5e-4,'r2':2e-6}
@@ -83,7 +83,6 @@ def transport_waveform_multiple(poss, freqs, offsets, timesteps, wfm_desc,
         solver_weights=default_weights,
         desired_potential_params=default_potential_params,
         Ts=Ts,
-        # force_static_ends=True,
         desc=wfm_desc+" {:d} wells".format(len(poss)))    
     wf_wdw = Waveform(wdw)
 
@@ -209,6 +208,20 @@ def conveyor_waveform(pos, freq, offs, timesteps, wfm_desc, linspace_fn=np.linsp
                                 vlinspace(wf.samples[:,[-1]], wf.samples[:,[0]], pts_for_new_wfm)])
     
     return wf
+
+def shallow_waveform(freqs, dc_offsets, n_steps=101, lr_offset=0, tb_offset=0):
+    shallow_wfm = transport_waveform([0,0], freqs, dc_offsets,
+                                     n_steps,
+                                     "shallow with T-B offs {:.3f}, L-R offs {:.3f}".format(
+                                         tb_offset, lr_offset), linspace_fn=zpspace)
+    lr_offset_vec = np.vstack([np.full([7,1], lr_offset/2), 0, np.full([7,1], -lr_offset/2)]) # 15//2 = 7 (half the trap)
+    top_offset_vec = lr_offset_vec + tb_offset/2
+    bot_offset_vec = lr_offset_vec - tb_offset/2
+
+    shallow_wfm.samples[physical_electrode_transform,:] += vlinspace(
+        np.zeros([30,1]), np.vstack([top_offset_vec, bot_offset_vec]), n_steps)
+
+    return shallow_wfm    
 
 def reordering_waveform(pos, freq, offs, timesteps, push_v, twist_v, wfm_desc):
     # push_v: voltage by which to increase one side of electrodes

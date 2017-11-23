@@ -648,7 +648,7 @@ class Waveform:
         elif isinstance(args[0],  WavDesired): # check if a child of WavDesired
 			# Create waveform based on WavDesired by setting up and solving an optimal control problem
             self.wdp = args[0]
-            raw_samples = self.solve_potentials(self.wdp) # ordered by electrode
+            raw_samples = self.solve_potentials(self.wdp, **kwargs) # ordered by electrode
             num_elec, num_timesteps = raw_samples.shape
             self.samples = np.zeros((num_elec+2,num_timesteps)) # Add two DEATH monitor channels
             self.samples[:,:] = raw_samples[list(abs(k) for k in dac_channel_transform),:] # Transform as required
@@ -662,7 +662,7 @@ class Waveform:
     def __repr__(self):
         return 'Wfm: "{d}" ({s} long)'.format(d=self.desc, s=self.samples.shape[1])
 
-    def solve_potentials(self, wdp):
+    def solve_potentials(self, wdp, solver=global_solver, **kwargs):
         """ Convert a desired set of potentials and ROIs into waveform samples
         wdp: waveform desired potential"""
         # TODO: make this more flexible, i.e. arbitrary-size voltages
@@ -670,6 +670,7 @@ class Waveform:
 
         # Cost function parameters
         sw = wdp.solver_weights
+        print_debug("Solver weights: ", sw)
 
         N = len(wdp.potentials) # timesteps
 
@@ -686,7 +687,8 @@ class Waveform:
 
         # Penalise deviations from default voltage        
         sw_r0_u_ss_m = np.tile(sw['r0_u_ss'], (N,1)).T # matrixized
-        cost = sw['r0'] * cvy.sum_squares(sw['r0_u_weights'] * (uopt - sw_r0_u_ss_m))
+        # cost = sw['r0']*cvy.sum_squares(sw['r0_u_weights'] * (uopt - sw_r0_u_ss_m))
+        cost = cvy.sum_squares(sw['r0_u_weights'] * (uopt - sw_r0_u_ss_m) * np.sqrt(sw['r0']))
         
         # Absolute voltage constraints
         min_elec_voltages_m = np.tile(min_elec_voltages, (N,1)).T
@@ -706,27 +708,55 @@ class Waveform:
             constr += [uopt[:15,:] == uopt[15:,:]]
 
         ## Constrain the end voltages explicitly to match static case
-        ## (i.e. solve separate problem first, then constrain main one)
-        if static_ends:
+        ## (i.e. solve separate problems first, then constrain main one)
+        def get_boundary_voltages(min_elec_voltages, max_elec_voltages, sw_r0_u_ss_m, potentials, roi, weights):
+            uopt_e = cvy.Variable(wdp.num_electrodes, 1)
+            constr_e = [min_elec_voltages <= uopt_e, uopt_e <= max_elec_voltages]
+            constr_e += [uopt_e[:15,:] == uopt_e[15:,:]]
+            # penalise deviations from default voltage
+            cost_e = cvy.sum_squares(sw['r0_u_weights'] * (uopt_e - sw_r0_u_ss_m) * np.sqrt(sw['r0']))
+            cost_e += cvy.sum_squares(cvy.mul_elemwise(weights, trap_mom.potentials[roi] * uopt_e - potentials))
+            # cost_e += cvy.sum_squares(trap_mom.potentials[
+            #     wdp.roi_idx[-1]] * uopt_e[:,-1] - wdp.potentials[-1])
+            prob = cvy.Problem(cvy.Minimize(cost_e), constr_e)
+            print_debug("Edge prob: ", prob)
+            prob.solve(solver=solver, verbose=global_solver_verbose, **kwargs)
+            uopt_ev = uopt_e.value
+            return uopt_ev
+
+        def old_solver():
             uopt_e = cvy.Variable(wdp.num_electrodes, 2)
             # min_elec_voltages_e = np.tile(min_elec_voltages, (2,1)).T
             # max_elec_voltages_e = np.tile(max_elec_voltages, (2,1)).T
             min_elec_voltages_e = min_elec_voltages_m[:,[0,-1]]
             max_elec_voltages_e = max_elec_voltages_m[:,[0,-1]]
-            
+
             constr_e = [min_elec_voltages_e <= uopt_e, uopt_e <= max_elec_voltages_e] # absolute voltage
             constr_e += [uopt_e[:15,:] == uopt_e[15:,:]]
-            # sw_r0_u_ss_m_e = np.tile(sw['r0_u_ss'], (2,1)).T # matrixized
             sw_r0_u_ss_m_e = sw_r0_u_ss_m[:,[0,-1]]
             # penalise deviations from default voltage
-            cost_e = sw['r0'] * cvy.sum_squares(sw['r0_u_weights'] * (uopt_e - sw_r0_u_ss_m_e)) 
+            cost_e = cvy.sum_squares(sw['r0_u_weights'] * (uopt_e - sw_r0_u_ss_m_e) * np.sqrt(sw['r0']))
             cost_e += cvy.sum_squares(trap_mom.potentials[
                 wdp.roi_idx[0]] * uopt_e[:,0] - wdp.potentials[0])
             cost_e += cvy.sum_squares(trap_mom.potentials[
                 wdp.roi_idx[-1]] * uopt_e[:,-1] - wdp.potentials[-1])
             prob = cvy.Problem(cvy.Minimize(cost_e), constr_e)
-            prob.solve(solver=global_solver, verbose=global_solver_verbose)
+            prob.solve(solver=solver, verbose=global_solver_verbose, **kwargs)
             uopt_ev = uopt_e.value
+            return uopt_ev
+
+        if static_ends:
+            uopt_start = get_boundary_voltages(min_elec_voltages_m[:,[0]], max_elec_voltages_m[:,[0]], sw_r0_u_ss_m[:,[0]],
+                                               wdp.potentials[0], wdp.roi_idx[0], wdp.weights[0])
+            uopt_end = get_boundary_voltages(min_elec_voltages_m[:,[-1]], max_elec_voltages_m[:,[-1]], sw_r0_u_ss_m[:,[-1]],
+                                             wdp.potentials[-1], wdp.roi_idx[-1], wdp.weights[-1])
+            uopt_ev = np.hstack([uopt_start, uopt_end])
+
+            # Currently there is a bug: uopt_ev_old is not equal to uopt_ev at the moment. Not a huge problem for now.
+            uopt_ev_old = old_solver()
+
+            # Add constraint
+            constr += [uopt[:,[0,-1]] == uopt_ev]
 
         # Approximate costs on first and second derivative of u with finite differences
         # Here, we use 2nd order approximations. For a table with coefficients see 
@@ -734,23 +764,20 @@ class Waveform:
 
         if N > 3:
             # Middle: central finite-difference approx
-            cost += sw['r1']*cvy.sum_squares(0.5*(uopt[:,2:]-uopt[:,:-2]) ) # deriv
-            cost += sw['r2']*cvy.sum_squares(uopt[:,2:] -2 * uopt[:,1:-1] + uopt[:,:-2]) # 2nd deriv
+            cost += cvy.sum_squares(np.sqrt(sw['r1'])* 0.5*(uopt[:,2:]-uopt[:,:-2])) # deriv
+            cost += cvy.sum_squares(np.sqrt(sw['r2'])* (uopt[:,2:] -2 * uopt[:,1:-1] + uopt[:,:-2])) # 2nd deriv
 
             # Start: use forward finite difference approximation of derivatives
-            cost += sw['r1']*cvy.sum_squares(-0.5*uopt[:,2] + 2*uopt[:,1] - 1.5*uopt[:,0])
-            cost += sw['r2']*cvy.sum_squares(-uopt[:,3] + 4*uopt[:,2] - 5*uopt[:,1] + 2*uopt[:,0])
+            cost += cvy.sum_squares(np.sqrt(sw['r1'])* (-0.5*uopt[:,2] + 2*uopt[:,1] - 1.5*uopt[:,0]))
+            cost += cvy.sum_squares(np.sqrt(sw['r2'])* (-uopt[:,3] + 4*uopt[:,2] - 5*uopt[:,1] + 2*uopt[:,0]))
 
             # End: use backward finite difference approximation of derivatives
-            cost += sw['r1']*cvy.sum_squares(1.5*uopt[:,-1] - 2*uopt[:,-2] + 0.5*uopt[:,-3])
-            cost += sw['r2']*cvy.sum_squares(2*uopt[:,-1] - 5*uopt[:,-2] + 4*uopt[:,-3] - uopt[:,-4]) 
+            cost += cvy.sum_squares(np.sqrt(sw['r1'])* (1.5*uopt[:,-1] - 2*uopt[:,-2] + 0.5*uopt[:,-3]))
+            cost += cvy.sum_squares(np.sqrt(sw['r2'])* (2*uopt[:,-1] - 5*uopt[:,-2] + 4*uopt[:,-3] - uopt[:,-4]))
 
             # Slew rate penalty
             constr += [max_slew_rate*wdp.Ts >= cvy.abs(uopt[:,1:]-uopt[:,:-1])]
             # cost += 0.1*cvy.sum_squares(cvy.abs(uopt[:,1:]-uopt[:,:-1]))
-
-        if static_ends:
-            constr += [uopt[:,[0,-1]] == uopt_ev]
             
         if False:
             pot_weights = np.ones(len(wdp.potentials))
@@ -776,12 +803,13 @@ class Waveform:
             # cost += weight * cvy.sum_squares(trap_mom.potentials[roi, :]*uopt[:,kk] - pot)
             cost += cvy.sum_squares(cvy.mul_elemwise(weights, trap_mom.potentials[roi, :]*uopt[:,kk] - pot))
 
-        states.append( cvy.Problem(cvy.Minimize(cost), constr) )        
+        states.append( cvy.Problem(cvy.Minimize(cost), constr) )
 
         # ECOS is faster than CVXOPT, but can crash for larger problems
         prob = sum(states)
+        print_debug("Whole prob: ", prob)
         try:
-            prob.solve(solver=global_solver, verbose=global_solver_verbose)
+            prob.solve(solver=solver, verbose=global_solver_verbose, **kwargs)
         except cvy.error.SolverError:
             st()
         
@@ -789,6 +817,11 @@ class Waveform:
             # DEBUGGING ONLY, TRACKING DESIRED CONSTRAINTS
             plt.plot(trap_mom.transport_axis, trap_mom.potentials*uopt.value[:,0], '--')
             plt.plot(trap_mom.transport_axis[wdp.roi_idx[0]], wdp.potentials[0])
+
+        if False:
+            # DEBUGGING ONLY, ENSURING END CONSTRAINTS ARE MET
+            if static_ends:
+                print("Difference between expected and observed end constraints: {:.4f}".format(np.abs(uopt.value[:,[0,-1]] - uopt_ev).sum().sum()))
 
         if prob.status == 'infeasible':
             warnings.warn("Waveform problem is infeasible. Try reducing assumed slowdown.")

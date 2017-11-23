@@ -9,6 +9,7 @@ import copy as cp
 import transport_utils as tu
 import loading_utils as lu
 import splitting as sp
+import reorder as ror
 
 def split_wfms(f_well, conveyor_offs, field_offset, n_transport):
     """ Written at top-level for pickling, so that system can parallelise this """
@@ -23,7 +24,7 @@ def split_wfms(f_well, conveyor_offs, field_offset, n_transport):
 
 def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=False):
     """ Generate loading/splitting waveforms, with swept offset """
-    wf_name = "load_split_2Be1Ca_2017_11_14_v02"
+    wf_name = "load_split_2Be1Ca_2017_11_20_v02"
     wf_path = os.path.join(os.pardir, "waveform_files", wf_name + ".dwc.json")
 
     # If file exists already, just load it to save time
@@ -37,11 +38,14 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
         default_freq = 1.1
         default_offs = 1000
         
+        shallow_freq = 0.5
+        shallow_offs = -300
+        
         # use existing loading conveyor file to save time - need to regenerate if not available
-        wfs_load = lu.get_loading_wfms(os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2017_11_14_v01.dwc.json"),
+        wfs_load = lu.get_loading_wfms(os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2017_11_20_v02.dwc.json"),
                                        default_freq=default_freq,
                                        default_offs=default_offs,
-                                       shallow_freq=0.5, shallow_offs=-300, # experimentally optimal for current solver vals
+                                       shallow_freq=shallow_freq, shallow_offs=shallow_offs, # experimentally optimal for current solver vals
                                        add_reordering=True, ion_chain='2Be1Ca',
                                        force_regen_wfm=True) # Set to True for debug only, otherwise takes a long time!
         
@@ -75,7 +79,7 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
 
         # Solve the wells in parallel (saves a lot of time)
 
-        parallel = False
+        parallel = True
         if parallel:
             from multiprocessing import Pool
             
@@ -108,14 +112,21 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
 
         ## Add a range of static waveforms, for choosing one with optimal mode freqs.
         if True:
-            for bias in np.linspace(-500,500,51):
+            for bias in np.linspace(-200,200,21):
+                new_offs = conveyor_offs + bias
                 wf_exp_static = tu.static_waveform(
-                    0, default_freq, conveyor_offs + bias, "static")
-                wfs_load_and_split.waveforms.append(wf_exp_static)
+                    0, default_freq, new_offs, "static")
+                # wfs_load_and_split.waveforms.append(wf_exp_static)
+                wf_exp_shallow = tu.shallow_waveform([default_freq, shallow_freq],
+                                                     [new_offs, shallow_offs],
+                                                     lr_offset=-0.07, tb_offset=-0.07)
+                st()
+                wfs_load_and_split.waveforms.append(wf_exp_shallow)
+                wf_exp_reorder = ror.generate_reorder_wfms(wf_exp_static,
+                                                           [2.0], [0], 100)[0]
+                wfs_load_and_split.waveforms.append(wf_exp_reorder)                                                     
                     
         wfs_load_and_split.write(wf_path, fix_voltage_limits=True)
-
-        st()
         
         if save_video:
             merged_videos = [centre_to_split, wf_split, wf_far_to_exp] # all 3 together
@@ -155,4 +166,4 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
         wfs_load_and_split.write(wf_path, fix_voltage_limits=True)
 
 if __name__ == "__main__":
-    load_and_split_2Be1Ca(save_video=True)
+    load_and_split_2Be1Ca(save_video=False)

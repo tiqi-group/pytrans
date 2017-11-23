@@ -33,7 +33,7 @@ def get_loading_wfms(wfm_path, force_regen_wfm=False,
         
         wf_load = tu.transport_waveform(
             [-1870, 0], [0.7, default_freq], [600, conveyor_offs], n_load, "Load -> exp", linspace_fn=zpspace)
-        if False:
+        if True:
             conv_fn = tu.conveyor_rec_waveform # recombine section using polynomial solver
         else:
             conv_fn = tu.conveyor_waveform # recombine section using regular solver
@@ -49,10 +49,10 @@ def get_loading_wfms(wfm_path, force_regen_wfm=False,
         # Generate shallow wells with a range of compensation forces; left-vs-right and top-vs-bottom.
         # lr_offsets = np.linspace(-0.2, 0.2, 11)
         # tb_offsets = np.linspace(-0.2, 0.2, 11)
-        lr_offsets = [-0.08]
         tb_offsets = [-0.08]
-        for lr_offset in lr_offsets:
-            for tb_offset in tb_offsets:
+        lr_offsets = [-0.08]
+        for tb_offset in tb_offsets:
+            for lr_offset in lr_offsets:
                 shallow_wfm = tu.transport_waveform(
                     [0,0],
                     [default_freq, shallow_freq],
@@ -66,29 +66,6 @@ def get_loading_wfms(wfm_path, force_regen_wfm=False,
                 shallow_wfm.samples[physical_electrode_transform,:] += vlinspace(
                     np.zeros([30,1]), np.vstack([top_offset_vec, bot_offset_vec]), n_freq_change)
                 wf_list.append(shallow_wfm)
-
-        # for offs in lr_offsets:
-        #     for level in ['top', 'bottom']:
-        #         shallow_wfm = tu.transport_waveform(
-        #             [0,0],
-        #             [default_freq, 0.4],
-        #             [conveyor_offs, -300],
-        #             n_freq_change, "shallow with T>B offs {:.3f}, L>R offs {:.3f}".format(offs_tb, offs_lr), linspace_fn=zpspace)
-        #         if side == 'left':
-        #             offsets = np.vstack([np.full([7,1], offs), np.zeros([8,1])])
-        #         else:
-        #             offsets = np.vstack([np.zeros([8,1]), np.full([7,1], offs)])
-        #         if level == 'top':
-        #             top_offset = offsets
-        #             bot_offset = -offsets
-        #         else:
-        #             top_offset = -offsets
-        #             bot_offset = offsets
-
-        #         shallow_wfm.samples[physical_electrode_transform,:] += vlinspace(
-        #             np.zeros([30,1]), np.vstack([top_offset, bot_offset]), n_freq_change)
-        #         wf_list.append(shallow_wfm)
-                    
 
         analyse_static_radials = False
         if analyse_static_radials:
