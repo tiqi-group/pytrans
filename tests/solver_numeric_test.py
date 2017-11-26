@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Check/debug a few numeric issues with different solvers; for example MOSEK tends to cause 'wiggles' where there should be none
+# Check/debug a few numeric issues with different solvers; for example
+# MOSEK tends to cause 'wiggles' where there should be none
 
 import sys
 sys.path.append("../")
@@ -35,11 +36,13 @@ def numeric_test():
     # wf = Waveform(wf_d)
 
 
-    print(wf.samples[:,[0,-1]])
+    print((wf.samples[:,0]-wf.samples[:,-1]).sum())
+    print((wf.samples[:,tsteps//2] - wf.samples[:,0]))
 
     wfp = WavPotential(wf)    
     wfp.plot_voltages()
     wfp.plot()
+    plt.show()
 
     # wf2 = tu.transport_waveform(pos, freq, offs, tsteps, "")
     # wfp2 = WavPotential(wf2)
@@ -57,6 +60,6 @@ def compare_static_shallow():
     wf_shallow = tu.shallow_waveform([freq, shallow_freq], [offs, shallow_offs], 100)
 
 if __name__ == "__main__":
-    compare_static_shallow()
-    # numeric_test()
+    # compare_static_shallow()
+    numeric_test()
     # transport_waveform_test()

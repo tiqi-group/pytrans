@@ -299,8 +299,7 @@ def solve_scaled_constraints(moments, desired_pot, offset, scale_weight):
 
 def solve_poly_ab(poly_moments, alpha=0, slope_offset=None, dc_offset=None,
                   print_voltages=False, enforce_z_symmetry=False,
-                  verbose_solver=False,
-                  target_curv=None):
+                  target_curv=None, **kwargs):
 
     """Tries to 
 
@@ -320,6 +319,8 @@ def solve_poly_ab(poly_moments, alpha=0, slope_offset=None, dc_offset=None,
     solver simply tries to keep it as high as possible.
 
     """
+    settings = dict(global_settings)
+    settings.update(kwargs)
 
     num_elec = poly_moments.shape[1]
     uopt = cvy.Variable(num_elec,1)
@@ -368,7 +369,7 @@ def solve_poly_ab(poly_moments, alpha=0, slope_offset=None, dc_offset=None,
         
     # obj = cvy.Maximize(cvy.sum_entries(beta_co*uopt))+cvy.Maximize(-cvy.sum_entries(alph_co*uopt))
     prob = cvy.Problem(obj, constr)
-    prob.solve(solver=global_solver, verbose=verbose_solver)
+    prob.solve(solver=settings['solver'], verbose=settings['solver_verbose'], **kwargs)
     ans = uopt.value
     if print_voltages:
         print("Voltages: ", uopt.value[:num_elec//2])

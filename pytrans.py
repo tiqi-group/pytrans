@@ -662,15 +662,19 @@ class Waveform:
     def __repr__(self):
         return 'Wfm: "{d}" ({s} long)'.format(d=self.desc, s=self.samples.shape[1])
 
-    def solve_potentials(self, wdp, solver=global_solver, **kwargs):
+    def solve_potentials(self, wdp, **kwargs):
         """ Convert a desired set of potentials and ROIs into waveform samples
         wdp: waveform desired potential"""
         # TODO: make this more flexible, i.e. arbitrary-size voltages
         max_slew_rate = 5 / us # (units of volts / s, quarter of DEATH AD8021 op-amps)
 
+        settings = dict(global_settings)
+        settings.update(kwargs)
+
         # Cost function parameters
         sw = wdp.solver_weights
-        print_debug("Solver weights: ", sw)
+        if settings['solver_print_weights']:
+            print("Solver weights: ", sw)
 
         N = len(wdp.potentials) # timesteps
 
@@ -720,7 +724,7 @@ class Waveform:
             #     wdp.roi_idx[-1]] * uopt_e[:,-1] - wdp.potentials[-1])
             prob = cvy.Problem(cvy.Minimize(cost_e), constr_e)
             print_debug("Edge prob: ", prob)
-            prob.solve(solver=solver, verbose=global_solver_verbose, **kwargs)
+            prob.solve(solver=settings['solver'], verbose=settings['solver_verbose'], **kwargs)
             uopt_ev = uopt_e.value
             return uopt_ev
 
@@ -741,7 +745,7 @@ class Waveform:
             cost_e += cvy.sum_squares(trap_mom.potentials[
                 wdp.roi_idx[-1]] * uopt_e[:,-1] - wdp.potentials[-1])
             prob = cvy.Problem(cvy.Minimize(cost_e), constr_e)
-            prob.solve(solver=solver, verbose=global_solver_verbose, **kwargs)
+            prob.solve(solver=settings['solver'], verbose=settings['solver_verbose'], **kwargs)
             uopt_ev = uopt_e.value
             return uopt_ev
 
@@ -753,7 +757,7 @@ class Waveform:
             uopt_ev = np.hstack([uopt_start, uopt_end])
 
             # Currently there is a bug: uopt_ev_old is not equal to uopt_ev at the moment. Not a huge problem for now.
-            uopt_ev_old = old_solver()
+            #uopt_ev_old = old_solver()
 
             # Add constraint
             constr += [uopt[:,[0,-1]] == uopt_ev]
@@ -809,7 +813,7 @@ class Waveform:
         prob = sum(states)
         print_debug("Whole prob: ", prob)
         try:
-            prob.solve(solver=solver, verbose=global_solver_verbose, **kwargs)
+            prob.solve(solver=settings['solver'], verbose=settings['solver_verbose'], **kwargs)            
         except cvy.error.SolverError:
             st()
         
