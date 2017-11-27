@@ -24,7 +24,7 @@ def split_wfms(f_well, conveyor_offs, field_offset, n_transport):
 
 def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=False):
     """ Generate loading/splitting waveforms, with swept offset """
-    wf_name = "load_split_2Be1Ca_2017_11_20_v02"
+    wf_name = "load_split_2Be1Ca_2017_11_27_v01"
     wf_path = os.path.join(os.pardir, "waveform_files", wf_name + ".dwc.json")
 
     # If file exists already, just load it to save time
@@ -42,7 +42,7 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
         shallow_offs = -300
         
         # use existing loading conveyor file to save time - need to regenerate if not available
-        wfs_load = lu.get_loading_wfms(os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2017_11_20_v02.dwc.json"),
+        wfs_load = lu.get_loading_wfms(os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2017_11_27_v01.dwc.json"),
                                        default_freq=default_freq,
                                        default_offs=default_offs,
                                        shallow_freq=shallow_freq, shallow_offs=shallow_offs, # experimentally optimal for current solver vals
@@ -112,15 +112,17 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
 
         ## Add a range of static waveforms, for choosing one with optimal mode freqs.
         if True:
-            for bias in np.linspace(-200,200,21):
+            lr_offset = -0.07 # -0.07 previously
+            tb_offset = -0.07 # -0.07 previously
+            for bias in np.linspace(-400,200,25):
                 new_offs = conveyor_offs + bias
                 wf_exp_static = tu.static_waveform(
                     0, default_freq, new_offs, "static")
                 # wfs_load_and_split.waveforms.append(wf_exp_static)
                 wf_exp_shallow = tu.shallow_waveform([default_freq, shallow_freq],
                                                      [new_offs, shallow_offs],
-                                                     lr_offset=-0.07, tb_offset=-0.07)
-                st()
+                                                     lr_offset=lr_offset, tb_offset=tb_offset)
+                # st()
                 wfs_load_and_split.waveforms.append(wf_exp_shallow)
                 wf_exp_reorder = ror.generate_reorder_wfms(wf_exp_static,
                                                            [2.0], [0], 100)[0]

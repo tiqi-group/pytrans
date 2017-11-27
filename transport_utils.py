@@ -50,18 +50,21 @@ def transport_waveform(pos, freq, offs, timesteps, wfm_desc,
     return wf_wdw
 
 def transport_waveform_multiple(poss, freqs, offsets, timesteps, wfm_desc,
-                                linspace_fn=np.linspace, Ts=200*ns):
+                                linspace_fn=np.linspace, Ts=200*ns, **kwargs):
     # pos, freq, offs: M x 2-element lists specifying M separate
     # wells, like in transport_waveform()
+    dpp = dict(default_potential_params)
+    dpp.update(kwargs)
+    
     wdw = WavDesiredWells(
         tuple(linspace_fn(p[0], p[1], timesteps)*um for p in poss),
         tuple(linspace_fn(f[0], f[1], timesteps)*MHz for f in freqs),
         tuple(linspace_fn(o[0], o[1], timesteps)*meV for o in offsets),
 
         solver_weights=default_weights,
-        desired_potential_params=default_potential_params,
+        desired_potential_params=dpp,
         Ts=Ts,
-        desc=wfm_desc+" {:d} wells".format(len(poss)))    
+        desc=wfm_desc+" {:d} wells".format(len(poss)))
 
     wf_wdw = Waveform(wdw)    
     return wf_wdw
@@ -102,14 +105,9 @@ def conveyor_rec_waveform(loc, freq, offs, timesteps, wfm_desc, linspace_fn=np.l
         [[load_offs, rec_offs], [exp_offs, rec_offs]],
         load_to_rec_ts,
         "",
-        linspace_fn=zpspace)
+        linspace_fn=zpspace,
+        roi_timestep=-1) # so that the final state of the wells is used for calculating the ROI
 
-    
-    # Debugging only!
-    well_static = transport_waveform_multiple([[rec_loc, rec_loc],[exp_loc,exp_loc]],
-                                              [[rec_freq,rec_freq],[rec_freq,rec_freq]],
-                                              [[rec_offs, rec_offs],[rec_offs,rec_offs]], 100, "", linspace_fn=zpspace)
-    st()
     well_single_transport = transport_waveform([exp_loc,exp_loc],[exp_freq,exp_freq],[exp_offs,exp_offs], 1, "")    
     well_single_multiple = transport_waveform_multiple([[exp_loc,exp_loc]],[[exp_freq,exp_freq]],[[exp_offs,exp_offs]], 1, "")
 

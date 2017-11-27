@@ -552,12 +552,11 @@ class WavDesiredWells(WavDesired):
         super().__init__(potentials, weights, roi_idx, Ts, mass, num_electrodes,
                          desc, solver_weights, force_static_ends)
 
-    def desiredPotentials(self, pos, freq, off, mass, des_pot_parm=None):
+    def desiredPotentials(self, pos, freq, off, mass, des_pot_parm={}):
         # Rough threshold width for 1 SD in solver potential
-        if des_pot_parm is not None:
-            energy_threshold = des_pot_parm['energy_threshold']
-        else:
-            energy_threshold = 50*meV
+        pot_params = dict(global_des_pot_settings)
+        pot_params.update(des_pot_parm)
+        energy_threshold = pot_params['energy_threshold']
 
         assert type(pos) is type(freq) is type(off), "Input types inconsistent"
         if type(pos) is list or tuple:
@@ -568,7 +567,7 @@ class WavDesiredWells(WavDesired):
             off = np.vstack(off).T
 
         # Estimate range of ROI indices to use
-        a = (2*np.pi*freq[0][0])**2 * (mass * atomic_mass_unit) / (2*electron_charge)
+        a = (2*np.pi*freq[pot_params['roi_timestep']][pot_params['roi_well']])**2 * (mass * atomic_mass_unit) / (2*electron_charge)
         v_desired = a * (trap_mom.transport_axis - pos[0][0])**2
         width_1sd = (v_desired < energy_threshold).sum()
 
@@ -583,26 +582,6 @@ class WavDesiredWells(WavDesired):
         pots = np.empty(dims)
         wghts = np.empty(dims)
         rois = np.empty(dims, dtype='int')
-        
-        # lists as a function of timestep
-        pot_list = []
-        roi_list = []
-
-        if False: # old code, eventually remove it 
-            for po, fr, of in zip(pos,freq,off): # iterate over timesteps
-                assert len(po) is not 0, "Desired wells supplied in incorrect format: must be list of lists or 2D array"
-                pot_l = np.empty(0)
-                roi_l = np.empty(0, dtype='int')
-
-                for po_l, fr_l, of_l in zip(po, fr, of): # iterate over discrete wells
-                    a = (2*np.pi*fr_l)**2 * (mass * atomic_mass_unit) / (2*electron_charge)
-                    v_desired = a * (trap_mom.transport_axis - po_l)**2 + of_l
-                    relevant_idx = np.argwhere(v_desired < of_l + energy_threshold).flatten()
-                    pot_l = np.hstack((pot_l, v_desired[relevant_idx])) # TODO: make more efficient
-                    roi_l = np.hstack((roi_l, relevant_idx))
-
-                pot_list.append(pot_l)
-                roi_list.append(roi_l)
 
         for k, (po, fr, of) in enumerate(zip(pos,freq,off)): # iterate over timesteps
             assert len(po) is not 0, "Desired wells supplied in incorrect format: must be list of lists or 2D array"
@@ -614,12 +593,13 @@ class WavDesiredWells(WavDesired):
                 idces = np.arange(central_idx - width_roi//2, central_idx + width_roi//2 + 1, dtype=int)
 
                 rois[k, m*width_roi:(m+1)*width_roi] = idces
+                # roi_lim_list.append(idces[[0,-1]])
                 pots[k, m*width_roi:(m+1)*width_roi] = v_desired[idces]
 
                 wght_x = trap_mom.transport_axis[idces] - po_l
                 wght_gauss = np.exp(-wght_x**2 / (2 * dist_1sd**2)) # Gaussian centred on well centre
                 wghts[k, m*width_roi:(m+1)*width_roi] = wght_gauss
-            
+
         return pots, wghts, rois
 
     def plot(self, idx, trap_axis, ax=None):
@@ -723,7 +703,9 @@ class Waveform:
             # cost_e += cvy.sum_squares(trap_mom.potentials[
             #     wdp.roi_idx[-1]] * uopt_e[:,-1] - wdp.potentials[-1])
             prob = cvy.Problem(cvy.Minimize(cost_e), constr_e)
-            print_debug("Edge prob: ", prob)
+            if settings['solver_print_end_problem']:
+                print("Potentials: ", potentials, "\nROIs: ", roi, "\nWeights: ", weights)
+                # print("End prob: ", prob)
             prob.solve(solver=settings['solver'], verbose=settings['solver_verbose'], **kwargs)
             uopt_ev = uopt_e.value
             return uopt_ev
@@ -822,10 +804,10 @@ class Waveform:
             plt.plot(trap_mom.transport_axis, trap_mom.potentials*uopt.value[:,0], '--')
             plt.plot(trap_mom.transport_axis[wdp.roi_idx[0]], wdp.potentials[0])
 
-        if False:
+        if settings['solver_check_end_constraints_met']:
             # DEBUGGING ONLY, ENSURING END CONSTRAINTS ARE MET
             if static_ends:
-                print("Difference between expected and observed end constraints: {:.4f}".format(np.abs(uopt.value[:,[0,-1]] - uopt_ev).sum().sum()))
+                print("Difference between expected and observed start/end constraints: {:.8f}".format(np.abs(uopt.value[:,[0,-1]] - uopt_ev).sum()))
 
         if prob.status == 'infeasible':
             warnings.warn("Waveform problem is infeasible. Try reducing assumed slowdown.")
