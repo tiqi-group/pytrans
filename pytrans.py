@@ -91,7 +91,7 @@ max_overhead = 0.09
 max_death_samples = 16384
 
 # Global default electrode voltage, for solvers etc
-default_elec_voltage = 8
+default_elec_voltage = 5
 
 ## Electrode starts and ends in um, ordered from Electrode 0 -> 29
 electrode_coords = np.array([[-2535,-1535],[-1515,-1015],[-995,-695],[-675,-520],[-500,-345],[-325,-170],[-150,150],[170,325],[345,500],[520,675],[695,995],[1015,1515],[1535,2535],[-2535,-1535],[-1515,-1015],[-995,-695],[-675,-520],[-500,-345],[-325,-170],[-150,150],[170,325],[345,500],[520,675],[695,995],[1015,1515],[1535,2535]])

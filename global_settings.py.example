@@ -8,16 +8,11 @@
 
 # Solver verbosity (True/False)
 global_settings = {
-		  # 'global_solver': 'CVXOPT',
-		  # 'global_solver': 'ECOS',
-		  'global_solver': 'MOSEK',
-		  # 'global_solver': 'GUROBI',
-		  # 'global_solver': 'OSQP',
-		  # 'global_solver': 'SCS',
-    'solver_verbose': True,
-    'solver_print_weights': False,
-    'solver_print_end_problem': False,
-    'solver_check_end_constraints_met': False
+    'solver':'MOSEK',
+    'solver_verbose':True,
+    'solver_print_weights':False,
+    'solver_print_end_problem':False,
+    'solver_check_end_constraints_met':False
     }
 
 global_des_pot_settings = {
@@ -25,6 +20,8 @@ global_des_pot_settings = {
     'roi_well': 0, # which well, if there is more than 1, to use for estimating a ROI for the solver
     'roi_timestep': 0,
     }
+
+global_exp_pos = 20 # in um
 
 # Global debugging
 global_verbosity = 2

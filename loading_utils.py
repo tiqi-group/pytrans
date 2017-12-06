@@ -28,19 +28,19 @@ def get_loading_wfms(wfm_path, force_regen_wfm=False,
         n_freq_change = 101
 
         # List of experimental-zone setting tuples
-        exp_settings = [(0, default_freq, default_offs, "exp " + ion_chain)]
+        exp_settings = [(global_exp_pos, default_freq, default_offs, "exp " + ion_chain)]
         conveyor_offs = default_offs
         
         wf_load = tu.transport_waveform(
-            [-1870, 0], [0.7, default_freq], [600, conveyor_offs], n_load, "Load -> exp", linspace_fn=zpspace)
+            [-1870, global_exp_pos], [0.7, default_freq], [600, conveyor_offs], n_load, "Load -> exp", linspace_fn=zpspace)
         if True:
             conv_fn = tu.conveyor_rec_waveform # recombine section using polynomial solver
         else:
             conv_fn = tu.conveyor_waveform # recombine section using regular solver
         wf_load_conveyor = conv_fn(
-            [-1870, 0], [0.7, default_freq], [600, conveyor_offs], 2*n_load, "Load -> exp", linspace_fn=zpspace)
+            [-1870, global_exp_pos], [0.7, default_freq], [600, conveyor_offs], 2*n_load, "Load -> exp", linspace_fn=zpspace)
         wf_exp_static = tu.static_waveform(
-            0, default_freq, conveyor_offs, "static")
+            global_exp_pos, default_freq, conveyor_offs, "static")
         wf_list = [wf_load, wf_load_conveyor, wf_exp_static]
         # wf_exp_shallow = tu.transport_waveform(
         #     [0, 0], [default_freq, shallow_freq], [conveyor_offs, shallow_offs], n_freq_change, "shallow", linspace_fn=zpspace)
@@ -54,7 +54,7 @@ def get_loading_wfms(wfm_path, force_regen_wfm=False,
         for tb_offset in tb_offsets:
             for lr_offset in lr_offsets:
                 shallow_wfm = tu.transport_waveform(
-                    [0,0],
+                    [global_exp_pos, global_exp_pos],
                     [default_freq, shallow_freq],
                     [conveyor_offs, shallow_offs],
                     n_freq_change, "shallow with T>B offs {:.3f}, L>R offs {:.3f}".format(tb_offset, lr_offset), linspace_fn=zpspace
@@ -128,13 +128,13 @@ if __name__ == "__main__":
 
     # Loading conveyor waveform
     wf_load_conveyor = tu.conveyor_waveform(
-        [-1870, 0], [0.7, default_freq], [600, conveyor_offs],
+        [-1870, global_exp_pos], [0.7, default_freq], [600, conveyor_offs],
         2*n_load, "Load -> exp", linspace_fn=zpspace)
     wp_load_conveyor = WavPotential(wf_load_conveyor)
 
     if True:
         wf_load_conveyor_rec = tu.conveyor_rec_waveform(
-            [-1870, 0], [0.7, default_freq], [600, conveyor_offs],
+            [-1870, global_exp_pos], [0.7, default_freq], [600, conveyor_offs],
             2*n_load, "Load -> exp", linspace_fn=zpspace)
         wp_lcr = WavPotential(wf_load_conveyor_rec)
 

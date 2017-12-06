@@ -27,7 +27,7 @@ def static_waveform(pos, freq, offs, wfm_desc, solv_wghts=default_weights):
                           # solver_weights=default_weights,
                           desired_potential_params=default_potential_params,
 
-                          desc=wfm_desc+", {:.3f} MHz, {:.1f} meV".format(freq, offs)
+                          desc=wfm_desc+", {:.3f} MHz, {:.1f} meV, {:.1f} um".format(freq, offs, pos)
     )
     wf = Waveform(wdw)
     return wf
@@ -176,11 +176,11 @@ def conveyor_waveform(pos, freq, offs, timesteps, wfm_desc, linspace_fn=np.linsp
     
     return wf
 
-def shallow_waveform(freqs, dc_offsets, n_steps=101, lr_offset=0, tb_offset=0):
-    shallow_wfm = transport_waveform([0,0], freqs, dc_offsets,
+def shallow_waveform(freqs, dc_offsets, n_steps=101, lr_offset=0, tb_offset=0, pos=0):
+    shallow_wfm = transport_waveform([pos,pos], freqs, dc_offsets,
                                      n_steps,
-                                     "shallow with T-B offs {:.3f}, L-R offs {:.3f}".format(
-                                         tb_offset, lr_offset), linspace_fn=zpspace)
+                                     "shallow with T-B offs {:.3f}, L-R offs {:.3f}, {:.2f} um".format(
+                                         tb_offset, lr_offset, pos), linspace_fn=zpspace)
     lr_offset_vec = np.vstack([np.full([7,1], lr_offset/2), 0, np.full([7,1], -lr_offset/2)]) # 15//2 = 7 (half the trap)
     top_offset_vec = lr_offset_vec + tb_offset/2
     bot_offset_vec = lr_offset_vec - tb_offset/2
