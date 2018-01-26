@@ -45,9 +45,9 @@ def loading_conveyor(add_reordering=True,
         conveyor_offset = 960
         
         wf_load = tu.transport_waveform(
-            [loading_pos, 0], [0.7, default_freq], [600, conveyor_offset], n_load, "Load -> exp")
+            [loading_pos, global_exp_pos], [0.7, default_freq], [600, conveyor_offset], n_load, "Load -> exp")
         wf_load_conveyor = tu.conveyor_waveform(
-            [loading_pos, 0], [0.7, default_freq], [600, conveyor_offset], n_load, "Load -> exp")
+            [loading_pos, global_exp_pos], [0.7, default_freq], [600, conveyor_offset], n_load, "Load -> exp")
         wf_exp_static_13 = tu.static_waveform(
             0, default_freq, conveyor_offset, "static")
         wf_exp_shallow_13 = tu.transport_waveform(

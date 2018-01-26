@@ -24,7 +24,7 @@ def split_wfms(f_well, conveyor_offs, field_offset, n_transport):
 
 def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=False):
     """ Generate loading/splitting waveforms, with swept offset """
-    wf_name = "load_split_2Be1Ca_2017_12_04_v01"
+    wf_name = "load_split_2Be1Ca_2018_01_17_v01"
     wf_path = os.path.join(os.pardir, "waveform_files", wf_name + ".dwc.json")
 
     # If file exists already, just load it to save time
@@ -42,7 +42,7 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
         shallow_offs = -300
         
         # use existing loading conveyor file to save time - need to regenerate if not available
-        wfs_load = lu.get_loading_wfms(os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2017_12_04_v01.dwc.json"),
+        wfs_load = lu.get_loading_wfms(os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2018_01_17_v01.dwc.json"),
                                        default_freq=default_freq,
                                        default_offs=default_offs,
                                        shallow_freq=shallow_freq, shallow_offs=shallow_offs, # experimentally optimal for current solver vals
@@ -111,7 +111,7 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
         wfs_load_and_split.waveforms.append(wf_recombine_fast)
 
         ## Add a range of static waveforms, for choosing one with optimal mode freqs.
-        if True:
+        if False:
             # lr_offsets = [-0.1, -0.07, -0.03, 0]
             # tb_offsets = [-0.1, -0.05, 0, 0.05]
             lr_offsets = [-0.07]
@@ -136,16 +136,41 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
                                                                [2.0], [0], 100)[0]
                     wfs_load_and_split.waveforms.append(wf_exp_reorder)
 
+        ## Add single-ion addressing waveforms
+        if True:
+            diff_addr_pos = np.linspace(-13,-10,16) + global_exp_pos
+            # Current optimal position is ~ -11.2um
+            for dp in diff_addr_pos:
+                wf_da = tu.transport_waveform(
+                    [global_exp_pos, dp],
+                    [default_freq, default_freq],
+                    [default_offs, default_offs],
+                    timesteps=50,
+                    wfm_desc="diff addr, to {:.2f} um from centre({:.2f} um)".format(dp-global_exp_pos, global_exp_pos),
+                    linspace_fn=zpspace)
+                wfs_load_and_split.waveforms.append(wf_da)
+
+        ## Add static waveforms, for loading tests.
+        if False:
+            # lr_offsets = [-0.1, -0.07, -0.03, 0]
+            # tb_offsets = [-0.1, -0.05, 0, 0.05]
+            positions = np.linspace(-2000, -1700, 31)
+            for pos in positions:
+                wf_exp_static = tu.static_waveform(
+                    pos, 0.6, 600, "static, loading test")
+                wfs_load_and_split.waveforms.append(wf_exp_static)
+
         ## Add a range of profiling waveforms
         if True:
             # Profiling positions
-            profile_pos = np.linspace(-50, 50, 21) + global_exp_pos
+            profile_pos = np.linspace(-40, 40, 51) + global_exp_pos
+            # profile_pos = np.linspace(-2000, -1700, 31) + global_exp_pos            
             for pp in profile_pos:
                 wf_prof = tu.transport_waveform(
                     [global_exp_pos, pp],
                     [default_freq, default_freq],
                     [default_offs, default_offs],
-                    timesteps=150,
+                    timesteps=80,
                     wfm_desc="exp->profiling, to {:.1f} um".format(pp),
                     linspace_fn=zpspace)
                 wfs_load_and_split.waveforms.append(wf_prof)

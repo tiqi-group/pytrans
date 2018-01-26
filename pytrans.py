@@ -538,21 +538,23 @@ class WavDesiredWells(WavDesired):
                  positions, 
                  freqs, # array, same dimensions as positions
                  offsets, # array, same dimensions as positions
-                 desired_potential_params=None,
+                 desired_potential_params={},
                  Ts=200*ns, # slowdown of 0 -> 10 ns/step, slowdown of 19 (typical) -> (10*(19+1)) = 200 ns/step
                  mass=mass_Ca,
                  num_electrodes=30,
                  desc=None,
                  solver_weights=None,
-                 force_static_ends=True):
+                 force_static_ends=True,
+                 anharmonic_terms=[]):
         
         potentials, weights, roi_idx = self.desiredPotentials(positions, freqs, offsets,
-                                                     mass, desired_potential_params)
+                                                              mass, des_pot_parm=desired_potential_params,
+                                                              anharmonic_terms=anharmonic_terms)
         
         super().__init__(potentials, weights, roi_idx, Ts, mass, num_electrodes,
                          desc, solver_weights, force_static_ends)
 
-    def desiredPotentials(self, pos, freq, off, mass, des_pot_parm={}):
+    def desiredPotentials(self, pos, freq, off, mass, des_pot_parm={}, anharmonic_terms=[]):
         # Rough threshold width for 1 SD in solver potential
         pot_params = dict(global_des_pot_settings)
         pot_params.update(des_pot_parm)
@@ -588,7 +590,10 @@ class WavDesiredWells(WavDesired):
 
             for m, (po_l, fr_l, of_l) in enumerate(zip(po, fr, of)): # iterate over discrete wells
                 a = (2*np.pi*fr_l)**2 * (mass * atomic_mass_unit) / (2*electron_charge)
-                v_desired = a * (trap_mom.transport_axis - po_l)**2 + of_l
+                x = trap_mom.transport_axis - po_l
+                v_desired = a * x**2 + of_l
+                if anharmonic_terms:
+                    v_desired += anharmonic_terms[0] * x**3
                 central_idx = np.argmin(v_desired) # could equally do argmin(abs(x axis - x centre))
                 idces = np.arange(central_idx - width_roi//2, central_idx + width_roi//2 + 1, dtype=int)
 
