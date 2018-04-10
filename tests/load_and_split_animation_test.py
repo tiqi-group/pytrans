@@ -51,7 +51,8 @@ if __name__ == "__main__":
 
     # Animation style: 2 sequential Figures or one overlapped Figure
     series = False
-    parallel = True
+    parallel = False
+    voltages = True
     
     if series:            
         wfps.animate_wfm(1)
@@ -59,4 +60,6 @@ if __name__ == "__main__":
     if parallel:
         animate_wfms_test(wfps, 1)
 
-
+    if voltages:
+        wfps[0].plot_voltages()
+        plt.show()

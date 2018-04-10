@@ -24,7 +24,7 @@ def split_wfms(f_well, conveyor_offs, field_offset, n_transport):
 
 def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=False):
     """ Generate loading/splitting waveforms, with swept offset """
-    wf_name = "load_split_2Be1Ca_2018_01_17_v01"
+    wf_name = "load_split_2Be1Ca_2018_04_10_v01"
     wf_path = os.path.join(os.pardir, "waveform_files", wf_name + ".dwc.json")
 
     # If file exists already, just load it to save time
@@ -42,7 +42,7 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
         shallow_offs = -300
         
         # use existing loading conveyor file to save time - need to regenerate if not available
-        wfs_load = lu.get_loading_wfms(os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2018_01_17_v01.dwc.json"),
+        wfs_load = lu.get_loading_wfms(os.path.join(os.pardir, "waveform_files", "loading_2Be1Ca_2018_04_10_v01.dwc.json"),
                                        default_freq=default_freq,
                                        default_offs=default_offs,
                                        shallow_freq=shallow_freq, shallow_offs=shallow_offs, # experimentally optimal for current solver vals
@@ -163,7 +163,7 @@ def load_and_split_2Be1Ca(add_reordering=True, analyse_wfms=False, save_video=Fa
         ## Add a range of profiling waveforms
         if True:
             # Profiling positions
-            profile_pos = np.linspace(-40, 40, 51) + global_exp_pos
+            profile_pos = np.linspace(-200, 200, 51) + global_exp_pos
             # profile_pos = np.linspace(-2000, -1700, 31) + global_exp_pos            
             for pp in profile_pos:
                 wf_prof = tu.transport_waveform(
