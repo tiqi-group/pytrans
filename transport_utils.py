@@ -74,8 +74,7 @@ def conveyor_rec_waveform(loc, freq, offs, timesteps, wfm_desc, linspace_fn=np.l
     in the splitting zone using optimal solver rather than just
     manually (which is sub-optimal).
     """
-    load_to_rec_ts = timesteps//4 #loading -> recombination start transport
-    rec_ts = timesteps//4 # recombine -> end up in splitting zone [WARNING: NOT USED FOR NOW]
+    load_to_rec_ts = timesteps//8 * 3 #loading -> recombination start transport
     split_to_exp_ts = timesteps//4 # splitting -> experimental transport
 
     load_loc = loc[0]
@@ -86,7 +85,7 @@ def conveyor_rec_waveform(loc, freq, offs, timesteps, wfm_desc, linspace_fn=np.l
     exp_freq = freq[1]
     exp_offs = offs[1]
     
-    rec_loc = -844
+    rec_loc = -845
     # interpolate recombine params
     rec_ratio = (exp_loc - rec_loc)/(exp_loc - load_loc)
     rec_freq = exp_freq + (load_freq - exp_freq) * rec_ratio
@@ -120,7 +119,7 @@ def conveyor_rec_waveform(loc, freq, offs, timesteps, wfm_desc, linspace_fn=np.l
         split_to_exp_ts,
         electrode_subset=[3,4,5,6,7,18,19,20,21,22],
         savgol_smooth=False)
-
+    
     total_samples = np.hstack([
         wf_load_to_rec.samples, np.fliplr(wf_split.samples), np.fliplr(wf_exp_to_split.samples)])
 

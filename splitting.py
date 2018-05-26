@@ -849,7 +849,7 @@ def split_waveforms_reparam(
                                             linspace_fn=zpspace)
 
     # Ramp from single well to start of splitting routine
-    start_ramp_steps = 50
+    start_ramp_steps = 100
     split_start_ramp = vlinspace(wf_to_splitting.samples[:,[-1]], split_voltages_elec[:,[0]], start_ramp_steps)
     
     # Final waveform, extends separation by 150um either way and goes to default well settings
@@ -868,7 +868,7 @@ def split_waveforms_reparam(
         st()
     
     ## Merge end of poly-algorithm solver with beginning of regular-algorithm solver
-    finish_split_interp_n = 20 # timesteps over which to carry out the merge
+    finish_split_interp_n = 100 # timesteps over which to carry out the merge
 
     # Figure out the velocity of the ions in the final 2 timesteps of
     # the splitting waveform, and continue out with this velocity for
@@ -882,12 +882,12 @@ def split_waveforms_reparam(
     # same for the 2 wells, so we take the mean)
     extra_steps_needed = int(( (final_locs - split_locs_last)/split_vels_last ).mean())
     print("Ramp steps needed: {a}".format(a=extra_steps_needed))
-    
+
     wf_finish_split = tu.transport_waveform_multiple(
         [[separation_locs_first[0], final_locs[0]],[separation_locs_first[1], final_locs[1]]],
         [[split_freqs_last[0],final_fs[0]],[split_freqs_last[1],final_fs[1]]],
         [[split_dc_offsets_last[0], final_offsets[0]],[split_dc_offsets_last[1], final_offsets[1]]],
-        extra_steps_needed, "")
+        extra_steps_needed, "", roi_timestep=-1)
 
     # Ramp from end of polynomial solver to discrete wells
     split_end_ramp = vlinspace(split_voltages_elec[:,[-1]],

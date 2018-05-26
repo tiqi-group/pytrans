@@ -94,7 +94,7 @@ max_death_samples = 16384
 default_elec_voltage = 5
 
 ## Electrode starts and ends in um, ordered from Electrode 0 -> 29
-electrode_coords = np.array([[-2535,-1535],[-1515,-1015],[-995,-695],[-675,-520],[-500,-345],[-325,-170],[-150,150],[170,325],[345,500],[520,675],[695,995],[1015,1515],[1535,2535],[-2535,-1535],[-1515,-1015],[-995,-695],[-675,-520],[-500,-345],[-325,-170],[-150,150],[170,325],[345,500],[520,675],[695,995],[1015,1515],[1535,2535]])
+electrode_coords = np.array([[-3055, -2055], [-2035,-1535],[-1515,-1015],[-995,-695],[-675,-520],[-500,-345],[-325,-170],[-150,150],[170,325],[345,500],[520,675],[695,995],[1015,1515],[1535,2035],[2055, 3055], [-3055,-2055],[-2035,-1535],[-1515,-1015],[-995,-695],[-675,-520],[-500,-345],[-325,-170],[-150,150],[170,325],[345,500],[520,675],[695,995],[1015,1515],[1535,2035],[2055,3055]])
 
 ## Utility functions
 # Linspace replacement, producing an error function curve
@@ -863,7 +863,7 @@ class WavPotential:
         # Since plot is showing quadrilaterals
         trap_axis_pts = np.append(self.trap_axis, self.trap_axis[-1] + trap_axis_spacing) \
                         - trap_axis_spacing/2
-        trap_axis_pts *= 1000 # convert from m to um
+        trap_axis_pts *= 1e6 # convert from m to um
         px, py = np.meshgrid(np.arange(self.potentials.shape[1]+1), trap_axis_pts)
 
         if style == 'img':            

@@ -6,8 +6,8 @@ from pytrans import *
 
 if __name__ == "__main__":
 
-    analytic_plot = True
-    test_split = False
+    analytic_plot = False
+    test_split = True
     
     # Investigate a and b potentials
     if analytic_plot:
