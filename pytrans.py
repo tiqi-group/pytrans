@@ -381,7 +381,10 @@ def animate_wavpots(wavpots, parallel=True, decimation=10, save_video_path=None)
     
     plt.show()
     
-class Moments:
+class legacyMoments:
+    # TODO include all trap specifics in here
+    # TODO write those specifics to the global variables via a legacy function
+        # TODO maybe a legacy boolean would be a good idea
     """Spatial potential moments of the electrodes; used for calculations
     involving the trap"""
     def __init__(self,
@@ -392,6 +395,9 @@ class Moments:
         
         self.load_trap_axis_potential_data(moments_path)
         self.load_3d_potential_data(potential_path)
+        
+        # additions for solver2
+        self.max_slew_rate = 5 / us # (units of volts / s, quarter of DEATH AD8021 op-amps)
 
     def load_trap_axis_potential_data(self, moments_path):
         """ Based on reduced_data_ludwig.m, reconstructed here.
@@ -480,8 +486,12 @@ class Moments:
         pot3d.zz2d = zz2d
         pot3d.fit_coord2d = np.column_stack( (yy2d**2, zz2d**2, yy2d*zz2d, yy2d, zz2d, np.ones_like(zz2d)) ) # used for finding potential eigenaxes in 2d
         self.pot3d = pot3d
-        
+
+
+from ETH3dTrap import ETH3dTrap as Moments
+#from HOA2Trap import HOA2Trap as Moments
 trap_mom = Moments() # Global trap moments
+trap_mom.overwriteGlobalVariables() # makes sure the global variables correspond to the trap variables
 
 class WavDesired:
     """ Specifications describing potential wells to solve for"""
@@ -549,7 +559,28 @@ class WavDesiredWells(WavDesired):
         
         potentials, weights, roi_idx = self.desiredPotentials(positions, freqs, offsets,
                                                               mass, des_pot_parm=desired_potential_params,
-                                                              anharmonic_terms=anharmonic_terms)
+                                                              anharmonic_terms=anharmonic_terms,start_pot=[None],end_pot=[None],d_full= 2.5e-4,d_part=7e-4)
+
+        
+        # save the original data in WavDesired, so they can be accessed in Waveform.solve_potentials
+        self.positions = positions
+        self.freqs = freqs
+        self.offsets = offsets
+        self.start_Potential=start_pot
+        self.end_Potential=end_pot
+
+        # define the allowed voltages
+        # TODO Could be calculated ( compare rio)
+        self.d_full = d_full
+        self.d_part = d_part
+        #              |-d_full-|
+        #              |---d_part---|
+        #_             .        .    ________
+        # \            .        .   /
+        #  \           .        .  /
+        #   \          .        . /
+        #    \___________________/
+
         
         super().__init__(potentials, weights, roi_idx, Ts, mass, num_electrodes,
                          desc, solver_weights, force_static_ends)
@@ -646,6 +677,167 @@ class Waveform:
 
     def __repr__(self):
         return 'Wfm: "{d}" ({s} long)'.format(d=self.desc, s=self.samples.shape[1])
+
+    def solve_potentials2(self,wdp, **kwargs):
+        """ a solve implementation that optimises controlling the potential characteristics instead of a grid"""
+        def basic_cost(mu, beta, freq, pos, offset, trap, d_full, d_part):
+            
+            # function values needed
+            delta = 1e-6
+            Fx = trap.Func(0,(pos))
+            Fdx = trap.Func(0,(pos - delta))
+            Fxd = trap.Func(0,(pos + delta))
+            DFx = trap.Func(1,(pos))
+            D2Fx = trap.Func(2,(pos))
+            D2Fdx = trap.Func(2,(pos - delta))
+            D2Fxd = trap.Func(2,(pos + delta))
+
+            # Function value
+            cost = cvp.sum_squares(mu.T * Fx - offset) 
+            cost *= beta[0]
+
+            # D2F
+            if (freq > 1):
+                c1 = cvp.sum_squares((mu.T * D2Fx - freq) / freq) 
+                # D2F at deltas
+                c2 = cvp.sum_squares((mu.T * D2Fdx - freq)/ freq) 
+                c3 = cvp.sum_squares((mu.T * D2Fxd - freq)/ freq) 
+            else: # freq to close to 0
+                c1 = cvp.sum_squares(mu.T * D2Fx - freq ) 
+                # D2F at deltas
+                c2 = cvp.sum_squares(mu.T * D2Fdx - freq) 
+                c3 = cvp.sum_squares(mu.T * D2Fxd - freq) 
+
+            cost += beta[1] * c1 + beta[2] * (c2 + c3)
+
+            # DF == 0
+            cost += beta[3] * cvp.sum_squares(mu.T * DFx )
+            # F symmetric 
+            cost += beta[4] * cvp.sum_squares(mu.T * Fdx - mu.T * Fxd ) 
+
+            # regulize usage of mu
+            cost += beta[5] * cvp.norm(mu,2)
+            cost += beta[6] * cvp.norm(mu,1)
+            
+            # constrain the use of electrodes faraway from the Region of interest
+            # TODO Doesn't work with a default voltage yet!
+            con = []
+            def get_VCon(xe,xdes,Vmax,d_full,d_part):
+                c = abs(xe - xdes)
+                c -= 0.5 * d_full # d_full is the width for which the full voltage is allowed
+                c /= d_part - d_full # d_part is the width in which partial voltage is allowed
+                c = min([0.5,1-c])
+                c = max([0, c])
+                return 2* Vmax * c
+
+            # conditions for allowd Voltages
+            for i in range(mu.size):
+                ## DONE needs to be adapted to allow multiple locations for a single voltage (e.g. HOA2)
+                if isinstance(xmid[i],list):
+                    v_con = 0;
+                    for x in xmid[i]:
+                        r = get_VCon(x,pos,trap.Vmax,d_full,d_part)
+                        if r > v_con:
+                            v_con = r
+
+                else:
+                    #assuming only one float or double
+                    v_con = get_VCon(trap.xmid[i],pos,trap.Vmax,d_full,d_part)
+                con.append(mu[i] <= v_con)
+                con.append(mu[i] >= -v_con)
+
+            #make sure no unsupported voltages are applied
+            for i in range(mu.size):
+                con.append(mu[i] <= trap.Vmaxs[i])
+                con.append(mu[i] >= trap.Vmins[i])
+
+            return (cost,con)
+       
+        N = wdp.positions.size
+        mu = cvy.Variable(trap_mom.numberofelectrodes,N)
+        beta = cvp.Parameter(9,1,sign="positive") 
+        cost = 0
+        constraints = []
+
+        # Global constraints
+        assert (N < 2) or (N > 3), "Cannot have this number of timesteps, due to finite-diff approximations"
+        if N == 1:
+            static_ends = False # static by default for 1 timestep
+        else:
+            static_ends = wdp.force_static_ends
+
+        # TODO does wdp really need num_electrodes? shouldn't it rather get the trap? 
+        # TODO shouldn't wdp have a link to the trap? 
+
+         
+
+        # TODO should we really use the same weight variable as the legacy solver?
+        weights = wdp.solver_weights
+        if weights is None:
+            warnings.warn("No solver_weights were set for the desiered Waveform! Using unit vector")
+            weights = np.onces(beta.size)
+        elif weights.size is not weightlength:
+            warnings.warn("the given solver_weights have wrong dimensions! Using unit vector")
+            weights = np.onces(beta.size)
+        else:
+            beta.value = weights
+
+
+
+        # individual steps 
+        for i,pos,freq,offset in zip(range(wdp.positions.size),wdp.positions,wdp.freqs,wdp.offsets):
+            # caclucalet basic_costs
+            c, con = basic_costs(mu[i],beta,freq,pos,offset,trap_mom,d_full,d_part)
+            cost += c
+            contraints.extend(con)
+
+        # penalise changes between steps in first and second derivative
+        cost += beta[7] * cvp.sum_squares(mus[:,i:-1] - mus[:,1:])
+        cost += beta[8] * 1/4 * cvp.sum_squares(mus[:,:-2] - mus[:,2:])
+        
+        # constrain maximum change in mu(t)
+        constraints += [trap_mom.max_slew_rate*wdp.Ts >= cvy.abs(mu[:,1:]-mu[:,:-1])]
+        
+        # Make ends match static case or given voltages
+        if static_ends:
+            def get_static(f,p,o):
+                stat_mu = cvp.Variable(trap_mom.numerofelectrodes,N)
+                c, con = basic_cost(stat_mu,beta,f,p,o,trap_mom,d_full,d_part)
+                skiplist = []
+                for i in range(trap_mom.numberofelectrodes):
+                    if i not in skiplist:
+                        j = trap_mom.symmetry[i]
+                        constraints += [stat_mu[i] == mu [j]]
+                        skiplist.append(j)
+                cvp.Problem(cvp.Minimize(c),con).solve(solver=settings['solver'], verbose=settings['solver_verbose'], **kwargs)            
+                return stat_mu.value
+
+            if not (hasattr(wdp.start_Potential) or wdp.start_Potential is None):
+                wdp.start_Potential = get_static(wdp.freqs[0],wdp.positions[0],wdp.offsets[0])
+            if not (hasattr(wdp.end_Potential) or wdp.end_Potential is None):
+                wdp.end_Potential = get_static(wdp.freqs[-1],wdp.positions[-1],wdp.offsets[-1])
+            
+            # constrain the ends
+            constraints += [mu[:,0] == wdp.start_Potential]
+            constraints += [mu[:,-1] == wdp.end_Potential]
+
+
+
+        # Enforce absolute symmetry
+        skiplist = []
+        for i in range(trap_mom.numberofelectrodes):
+            if i not in skiplist:
+                j = trap_mom.symmetry[i]
+                constraints += [mu[i,:] == mu [j,:]]
+                skiplist.append(j)
+
+
+
+        # solve Optimisation Problem
+        prob = cvp.Problem(cvp.Minimize(cost),contraints)
+        prob.solve(solver=settings['solver'], verbose=settings['solver_verbose'], **kwargs)            
+        return mu.value
+
 
     def solve_potentials(self, wdp, **kwargs):
         """ Convert a desired set of potentials and ROIs into waveform samples
