@@ -2,6 +2,7 @@
 
 import numpy
 from scipy.interpolate import splrep,splev
+import pytrans
 # dep - import piecePolyFit.py
 # not in this file - import pickle
 # a class that defines all the functions useful in a trap class
@@ -13,7 +14,6 @@ class AbstractTrap:
     start = None
     stop = None
     
-    PotFuncProvider = None # a implementation of AbstractPotFunctionProvider
     electrode_coords = None
 
     def xmid (self, bounds): 
@@ -67,27 +67,35 @@ class AbstractTrap:
     # assumes transportaxis data is loaded
     # the smoothening s depends an the smoothness of tinterpoltaion data and avoids to close fitting, which makes the derivatives less useful. To large s will result in too lose fit 
     def setuptrapaxisBSpline(self,s = 3.2e-10):
-        self.trapAxisSplineinterpol = numpy.array([(0.,0.,0.)] * self.numberofelectrodes
+        self.trapAxisSplineInterpol = [] # numpy.array([] * self.numberofelectrodes)
         for i in range(self.numberofelectrodes):
-            self.trapAxisSplineInterpol[i] = splrep(self.transport_axis,self.potentials[i],s= s)
+            # TODO check that the naming is equivalant between HOA2 and ETH
+            self.trapAxisSplineInterpol.append(splrep(self.transport_axis,self.potentials[:,i],s= s,k=5))
     
-    def FuncbyBspline(x,deriv):
+    def FuncbyBspline(self,x,deriv):
         res = numpy.zeros(self.numberofelectrodes)
         for i in range(self.numberofelectrodes):
             res[i] = splev(x,self.trapAxisSplineInterpol[i],deriv)
+        return res
+
+
+    def overwriteGlobalVariables(self):
+        pytrans.max_elec_voltage = self.Vmax
+        pytrans.max_elec_voltages = self.Vmaxs
+        pytrans.min_elec_voltage = self.Vmin
+        pytrans.min_elec_voltages = self.Vmins
+        pytrans.num_elecs = self.numberofelectrodes
+        pytrans.default_elec_voltage = self.Vdefault
+        pytrans.dac_channel_transform
+        pytrans.dac_channel_transform = self.dac_channel_transform 
+        pytrans.max_death_voltages = self.Vmaxs[self.dac_channel_transform]
+        pytrans.min_death_voltages = self.Vmins[self.dac_channel_transform]
+
+
 
     # is called after all parameters are set. Can also becalled after changes or if the empty constructor was used
     def setup(self):
         self.setup_xmids()
         self.setup_Vmaxmins()
-
-    def overwriteGlobalVariables(self)
-        max_elec_voltage = self.Vmax
-        max_elec_voltages = self.Vmaxs
-        min_elec_voltage = self.Vmin
-        min_elec_voltages = self.Vmins
-        num_elecs = self.numberofelectrodes
-
-
-
+        self.overwriteGlobalVariables()
 

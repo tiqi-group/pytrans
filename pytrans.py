@@ -18,22 +18,26 @@ import pickle
 import warnings
 st = pdb.set_trace
 
+import timeit
+
 # You must copy global_settings.py.example to global_settings.py and
 # modify the options locally for your installation.
 from global_settings import *
 
+from units import * 
+
 # Unit definitions, all in SI
-electron_charge = 1.60217662e-19 # coulombs
-atomic_mass_unit = 1.66053904e-27 # kg
-mass_Be = 9.012
-mass_Ca = 39.962591
-epsilon_0 = 8.854187817e-12 # farad/m
-um = 1e-6
-us = 1e-6
-ns = 1e-9
-MHz = 1e6
-kHz = 1e3
-meV = 1e-3
+#electron_charge = 1.60217662e-19 # coulombs
+#atomic_mass_unit = 1.66053904e-27 # kg
+#mass_Be = 9.012
+#mass_Ca = 39.962591
+#epsilon_0 = 8.854187817e-12 # farad/m
+#um = 1e-6
+#us = 1e-6
+#ns = 1e-9
+#MHz = 1e6
+#kHz = 1e3
+#meV = 1e-3
 
 # Indexing convention:
 # Electrodes T1 = 0, T2 = 1, ... T15 = 14; B1 = 15, B2 = 16, ... B15 = 29
@@ -77,6 +81,8 @@ physical_electrode_transform = np.array([0,4,8,2,  6,10,14,  18,  22,26,30,  16,
 
 ## DEATH channel max voltage outputs
 
+# trap specific Momentsclasses might overwrite these with trap default
+# It is encouraged to change the defaults in the trap/MomentsClass or to create a custom Momentsclass (which might inherit everything but the changed settings) 
 max_elec_voltage = 8.9
 max_elec_voltages = np.zeros(30)+max_elec_voltage
 max_death_voltages = max_elec_voltages[dac_channel_transform]
@@ -91,9 +97,12 @@ max_overhead = 0.09
 max_death_samples = 16384
 
 # Global default electrode voltage, for solvers etc
+# trap specific Momentsclasses might overwrite this with trap default
 default_elec_voltage = 5
 
+
 ## Electrode starts and ends in um, ordered from Electrode 0 -> 29
+# trap specific Momentsclasses might overwrite this with trap default
 electrode_coords = np.array([[-3055, -2055], [-2035,-1535],[-1515,-1015],[-995,-695],[-675,-520],[-500,-345],[-325,-170],[-150,150],[170,325],[345,500],[520,675],[695,995],[1015,1515],[1535,2035],[2055, 3055], [-3055,-2055],[-2035,-1535],[-1515,-1015],[-995,-695],[-675,-520],[-500,-345],[-325,-170],[-150,150],[170,325],[345,500],[520,675],[695,995],[1015,1515],[1535,2035],[2055,3055]])
 
 ## Utility functions
@@ -382,9 +391,6 @@ def animate_wavpots(wavpots, parallel=True, decimation=10, save_video_path=None)
     plt.show()
     
 class legacyMoments:
-    # TODO include all trap specifics in here
-    # TODO write those specifics to the global variables via a legacy function
-        # TODO maybe a legacy boolean would be a good idea
     """Spatial potential moments of the electrodes; used for calculations
     involving the trap"""
     def __init__(self,
@@ -487,11 +493,11 @@ class legacyMoments:
         pot3d.fit_coord2d = np.column_stack( (yy2d**2, zz2d**2, yy2d*zz2d, yy2d, zz2d, np.ones_like(zz2d)) ) # used for finding potential eigenaxes in 2d
         self.pot3d = pot3d
 
-
 from ETH3dTrap import ETH3dTrap as Moments
+#Moments = legacyMoments #can't be used with the Solver2
 #from HOA2Trap import HOA2Trap as Moments
 trap_mom = Moments() # Global trap moments
-trap_mom.overwriteGlobalVariables() # makes sure the global variables correspond to the trap variables
+trap_mom.overwriteGlobalVariables() # makes sure the global variables correspond to the trap variables - only needed if not executed in Moments constructor
 
 class WavDesired:
     """ Specifications describing potential wells to solve for"""
@@ -555,22 +561,46 @@ class WavDesiredWells(WavDesired):
                  desc=None,
                  solver_weights=None,
                  force_static_ends=True,
-                 anharmonic_terms=[]):
+                 anharmonic_terms=[],
+                 start_pot=[None],
+                 end_pot=[None],
+                 #solver2_weights=[20000,18000,500,20000,500,100,0,200,0,0], # default weights used in the SolvePotentials2 routine (betas)
+                 #solver2_weights=[   0,18000, 500,20000, 500,100,0,200,0,1e6], # offset relaxation
+                 solver2_weights=[50000,18000,1000,20000,1000,100,0, 20,0,0], #  HOA2 weights
+                 #d_full=30e-3, #Mainz Voltag restriction off
+                 #d_part=40e-3, #Mainz voltage restriction off
+                 #d_full=10e-2,
+                 #d_part=20e-2,
+                 d_full=3.8e-3,
+                 d_part=7e-3,
+                 #d_full=5e-3,
+                 #d_part=9e-3,
+                 trap_m=None
+                 ):
         
         potentials, weights, roi_idx = self.desiredPotentials(positions, freqs, offsets,
                                                               mass, des_pot_parm=desired_potential_params,
-                                                              anharmonic_terms=anharmonic_terms,start_pot=[None],end_pot=[None],d_full= 2.5e-4,d_part=7e-4)
+                                                              anharmonic_terms=anharmonic_terms)
 
         
-        # save the original data in WavDesired, so they can be accessed in Waveform.solve_potentials
-        self.positions = positions
-        self.freqs = freqs
-        self.offsets = offsets
-        self.start_Potential=start_pot
-        self.end_Potential=end_pot
+        # save the original data in WavDesired, so they can be accessed in Waveform.solve_potentials2
+        # NOTE Multiple wells don't work with the new one for now
+        self.positions = positions[0]
+        self.freqs = freqs[0] 
+        self.offsets = offsets[0]
+        self.start_Potential=start_pot[0]
+        self.end_Potential=end_pot[0]
+        self.solver2_weights=solver2_weights
+        self.trap = trap_m # NOTE only used in the solver2 for now
+
+        if trap_m is None:
+            self.trap = trap_mom
+        else: 
+            self.trap = trap_m
+
+        
 
         # define the allowed voltages
-        # TODO Could be calculated ( compare rio)
         self.d_full = d_full
         self.d_part = d_part
         #              |-d_full-|
@@ -664,98 +694,164 @@ class Waveform:
         elif isinstance(args[0],  WavDesired): # check if a child of WavDesired
 			# Create waveform based on WavDesired by setting up and solving an optimal control problem
             self.wdp = args[0]
+            ### Some informations on the last run of the Dual Program solver
+            ## Details SolverStats of cvxpy
+            self.SolverStats = None
+            self.SizeMetrics = None
+            ## get a log of of applied Voltage restrictions
+            self.Vresmaxlog = []
+            self.Vresminlog = []
+            # solving
             raw_samples = self.solve_potentials(self.wdp, **kwargs) # ordered by electrode
             num_elec, num_timesteps = raw_samples.shape
             self.samples = np.zeros((num_elec+2,num_timesteps)) # Add two DEATH monitor channels
-            self.samples[:,:] = raw_samples[list(abs(k) for k in dac_channel_transform),:] # Transform as required
+            self.samples[:,:] = raw_samples[list(abs(k) for k in self.wdp.trap.dac_channel_transform),:] # Transform as required
 
             self.desc = self.wdp.desc
             self.set_new_uid()
             self.generated = ""
+
         else:
             assert False, "Need some arguments in __init__."
 
     def __repr__(self):
         return 'Wfm: "{d}" ({s} long)'.format(d=self.desc, s=self.samples.shape[1])
 
-    def solve_potentials2(self,wdp, **kwargs):
+    def raw_samples(self):
+        return self.samples[self.wdp.trap.physical_electrode_transform,:]
+
+    
+    def solve_potentials2(self,wdp,trap_m=None, **kwargs):
         """ a solve implementation that optimises controlling the potential characteristics instead of a grid"""
-        def basic_cost(mu, beta, freq, pos, offset, trap, d_full, d_part):
+        settings = dict(global_settings)
+        settings.update(kwargs)
+        
+        if wdp.trap is None:
+            if trap_m is None:
+                trap =trap_mom
+            else:
+                trap = trap_m
+        else:
+            if trap_m is None:
+                trap = wdp.trap
+            else:
+                trap = trap_m
+        
+        print("starting Solver2 using trap: " + str(trap))
+        t1 = timeit.default_timer()
+
+
+
+        Vdef = trap.Vdefault
+        
+        def basic_cost(mu, beta, freq, pos, offset, trap, d_full, d_part, mass = 1):
+
+            # frequency to curvature
+            a = (2 * np.pi * freq)**2 * (mass * atomic_mass_unit)/(2 * electron_charge)
             
             # function values needed
-            delta = 1e-6
-            Fx = trap.Func(0,(pos))
-            Fdx = trap.Func(0,(pos - delta))
-            Fxd = trap.Func(0,(pos + delta))
-            DFx = trap.Func(1,(pos))
-            D2Fx = trap.Func(2,(pos))
-            D2Fdx = trap.Func(2,(pos - delta))
-            D2Fxd = trap.Func(2,(pos + delta))
+            delta = (1/a)
+            Fx = trap.Func((pos),0)
+            Fdx = trap.Func((pos - delta),0)
+            Fxd = trap.Func((pos + delta),0)
+            DFx = trap.Func((pos),1)
+            D2Fx = trap.Func((pos),2)
+            D2Fdx = trap.Func((pos - delta),2)
+            D2Fxd = trap.Func((pos + delta),2)
 
             # Function value
-            cost = cvp.sum_squares(mu.T * Fx - offset) 
+            if (offset > 0.001 or offset < 0.001):
+                cost = cvy.sum_squares((mu.T * Fx - offset)/offset) 
+            else:
+                cost = cvy.sum_squares(mu.T * Fx - offset) 
+
             cost *= beta[0]
 
             # D2F
-            if (freq > 1):
-                c1 = cvp.sum_squares((mu.T * D2Fx - freq) / freq) 
+            if (a > 1):
+                c1 = cvy.sum_squares(mu.T * (D2Fx/abs(2*a)) - 1)  
                 # D2F at deltas
-                c2 = cvp.sum_squares((mu.T * D2Fdx - freq)/ freq) 
-                c3 = cvp.sum_squares((mu.T * D2Fxd - freq)/ freq) 
+                c2 = cvy.sum_squares(mu.T * (D2Fdx/abs(2*a)) - 1) 
+                c3 = cvy.sum_squares(mu.T * (D2Fxd/abs(2*a)) - 1) 
             else: # freq to close to 0
-                c1 = cvp.sum_squares(mu.T * D2Fx - freq ) 
+                c1 = cvy.sum_squares(mu.T * D2Fx - (2*a)) 
                 # D2F at deltas
-                c2 = cvp.sum_squares(mu.T * D2Fdx - freq) 
-                c3 = cvp.sum_squares(mu.T * D2Fxd - freq) 
+                c2 = cvy.sum_squares(mu.T * D2Fdx - (2*a) )
+                c3 = cvy.sum_squares(mu.T * D2Fxd - (2*a))
 
             cost += beta[1] * c1 + beta[2] * (c2 + c3)
 
             # DF == 0
-            cost += beta[3] * cvp.sum_squares(mu.T * DFx )
+            cost += beta[3] * cvy.sum_squares(mu.T * DFx )
             # F symmetric 
-            cost += beta[4] * cvp.sum_squares(mu.T * Fdx - mu.T * Fxd ) 
+            cost += beta[4] * cvy.sum_squares(mu.T * Fdx - mu.T * Fxd ) 
 
             # regulize usage of mu
-            cost += beta[5] * cvp.norm(mu,2)
-            cost += beta[6] * cvp.norm(mu,1)
+            cost += beta[5] * cvy.norm(mu - Vdef ,2)
+            cost += beta[6] * cvy.norm(mu - Vdef ,1)
             
             # constrain the use of electrodes faraway from the Region of interest
-            # TODO Doesn't work with a default voltage yet!
             con = []
-            def get_VCon(xe,xdes,Vmax,d_full,d_part):
-                c = abs(xe - xdes)
-                c -= 0.5 * d_full # d_full is the width for which the full voltage is allowed
-                c /= d_part - d_full # d_part is the width in which partial voltage is allowed
-                c = min([0.5,1-c])
-                c = max([0, c])
-                return 2* Vmax * c
 
-            # conditions for allowd Voltages
-            for i in range(mu.size):
-                ## DONE needs to be adapted to allow multiple locations for a single voltage (e.g. HOA2)
-                if isinstance(xmid[i],list):
-                    v_con = 0;
-                    for x in xmid[i]:
-                        r = get_VCon(x,pos,trap.Vmax,d_full,d_part)
-                        if r > v_con:
-                            v_con = r
+            # returns a double between [0,1] that scales the Voltage constrained depending on the RIO
+            def get_VCon(xe, xdes):
+                c = abs(xe - xdes)
+                c -= 0.5 * d_full
+                c /= 0.5 * (d_full - d_part)
+                c = max([c,0])
+                c = min([c,1])
+                return c
+            
+            Vmaxres = np.zeros(mu.size[0]);
+            Vminres = np.zeros(mu.size[0]);
+
+            for i,Vmax,Vmin,xmid in zip(range(mu.size[0]),trap.Vmaxs, trap.Vmins,trap.x_mids):
+                
+                v_con_min = Vdef;
+                v_con_max = Vdef;
+                # allow multiple locations for a single voltage (e.g. HOA2)
+                r = 0
+                if isinstance(xmid,list):
+                    for x in xmid:
+                        rn = get_VCon(x,pos)
+                        if rn > r:
+                            r = rn
 
                 else:
                     #assuming only one float or double
-                    v_con = get_VCon(trap.xmid[i],pos,trap.Vmax,d_full,d_part)
-                con.append(mu[i] <= v_con)
-                con.append(mu[i] >= -v_con)
+                    r = get_VCon(xmid,pos)
+                v_con_max = Vdef + (r * (Vmax - Vdef))
+                v_con_min = Vdef - (r * (Vdef - Vmin))
+                Vmaxres[i] = v_con_max
+                Vminres[i] = v_con_min
+                con.append(mu[i,0] <= v_con_max)
+                con.append(mu[i,0] >= v_con_min)
+                
+
+            self.Vresmaxlog.append(Vmaxres)
+            self.Vresminlog.append(Vminres)
+
 
             #make sure no unsupported voltages are applied
-            for i in range(mu.size):
-                con.append(mu[i] <= trap.Vmaxs[i])
-                con.append(mu[i] >= trap.Vmins[i])
+            for i in range(mu.size[0]):
+                con.append(mu[i,0] <= trap.Vmaxs[i])
+                con.append(mu[i,0] >= trap.Vmins[i])
 
             return (cost,con)
-       
-        N = wdp.positions.size
-        mu = cvy.Variable(trap_mom.numberofelectrodes,N)
-        beta = cvp.Parameter(9,1,sign="positive") 
+
+        def offset_change_cost(mu0,mu1,pos0,pos1,trap):
+            Fx0 = trap.Func((pos0),0)
+            Fx1 = trap.Func((pos1),0)
+            
+            return cvy.square(mu0.T * Fx0 - mu1.T * Fx1)
+            
+        
+        if isinstance(wdp.positions,(int,float)):
+            N = 1
+        else: 
+            N = len(wdp.positions)
+        mu = cvy.Variable(trap.numberofelectrodes,N)
+        beta = cvy.Parameter(10,1,sign="positive") 
         cost = 0
         constraints = []
 
@@ -766,56 +862,62 @@ class Waveform:
         else:
             static_ends = wdp.force_static_ends
 
-        # TODO does wdp really need num_electrodes? shouldn't it rather get the trap? 
-        # TODO shouldn't wdp have a link to the trap? 
+        # NOTE does wdp really need num_electrodes? shouldn't it rather get the trap? 
+        # NOTE shouldn't wdp have a link to the trap? 
 
-         
-
-        # TODO should we really use the same weight variable as the legacy solver?
-        weights = wdp.solver_weights
+        weights = wdp.solver2_weights
+        weightlength = beta.size[0]
         if weights is None:
             warnings.warn("No solver_weights were set for the desiered Waveform! Using unit vector")
-            weights = np.onces(beta.size)
-        elif weights.size is not weightlength:
+            weights = np.ones(beta.size)
+        elif len(weights) is not weightlength:
             warnings.warn("the given solver_weights have wrong dimensions! Using unit vector")
-            weights = np.onces(beta.size)
+            weights = np.ones(beta.size)
+            beta.value = weights
         else:
             beta.value = weights
 
-
-
-        # individual steps 
-        for i,pos,freq,offset in zip(range(wdp.positions.size),wdp.positions,wdp.freqs,wdp.offsets):
-            # caclucalet basic_costs
-            c, con = basic_costs(mu[i],beta,freq,pos,offset,trap_mom,d_full,d_part)
+        # individual steps
+        if N==1:
+            # the static case (the positions,freqs and offsets aren't lists)
+            c, con = basic_cost(mu[:,0],beta,wdp.freqs,wdp.positions,wdp.offsets,trap,wdp.d_full,wdp.d_part,mass = wdp.mass)
             cost += c
-            contraints.extend(con)
+            constraints.extend(con)
+        else:
+            for i,pos,freq,offset in zip(range(N),wdp.positions,wdp.freqs,wdp.offsets):
+                # caclucalet basic_costs
+                c, con = basic_cost(mu[:,i],beta,freq,pos,offset,trap,wdp.d_full,wdp.d_part,mass = wdp.mass)
+                cost += c
+                constraints.extend(con)
 
-        # penalise changes between steps in first and second derivative
-        cost += beta[7] * cvp.sum_squares(mus[:,i:-1] - mus[:,1:])
-        cost += beta[8] * 1/4 * cvp.sum_squares(mus[:,:-2] - mus[:,2:])
+            # penalise changes between steps in first and second derivative
+            cost += beta[7] * cvy.sum_squares(mu[:,:-1] - mu[:,1:])
+            cost += beta[8] * 1/4 * cvy.sum_squares(mu[:,:-2] - mu[:,2:])
         
-        # constrain maximum change in mu(t)
-        constraints += [trap_mom.max_slew_rate*wdp.Ts >= cvy.abs(mu[:,1:]-mu[:,:-1])]
+            # constrain maximum change in mu(t)
+            constraints += [trap.max_slew_rate*wdp.Ts >= cvy.abs(mu[:,1:]-mu[:,:-1])]
+
+            for i in range(N-1):
+                cost += beta[9] * offset_change_cost(mu[:,i],mu[:,i+1],wdp.positions[i],wdp.positions[i+1],trap)
         
         # Make ends match static case or given voltages
         if static_ends:
             def get_static(f,p,o):
-                stat_mu = cvp.Variable(trap_mom.numerofelectrodes,N)
-                c, con = basic_cost(stat_mu,beta,f,p,o,trap_mom,d_full,d_part)
+                stat_mu = cvy.Variable(trap.numberofelectrodes,1)
+                c, con = basic_cost(stat_mu,beta,f,p,o,trap,wdp.d_full,wdp.d_part,mass= wdp.mass)
                 skiplist = []
-                for i in range(trap_mom.numberofelectrodes):
+                for i in range(trap.numberofelectrodes):
                     if i not in skiplist:
-                        j = trap_mom.symmetry[i]
-                        constraints += [stat_mu[i] == mu [j]]
+                        j = trap.symmetry[i]
+                        con += [stat_mu[i,:] == stat_mu [j,:]]
                         skiplist.append(j)
-                cvp.Problem(cvp.Minimize(c),con).solve(solver=settings['solver'], verbose=settings['solver_verbose'], **kwargs)            
+                cvy.Problem(cvy.Minimize(c),con).solve(solver=settings['solver'], verbose=settings['solver_verbose'], **kwargs)            
                 return stat_mu.value
 
-            if not (hasattr(wdp.start_Potential) or wdp.start_Potential is None):
-                wdp.start_Potential = get_static(wdp.freqs[0],wdp.positions[0],wdp.offsets[0])
-            if not (hasattr(wdp.end_Potential) or wdp.end_Potential is None):
-                wdp.end_Potential = get_static(wdp.freqs[-1],wdp.positions[-1],wdp.offsets[-1])
+            if (getattr(wdp,"start_Potential",None) is None):
+                    wdp.start_Potential = get_static(wdp.freqs[0],wdp.positions[0],wdp.offsets[0])
+            if (getattr(wdp,"end_Potential",None) is None):
+                    wdp.end_Potential = get_static(wdp.freqs[-1],wdp.positions[-1],wdp.offsets[-1])
             
             # constrain the ends
             constraints += [mu[:,0] == wdp.start_Potential]
@@ -825,21 +927,35 @@ class Waveform:
 
         # Enforce absolute symmetry
         skiplist = []
-        for i in range(trap_mom.numberofelectrodes):
+        for i in range(trap.numberofelectrodes):
             if i not in skiplist:
-                j = trap_mom.symmetry[i]
+                j = trap.symmetry[i]
                 constraints += [mu[i,:] == mu [j,:]]
                 skiplist.append(j)
 
-
-
+        #constraints = []
+        t2 = timeit.default_timer()
+        print("setup time: ", t2 - t1)
         # solve Optimisation Problem
-        prob = cvp.Problem(cvp.Minimize(cost),contraints)
-        prob.solve(solver=settings['solver'], verbose=settings['solver_verbose'], **kwargs)            
+        prob = cvy.Problem(cvy.Minimize(cost),constraints)
+        t3 = timeit.default_timer()
+        print("setup time solver: ", t3 - t2)
+        prob.solve(solver=settings['solver'], verbose=settings['solver_verbose'], **kwargs)
+        t4 = timeit.default_timer()
+        print("solve time: ",t4 -t3)
+        print("total time: ",t4 - t1)
+        
+        # saving information for debugging
+        
+        self.cost = cost
+        self.constraints = constraints
+        self.problem = prob
+        self.SolverStats = prob.solver_stats
+        self.SizeMetrics = prob.size_metrics
         return mu.value
 
-
-    def solve_potentials(self, wdp, **kwargs):
+    # This is the legacy version, that optimizes the well on a grid, given a configured well
+    def solve_potentials1(self, wdp, **kwargs):
         """ Convert a desired set of potentials and ROIs into waveform samples
         wdp: waveform desired potential"""
         # TODO: make this more flexible, i.e. arbitrary-size voltages
@@ -1011,6 +1127,14 @@ class Waveform:
             st()
         
         return uopt.value
+    
+    # an interface function that makes it easy to switch between solve_potentials versions
+    def solve_potentials(self, wdp, **kwargs):
+        if global_settings['USESOLVE2']:
+            return self.solve_potentials2(wdp,**kwargs)
+        else:
+            return self.solve_potentials1(wdp,**kwargs)
+
 
     def set_new_uid(self):
         self.uid = np.random.randint(0, 2**31)
