@@ -745,6 +745,7 @@ class Waveform:
         Vdef = trap.Vdefault
         
         def basic_cost(mu, beta, freq, pos, offset, trap, d_full, d_part, mass = 1):
+            """ Basic const function for one timestep"""
 
             # frequency to curvature
             a = (2 * np.pi * freq)**2 * (mass * atomic_mass_unit)/(2 * electron_charge)
@@ -771,7 +772,8 @@ class Waveform:
             if (a > 1):
                 c1 = cvy.sum_squares(mu.T * (D2Fx/abs(2*a)) - 1)  
                 # D2F at deltas
-                c2 = cvy.sum_squares(mu.T * (D2Fdx/abs(2*a)) - 1) 
+                c2 = cvy.sum_squares(mu.T * (D2Fdx/
+                abs(2*a)) - 1) 
                 c3 = cvy.sum_squares(mu.T * (D2Fxd/abs(2*a)) - 1) 
             else: # freq to close to 0
                 c1 = cvy.sum_squares(mu.T * D2Fx - (2*a)) 
@@ -802,10 +804,10 @@ class Waveform:
                 c = min([c,1])
                 return c
             
-            Vmaxres = np.zeros(mu.size[0]);
-            Vminres = np.zeros(mu.size[0]);
+            Vmaxres = np.zeros(mu.shape[0]);
+            Vminres = np.zeros(mu.shape[0]);
 
-            for i,Vmax,Vmin,xmid in zip(range(mu.size[0]),trap.Vmaxs, trap.Vmins,trap.x_mids):
+            for i,Vmax,Vmin,xmid in zip(range(mu.shape[0]),trap.Vmaxs, trap.Vmins,trap.x_mids):
                 
                 v_con_min = Vdef;
                 v_con_max = Vdef;
@@ -824,8 +826,8 @@ class Waveform:
                 v_con_min = Vdef - (r * (Vdef - Vmin))
                 Vmaxres[i] = v_con_max
                 Vminres[i] = v_con_min
-                con.append(mu[i,0] <= v_con_max)
-                con.append(mu[i,0] >= v_con_min)
+                con.append(mu[i] <= v_con_max)
+                con.append(mu[i] >= v_con_min)
                 
 
             self.Vresmaxlog.append(Vmaxres)
@@ -833,9 +835,9 @@ class Waveform:
 
 
             #make sure no unsupported voltages are applied
-            for i in range(mu.size[0]):
-                con.append(mu[i,0] <= trap.Vmaxs[i])
-                con.append(mu[i,0] >= trap.Vmins[i])
+            for i in range(mu.shape[0]):
+                con.append(mu[i] <= trap.Vmaxs[i])
+                con.append(mu[i] >= trap.Vmins[i])
 
             return (cost,con)
 
@@ -850,8 +852,8 @@ class Waveform:
             N = 1
         else: 
             N = len(wdp.positions)
-        mu = cvy.Variable(trap.numberofelectrodes,N)
-        beta = cvy.Parameter(10,1,sign="positive") 
+        mu = cvy.Variable((trap.numberofelectrodes,N))
+        beta = cvy.Parameter((10,1), nonneg=True)
         cost = 0
         constraints = []
 
@@ -866,13 +868,13 @@ class Waveform:
         # NOTE shouldn't wdp have a link to the trap? 
 
         weights = wdp.solver2_weights
-        weightlength = beta.size[0]
+        weightlength = beta.shape[0]
         if weights is None:
             warnings.warn("No solver_weights were set for the desiered Waveform! Using unit vector")
-            weights = np.ones(beta.size)
+            weights = np.ones(beta.shape)
         elif len(weights) is not weightlength:
             warnings.warn("the given solver_weights have wrong dimensions! Using unit vector")
-            weights = np.ones(beta.size)
+            weights = np.ones(beta.shape)
             beta.value = weights
         else:
             beta.value = weights
@@ -880,13 +882,15 @@ class Waveform:
         # individual steps
         if N==1:
             # the static case (the positions,freqs and offsets aren't lists)
-            c, con = basic_cost(mu[:,0],beta,wdp.freqs,wdp.positions,wdp.offsets,trap,wdp.d_full,wdp.d_part,mass = wdp.mass)
+            c, con = basic_cost(mu[:,0],beta,wdp.freqs,wdp.positions,wdp.offsets,trap,wdp.d_full,wdp.d_part,mass = wdp.mass) # HeinekaS
+            # c, con = basic_cost(mu,beta,wdp.freqs,wdp.positions,wdp.offsets,trap,wdp.d_full,wdp.d_part,mass = wdp.mass) # roswald
             cost += c
             constraints.extend(con)
         else:
             for i,pos,freq,offset in zip(range(N),wdp.positions,wdp.freqs,wdp.offsets):
                 # caclucalet basic_costs
-                c, con = basic_cost(mu[:,i],beta,freq,pos,offset,trap,wdp.d_full,wdp.d_part,mass = wdp.mass)
+                c, con = basic_cost(mu[:,i],beta,freq,pos,offset,trap,wdp.d_full,wdp.d_part,mass = wdp.mass) # HeinekaS
+                #c, con = basic_cost(mu,beta,freq,pos,offset,trap,wdp.d_full,wdp.d_part,mass = wdp.mass) # roswald
                 cost += c
                 constraints.extend(con)
 
@@ -903,7 +907,7 @@ class Waveform:
         # Make ends match static case or given voltages
         if static_ends:
             def get_static(f,p,o):
-                stat_mu = cvy.Variable(trap.numberofelectrodes,1)
+                stat_mu = cvy.Variable((trap.numberofelectrodes,1))
                 c, con = basic_cost(stat_mu,beta,f,p,o,trap,wdp.d_full,wdp.d_part,mass= wdp.mass)
                 skiplist = []
                 for i in range(trap.numberofelectrodes):
@@ -972,7 +976,7 @@ class Waveform:
         N = len(wdp.potentials) # timesteps
 
         ## Set up and solve optimisation problem
-        uopt = cvy.Variable(wdp.num_electrodes, N)
+        uopt = cvy.Variable((wdp.num_electrodes, N))
         states = []
 
         # Global constraints
@@ -1007,12 +1011,12 @@ class Waveform:
         ## Constrain the end voltages explicitly to match static case
         ## (i.e. solve separate problems first, then constrain main one)
         def get_boundary_voltages(min_elec_voltages, max_elec_voltages, sw_r0_u_ss_m, potentials, roi, weights):
-            uopt_e = cvy.Variable(wdp.num_electrodes, 1)
+            uopt_e = cvy.Variable((wdp.num_electrodes, 1))
             constr_e = [min_elec_voltages <= uopt_e, uopt_e <= max_elec_voltages]
             constr_e += [uopt_e[:15,:] == uopt_e[15:,:]]
             # penalise deviations from default voltage
             cost_e = cvy.sum_squares(sw['r0_u_weights'] * (uopt_e - sw_r0_u_ss_m) * np.sqrt(sw['r0']))
-            cost_e += cvy.sum_squares(cvy.mul_elemwise(weights, trap_mom.potentials[roi] * uopt_e - potentials))
+            cost_e += cvy.sum_squares(cvy.multiply(weights, trap_mom.potentials[roi] * uopt_e - potentials))
             # cost_e += cvy.sum_squares(trap_mom.potentials[
             #     wdp.roi_idx[-1]] * uopt_e[:,-1] - wdp.potentials[-1])
             prob = cvy.Problem(cvy.Minimize(cost_e), constr_e)
@@ -1024,7 +1028,7 @@ class Waveform:
             return uopt_ev
 
         def old_solver():
-            uopt_e = cvy.Variable(wdp.num_electrodes, 2)
+            uopt_e = cvy.Variable((wdp.num_electrodes, 2))
             # min_elec_voltages_e = np.tile(min_elec_voltages, (2,1)).T
             # max_elec_voltages_e = np.tile(max_elec_voltages, (2,1)).T
             min_elec_voltages_e = min_elec_voltages_m[:,[0,-1]]
@@ -1093,14 +1097,14 @@ class Waveform:
         # for kk, (pot, roi, weight) in enumerate(zip(wdp.potentials, wdp.roi_idx, pot_weights)):
         # st()
         # roi_moments = # CONTINUE HERE
-        # cvy.sum_squares(cvy.mul_elemwise(wdp.weights.T, roi_moments*uopt - wdp.potentials.T
+        # cvy.sum_squares(cvy.multiply(wdp.weights.T, roi_moments*uopt - wdp.potentials.T
         
         for kk, (pot, roi, weights) in enumerate(zip(wdp.potentials, wdp.roi_idx, wdp.weights)):
             # Cost term capturing how accurately we generate the desired potential well
             # (could also vectorise it like the above, but the ROI
             # indices tend to vary in length between timesteps)
             # cost += weight * cvy.sum_squares(trap_mom.potentials[roi, :]*uopt[:,kk] - pot)
-            cost += cvy.sum_squares(cvy.mul_elemwise(weights, trap_mom.potentials[roi, :]*uopt[:,kk] - pot))
+            cost += cvy.sum_squares(cvy.multiply(weights, trap_mom.potentials[roi, :]*uopt[:,kk] - pot))
 
         states.append( cvy.Problem(cvy.Minimize(cost), constr) )
 
