@@ -1,11 +1,17 @@
 # TIQI stuff
 *~
 *.mp4
-# global_settings.py
 death_outputs_to_use.txt
 .idea/
 waveform_files/
-moments_file/*
+
+# Keep moments_file dir, but not the actual data
+# moments_file/*
+*.vtk
+*.mat
+*.pickle
+*.csv
+*.png
 
 ## Python gitignore
 # https://github.com/github/gitignore/blob/master/Python.gitignore
