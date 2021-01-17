@@ -27,7 +27,7 @@ freq = numpy.array([1.6e6,1.6e6])
 offs = numpy.array([0.8,0.8])
 linspace_fn=numpy.linspace
 
- 
+
 weights=[20000,18000,500,20000,500,100,0,200,0,0] # default weights used in the SolvePotentials2 routine (betas)
 #solver2_weights=[   0,18000, 500,20000, 500,100,0,200,0,1e6], # offset relaxation
 #solver2_weights=[50000,18000,1000,20000,1000,100,0, 20,0,0], #  HOA2 weights
@@ -40,7 +40,7 @@ dpart=7e-3
 #d_full=5e-3,
 #d_part=9e-3,
 
-global_settings['USESOLVE2'] = False 
+global_settings['USESOLVE2'] = False
 
 trap = ETHMoments()
 trap.overwriteGlobalVariables() # makes sure the global variables correspond to the trap variables - only needed if not executed in Moments constructor
@@ -57,7 +57,7 @@ wdwtrans = WavDesiredWells(
             d_part=dpart
             )
 
-wf_wdwtrans = Waveform(wdwtrans) 
+wf_wdwtrans = Waveform(wdwtrans)
 mu = wf_wdwtrans.raw_samples()
 #print(mu2)
 
@@ -77,12 +77,12 @@ ax= lambda nu: 2* (2 * np.pi * nu)**2 * (mass_Ca* atomic_mass_unit)/(2 * electro
 sol_mus = mu
 ys = []
 
-dim =30 
+dim =30
 xs = range(timesteps)
 
 for i in range(dim):
     y = numpy.zeros(timesteps)
-    
+
     for x in xs:
         y[x] = sol_mus[i,x]
     ys.append(y)
@@ -109,7 +109,7 @@ for x in xs:
 
     mul = sol_mus[:,x]
     mus.append(mul)
-        
+
 xs = wdwtrans.positions
 
 pot0= lambda x,mul: numpy.dot(mul.T , trap.Func( x,0) )
@@ -124,8 +124,8 @@ for x,mu in zip(xs,mus):
     offsetevol2.append(numpy.asarray(pot0(x,mu)).reshape(-1))
     dfevol2.append(numpy.asarray(pot1(x,mu)).reshape(-1))
     sndderivevol2.append(numpy.asarray(pot2(x,mu)).reshape(-1))
-        
-            
+
+
 import matplotlib.pylab as plt
 
 #plt.figure()
@@ -151,4 +151,3 @@ axis[2].plot(xs,ax(wdwtrans.freqs),"--")
 axis[2].plot(xs,sndderivevol2)
 
 plt.show()
-

@@ -1,4 +1,25 @@
-## Pytrans, a library for creating and modifying DEATH transport waveforms
+# Pytrans, a library for creating and modifying DEATH transport waveforms
+
+## Who should use pytrans and when?
+The whole point of pytrans is to generate fast and dynamic waveforms for transport/splitting to be played back by the DEATH (our home-built fast DAC/AWG). If you want to do that, then go ahead and use pytrans!
+However, if you just want to generate and analyze a static well, then it is probably a lot easier to just do that stand-alone rather than using pytrans and all its layers of abstraction and arcane file handling.
+Historically, pytrans has been developed for the segtrap (i.e. a deep trap with nice symmetry and separate shim electrodes). Robin has adapted it to be somewhat useable with a surface trap (Sandia HoA2), but it is far from polished at the moment.
+
+## Dependencies
+pytrans is built on top of the default python libraries for numerical calculations and plotting (scipy, numpy, matplotlib). Additionally, it uses 'cvxpy' in order to facilitate formulating the optimization problem. You can install it and its dependencies using 'pip install cvxpy'.
+
+## Installation files
+In addition to the files present in this git repository, you also need the following files:
+- global_settings.py
+This file specifies which solver to use. By default it uses 'ECOS', which should be present if you have installed the dependencies correctly. For simple waveform calculations it should be enough. For more complicated problems it makes sense to use better solvers, i.e. Gurobi or MOSEK. Talk to Robin or Vlad regarding setting them up.
+You can get it from J:\Temp\Robin\pytrans\global_settings.py.
+Put it into the main pytrans folder, i.e. \pytrans\global_settings.py
+- trap.pickle
+This file contains the data from the BEM simulation for Daniels 3d trap packaged in a way that is easy and fast to import into python.
+You can get it from J:\Temp\Robin\pytrans\moments_file\trap.pickle
+Put it into \pytrans\moments_file\
+
+## Usage
 
 Please write a short description of each new file you create here, and which functions it exposes for use in experiments.
 

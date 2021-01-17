@@ -25,7 +25,7 @@ pos = -0.0004
 freq = 2000000
 offset = 1
 
- 
+
 weights=[20000,18000,500,20000,500,100,0,200,0,0] # default weights used in the SolvePotentials2 routine (betas)
 #solver2_weights=[   0,18000, 500,20000, 500,100,0,200,0,1e6], # offset relaxation
 #solver2_weights=[50000,18000,1000,20000,1000,100,0, 20,0,0], #  HOA2 weights
@@ -58,4 +58,3 @@ print( "The first derivative at the well bottom")
 print(numpy.dot(mu2.T, trap.Func(pos,1)))
 print( "The frequency error (normalized): ")
 print((numpy.dot(mu2.T, trap.Func(pos,2)) - a ) / a)
-
