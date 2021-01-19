@@ -32,6 +32,13 @@ Please, always document your code.
 
 I guess they are the same of trap_exp.*, just someone run again the simulation with different parameters. Ask Daniel or Francesco for that.
 
+Actually the difference is in this comment
+
+```python
+potential_path=os.path.join(os.path.dirname(__file__), "moments_file", "trap.pickle"),  # +- 1000um in axial, +-4um in radial direction
+# potential_path = os.path.join(os.path.dirname(__file__), "moments_file", "trap_exp.pickle"), # +-100um in axial, +-11um in radial direction
+```
+
 trap.pickle is always opened like that:
 
 ```python

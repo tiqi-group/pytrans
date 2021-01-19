@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-# from ETH3dTrap import ETH3dTrap as Moments
-from pytrans.trap_model.segtrap import ETH3dTrap as Moments
-
-from pytrans.units import *
-from pytrans.global_settings import *
+from ETH3dTrap import ETH3dTrap as Moments
+from units import *
+from global_settings import *
 import timeit
 import json
 import numpy as np
@@ -13,6 +11,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as anim
 import scipy.io as sio
 import scipy.signal as ssig
+import scipy.stats as sstat
 import scipy.interpolate as sintp
 import scipy.misc as smis
 import scipy.optimize as sopt
@@ -26,6 +25,20 @@ st = pdb.set_trace
 
 # You must copy global_settings.py.example to global_settings.py and
 # modify the options locally for your installation.
+
+
+# Unit definitions, all in SI
+# electron_charge = 1.60217662e-19 # coulombs
+# atomic_mass_unit = 1.66053904e-27 # kg
+#mass_Be = 9.012
+#mass_Ca = 39.962591
+# epsilon_0 = 8.854187817e-12 # farad/m
+#um = 1e-6
+#us = 1e-6
+#ns = 1e-9
+#MHz = 1e6
+#kHz = 1e3
+#meV = 1e-3
 
 # Indexing convention:
 # Electrodes T1 = 0, T2 = 1, ... T15 = 14; B1 = 15, B2 = 16, ... B15 = 29
@@ -92,6 +105,43 @@ default_elec_voltage = 5
 # Electrode starts and ends in um, ordered from Electrode 0 -> 29
 # trap specific Momentsclasses might overwrite this with trap default
 electrode_coords = np.array([[-3055, -2055], [-2035, -1535], [-1515, -1015], [-995, -695], [-675, -520], [-500, -345], [-325, -170], [-150, 150], [170, 325], [345, 500], [520, 675], [695, 995], [1015, 1515], [1535, 2035], [2055, 3055], [-3055, -2055], [-2035, -1535], [-1515, -1015], [-995, -695], [-675, -520], [-500, -345], [-325, -170], [-150, 150], [170, 325], [345, 500], [520, 675], [695, 995], [1015, 1515], [1535, 2035], [2055, 3055]])
+
+# Utility functions
+# Linspace replacement, producing an error function curve
+
+
+def erfspace(a, b, npts, erf_scaling=2.5):
+    slope = b - a
+    erf_y = sstat.norm.cdf(np.linspace(-erf_scaling, erf_scaling, npts))
+    erf_y_slope = erf_y[-1] - erf_y[0]
+    vout_zc = erf_y * slope / erf_y_slope  # scale slope
+    return vout_zc + a - vout_zc[0]  # shift range
+
+# Linspace replacement, producing a zero-pole curve with adjustable width + smoothness
+# Test in linspace_fn_test.org
+
+
+def zpspace(a, b, npts, k=3, gap=1.5, gap2=None):
+    if gap2 is None:
+        gap2 = gap
+    w0 = np.exp(-k)
+    w1 = np.exp(k)
+    w = np.exp(np.linspace(-gap * k, gap2 * k, npts))
+    y = np.log(np.abs((w - 1j * w0) / (w - 1j * w1)))
+    return a + (b - a) * (y - y.min()) / (y.max() - y.min())
+
+# Linspace replacement, producing a line with 2 identical points at
+# the start and the end looking like a _/-
+# def rampspace(a, b, npts, pad=1):
+#     assert npts-2*pad >= 2, "Too few points requested for rampspace"
+#     return np.hstack([np.repeat(a, pad),
+#                       np.linspace(a, b, npts - 2*pad), np.repeat(b, pad)])
+
+
+def vlinspace(start_vec, end_vec, npts, lin_fn=np.linspace):
+    """ Linspace on column vectors specifying the starts and ends"""
+    assert start_vec.shape[1] == end_vec.shape[1] == 1, "Need to input column vectors"
+    return np.vstack(list(lin_fn(sv, ev, npts) for sv, ev in zip(start_vec, end_vec)))
 
 
 def roi_potential(potential, z_axis, roi_centre, roi_width):

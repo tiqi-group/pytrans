@@ -1,15 +1,20 @@
 #! python3
 
-from AbstractTrap import AbstractTrap as ATrap
+from .abstract_trap import _old_AbstractTrap as ATrap
 import numpy
 import os
 import scipy.io as sio
 import pickle
 import warnings
-from units import *
+from pytrans.units import *
 
 # this class impelments the AbstractTrap for the ETH3dTrap
 # also intents to serve as a documenting sample implementation. (other options are explain in the comments)
+
+data_path = '/home/carmelo/ETH/pytrans/moments_data/segtrap'
+
+moments_path = os.path.join(data_path, "DanielTrapMomentsTransport.mat")
+potential_path = os.path.join(data_path, "trap.pickle")
 
 
 class ETH3dTrap(ATrap):
@@ -48,9 +53,8 @@ class ETH3dTrap(ATrap):
         return ('DCC' + ('c' + str(x) if x < 15 else 'a' + str(x - 15)))
 
     def __init__(self,
-                 moments_path=os.path.join(os.path.dirname(__file__), "moments_file", "DanielTrapMomentsTransport.mat"),
-                 potential_path=os.path.join(os.path.dirname(__file__), "moments_file", "trap.pickle"),  # +- 1000um in axial, +-4um in radial direction
-                 # potential_path = os.path.join(os.path.dirname(__file__), "moments_file", "trap_exp.pickle"), # +-100um in axial, +-11um in radial direction
+                 moments_path=moments_path,
+                 potential_path=potential_path,  # +- 1000um in axial, +-4um in radial direction
                  ):
 
         # sets up the Vmin&Vmax Vector and calculates necessary trap geometry

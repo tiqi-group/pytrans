@@ -14,12 +14,12 @@ class HOA2Trap(ATrap):
     def __str__(self):
         return "HOA2Trap"
 
-    # only man axis 
+    # only man axis
 
     # #Trap attributes
 
-    Vdefault = 6 
- 
+    Vdefault = 6
+
     Vmax = 8.9
     Vmin = - Vmax
 
@@ -32,13 +32,13 @@ class HOA2Trap(ATrap):
     # drives, from 0->31. E.g. dac_channel_transform[5] = 1 tells us that
     # DEATH output 5 drives Electrode 1.
     dac_channel_transform = list(range(76)) + [0,1]
- 
- 
+
+
     # This array is written to geometrically show which electrodes
     # are controlled by which DEATH channels.
     # Grouping of 4, 3, 1, 3, 4 refers to load, split, exp, split, load.
     physical_electrode_transform = list(range(76))
-    
+
     # instead of calculated locations
     xs = list(range(-630,631,70)) * 2# Q
     xs.sort()
@@ -56,20 +56,20 @@ class HOA2Trap(ATrap):
     xs += [[1782,-1782]] #T4
     xs += [[-1692,1692]] #T5
     xs += [[-1692,1692]] #T6
-    xs += 16 * [100000] # basically sets everything in the legs to zero 
+    xs += 16 * [100000] # basically sets everything in the legs to zero
     xs += 2 * [[-2259.1,2259.1]] #Y17 and Y18
     xs += 2 * [[-2163.9,2163.9]] #Y19 and Y20
     xs += 2 * [[-2069.6,2069.6]] #Y21 and Y22
     xs += 2 * [[-1975.2,1975.2]] #Y17 and Y18
-    # L00 ignored 
-    
+    # L00 ignored
+
     # needed to enforce the absolut symmetry
     symmetry = [0] * numberofelectrodes
-    symmetry[::2] = range(numberofelectrodes)[1::2] 
-    symmetry[1::2] = range(numberofelectrodes)[::2] 
+    symmetry[::2] = range(numberofelectrodes)[1::2]
+    symmetry[1::2] = range(numberofelectrodes)[::2]
 
     pot3d = None
-    
+
 
     def electrode_names(self,x):
         # 0 bis 37 -> Q
@@ -79,12 +79,12 @@ class HOA2Trap(ATrap):
         elif x<46:
             return 'G'+ str(x - 37).zfill(2)
         # 46 bis 51 -> T
-        elif x<52: 
+        elif x<52:
             return 'T'+ str(x - 45).zfill(2)
         # 52 bis 75 -> Y
         else:
             return 'Y' + str(x - 51).zfill(2)
-    
+
     def __init__(self,
             moments_path = os.path.join(os.path.dirname(__file__),"moments_file","HOA2.pickle"),
             potentials_path = os.path.join(os.path.dirname(__file__),"moments_file","HOA2.pickle")
@@ -95,15 +95,15 @@ class HOA2Trap(ATrap):
 
         # sets up the Vmin&Vmax Vector and calculates necessary trap geometry
         self.setup()
-    
+
         self.load_trap_axis_potential_data(moments_path) # also runs the load_3d_potential_data
-        # the smoothening s depends an the smoothness of tinterpoltaion data and avoids to close fitting, which makes the derivatives less useful. To large s will result in too lose fit 
-        
+        # the smoothening s depends an the smoothness of tinterpoltaion data and avoids to close fitting, which makes the derivatives less useful. To large s will result in too lose fit
+
         self.setuptrapaxisBSpline(s=3.2e-10)
-        
+
         # additions for solver2
         self.max_slew_rate = 5 / us # (units of volts / s, quarter of DEATH AD8021 op-amps)
-        
+
 
 
     def load_3d_potential_data(self,potential_path):
@@ -136,7 +136,7 @@ class HOA2Trap(ATrap):
         pot3d.yy2d = yy2d
         pot3d.zz2d = zz2d
         pot3d.fit_coord2d = np.column_stack( (pot3d.yy2d**2, pot3d.zz2d**2, pot3d.yy2d*pot3d.zz2d, pot3d.yy2d, pot3d.zz2d, np.ones_like(pot3d.zz2d)) ) # used for finding potential eigenaxes in 2d
-        
+
         # NOTE shim segments combination missing
 
         self.pot3d = pot3d
@@ -147,21 +147,20 @@ class HOA2Trap(ATrap):
         def calculate_slice(pot3d):
             return slice(pot3d.ny * math.floor(pot3d.nz/2) + math.floor(pot3d.ny /2),None,pot3d.ny * pot3d.nz)
         s = calculate_slice(self.pot3d) #points to the entries that contain the trap axis potentials
-        
+
         # Problem for now is that there is nothing comparible for now (could use spline inter polation and its results
         #self.electrode_moments = []
-        
+
         self.potentials = np.zeros((self.pot3d.nx,self.numberofelectrodes))
         for k in range(self.numberofelectrodes):
             self.potentials[:,k] = self.pot3d.potentials[self.electrode_names(k)][s]
-        
+
         # other properties, that ensure the class is compatible to the Moments class
         self.transport_axis = self.pot3d.x
         self.rf_pondpot = self.pot3d.potentials['RF_pondpot_1V1MHz1amu']
 
         #self.shim_moments = []
 
-    # this allows to hide the actually used interpolation behind this interface funcion (e.g. analytic solutions) and still reuse the same interpolation implementations between different Traps 
+    # this allows to hide the actually used interpolation behind this interface funcion (e.g. analytic solutions) and still reuse the same interpolation implementations between different Traps
     def Func(self,x,deriv):
         return self.FuncbyBspline(x,deriv)
-

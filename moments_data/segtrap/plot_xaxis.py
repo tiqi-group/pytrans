@@ -12,14 +12,16 @@ from pathlib import Path
 
 from scipy.io import loadmat
 
-moments_path = Path('.') / 'DanielTrapMomentsTransport.mat'
+moments_path = Path(__file__).resolve().parent / 'DanielTrapMomentsTransport.mat'
 
 fig, (ax0, ax1) = plt.subplots(2, 1)
 
 data = loadmat(moments_path, struct_as_record=False)['DATA'][0][0]
 
+
 def electrode_names(x):
     return ('DCC' + ('c' + str(x) if x < 15 else 'a' + str(x - 15)))
+
 
 x = data.transport_axis.ravel()
 
