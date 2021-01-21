@@ -52,10 +52,7 @@ class ETH3dTrap(ATrap):
     def electrode_names(self, x):
         return ('DCC' + ('c' + str(x) if x < 15 else 'a' + str(x - 15)))
 
-    def __init__(self,
-                 moments_path=moments_path,
-                 potential_path=potential_path,  # +- 1000um in axial, +-4um in radial direction
-                 ):
+    def __init__(self, moments_path=moments_path, potential_path=potential_path):
 
         # sets up the Vmin&Vmax Vector and calculates necessary trap geometry
         self.setup()

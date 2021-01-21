@@ -10,7 +10,8 @@ Module docstring
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
-from pytrans import WavDesiredWells, Waveform, global_settings
+from pytrans import global_settings, WavPotential
+from pytrans.waveform import WavDesiredWells, Waveform
 from pytrans.trap_model.segtrap import ETH3dTrap as ETHMoments
 
 from pytrans.units import mass_Ca, atomic_mass_unit, electron_charge
@@ -37,6 +38,8 @@ trap.overwriteGlobalVariables()  # makes sure the global variables correspond to
 wdw2 = WavDesiredWells([pos], [freq], [offset], trap_m=trap, solver2_weights=weights, d_full=dfull, d_part=dpart)
 wf = Waveform(wdw2)
 
+# wavpot = WavPotential(wf, trap_mom=trap)
+
 mu2 = wf.raw_samples()
 # print(mu2)
 
@@ -53,14 +56,10 @@ print((np.dot(mu2.T, trap.Func(pos, 2)) - a) / a)
 # Plotting
 
 
-plt.rcParams['text.usetex'] = True
-plt.rcParams['text.latex.unicode'] = True
+# plt.rcParams['text.usetex'] = True
+# plt.rcParams['text.latex.unicode'] = True
 
-gridsize = (3, 1)
-plt.figure(figsize=(6.3, 7.9))
-potax = plt.subplot2grid(gridsize, (0, 0))
-fieldax = plt.subplot2grid(gridsize, (1, 0), sharex=potax)
-freqax = plt.subplot2grid(gridsize, (2, 0), sharex=potax)
+fig, (potax, fieldax, freqax) = plt.subplots(3, 1, figsize=(6.3, 7.9), sharex=True)
 
 potax.xaxis.set_major_locator(plt.MaxNLocator(7))
 potax.xaxis.set_major_formatter(mticker.FormatStrFormatter(r'%.2f$\mu m$'))
@@ -82,6 +81,7 @@ d2potxs = np.array(list(map(lambda x: fx(mu2, x, 2), xs)))
 i = 0
 
 potax.plot(xs * 1e6, potxs, label='grid method')
+wdw2.plot(ax=potax)
 
 potaxright = potax.twinx()
 potax.plot(xs * 1e6, np.array([offset] * 400), '--', dashes=(5, 20), color='grey', linewidth=0.8)

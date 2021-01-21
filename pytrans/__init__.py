@@ -4,8 +4,11 @@
 # Created: 01-2021 - Carmelo Mordini <carmelo> <cmordini@phys.ethz.ch>
 
 """
-Module docstring
+pytrans
+~~~~~~
 
+The py_pkg package - a Python package template project that is intended
+to be used as a cookie-cutter for developing new Python packages.
 """
 import logging
 logging.basicConfig(level=logging.INFO)
