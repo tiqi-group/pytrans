@@ -21,6 +21,18 @@ global_des_pot_settings = {
     'roi_timestep': 0,
 }
 
+solver_weights = {
+    # Cost function parameters
+    'r0': 1e-15,  # punishes deviations from r0_u_ss. Can be used to set default voltages for less relevant electrodes.
+    'r1': 1e-5,  # punishes the first time derivative of u, thus reducing the slew rate
+    'r2': 0,  # punishes the second time derivative of u, thus further enforcing smoothness
+
+    # default voltage for the electrodes. any deviations from
+    # this will be punished, weighted by r0 and r0_u_weights
+    'r0_u_ss': np.ones(num_electrodes) * default_elec_voltage,  # default voltages for the electrodes
+    'r0_u_weights': np.ones(num_electrodes)  # use this to put different weights on outer electrodes
+}
+
 global_exp_pos = 20  # in um
 
 # Global debugging

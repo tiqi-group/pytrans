@@ -1,0 +1,74 @@
+Info on trap_exp.vtk
+--------------------
+trap_exp.vtk was created using the NIST BEM trap simulation software. 
+
+Info on trap_exp.mat
+--------------------
+trap_exp.mat was created based on the results from the trap simulations performed with the NIST BEM software. Specifically, it is based on trap_exp.vtk and was generated with readVTK_mod.m.
+
+Info on trap_exp.pickle
+--------------------
+trap_exp.pickle was created based on the results from the trap simulations performed with the NIST BEM software. Specifically, it is based on trap_exp.vtk and was generated with readVTK_mod.m.
+
+Info on DanielTrapMomentsTransport.mat
+--------------------
+DanielTrapMomentsTransport.mat was created based on the results from the trap simulations performed with the NIST BEM software. Specifically, it is based on trap.vtk and was generated with create_moments_file.m
+
+Resources:
+----------
+NIST BEM Software: J:\Software\BEM
+Paraview (visualize results): J:\Software\BEM
+
+Matlab files: \wav_gen\bem_to_potentials, \wav_gen\moments_file, ...
+
+Daniel 3D trap simulations: J:\Projects\3D_Trap\trap_simulation\daniels_full_trap
+Specifically, the logfile trap_exp.log shows the simulation parameters and trap_exp.vtk contains the results.
+
+
+Interpreting trap_exp simulation 3d data: Paraview, Matlab & Python
+-------------------------------------------------------------------
+This comparison shows how to consistently handle the 3d data from the trap BEM simulations in Matlab & Python, using ParaView as the reference.
+
+See trap_exp_plotting_comparison.png
+
+### Paraview (left): (File: trap_exp.vtk)
+Visualizes the potential due to electrode 'DCCa07', with a threshold of 0.14. Values below that are not shown. Note that the potential is highest towards (x=middle ie 0, y=positive, z= negative). This is our reference for how the results are supposed to look, because Paraview can natively read vtk files.
+
+### Matlab (top right): (File; trap_exp.mat, generated with readVTK_mod.m based on trap_exp.vtk)
+Using the code below to plot the same potential as above, using the same threshold of 0.14. Values below it are shown in dark blue. Note that the potential is also highest towards (x=middle, y=positive, z=negative). Thus the coordinates generated with meshgrid match the ones from Paraview. Note that in the call to the meshgrid function, X and Y are swapped from what we would naively expect!
+
+load trap_exp.mat
+[Y,X,Z] = meshgrid(trap.y,trap.x,trap.z); 
+trap.coordinates = [X(:) Y(:) Z(:)];
+electrode = 'DCCa07';
+ind=find(strcmp(trap.idDCElectrodes,electrode));
+pot_xyz = squeeze(trap.dataDCElectrodes(ind,:,:,:));
+pot_xyz(pot_xyz<0.140)=0;
+scatter3(trap.coordinates(:,1)/um,trap.coordinates(:,2)/um,trap.coordinates(:,3)/um,10,pot_xyz(:))
+
+### Python (bottom right): (File; trap_exp.pickle, generated with vtk_to_pickle.py based on trap_exp.vtk)
+Using the code below to plot the same potential as above, using the same threshold of 0.14. Note that the x and y axis directions are each reversed, which is why the plot looks different compared to ParaView & Matlab. However, the potential is also highest towards (x=middle ie 0, y =positive, z=negative). Thus the coordinates generated in vtk_to_pickle.py with meshgrid produce results that are consistent with Paraview & Matlab.
+
+# %% Imports
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+import pickle
+
+# %% Load data
+with open('trap_exp.pickle', 'rb') as f:
+    electrode_potentials, origin, spacing, dimensions, x, y, z, xx, yy, zz, coordinates = pickle.load(f)
+
+# %% Plot data
+um = 1e-6
+pot = electrode_potentials['DCCa7']
+pot = pot * (pot > 0.14)
+
+fig = plt.figure(figsize=(10,10))
+ax = fig.add_subplot(111, projection='3d')
+ax.view_init(azim=45)
+idk = ax.scatter(xx/um,yy/um,zz/um,c=pot, cmap = 'viridis')
+plt.colorbar(idk, fraction=0.046, pad=0.04)
+plt.xlabel('x')
+plt.ylabel('y')
+plt.show()

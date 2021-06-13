@@ -17,7 +17,6 @@ with open('README.md', 'r') as f:
 # https://setuptools.readthedocs.io/en/latest/setuptools.html#id9
 setup(
     name=about['__title__'],
-    packages=find_packages(exclude=["tests"]),
     description=about['__description__'],
     long_description=readme,
     long_description_content_type='text/markdown',
@@ -25,6 +24,7 @@ setup(
     author=about['__author__'],
     author_email=about['__author_email__'],
     url=about['__url__'],
+    packages=find_packages(exclude=["tests"]),
     include_package_data=True,
     python_requires=">=3.7.*",
     install_requires=[x.strip() for x in open('requirements.txt').readlines()],

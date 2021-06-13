@@ -2,7 +2,7 @@
 # from ETH3dTrap import ETH3dTrap as Moments
 from pytrans.trap_model.segtrap import ETH3dTrap as Moments
 
-from pytrans.units import *
+from pytrans.constants import *
 from pytrans.global_settings import *
 import timeit
 import json

@@ -6,11 +6,6 @@
 """
 pytrans
 ~~~~~~
-
-The py_pkg package - a Python package template project that is intended
-to be used as a cookie-cutter for developing new Python packages.
 """
-import logging
-logging.basicConfig(level=logging.INFO)
-
-from .pytrans import *
+# import logging
+# logging.basicConfig(level=logging.INFO)
