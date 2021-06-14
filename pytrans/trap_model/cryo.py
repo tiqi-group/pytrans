@@ -9,7 +9,6 @@ Cryo trap model
 
 import numpy as np
 from pathlib import Path
-from pytrans.constants import um
 from functools import partial
 from .abstract_trap import AbstractTrap
 
@@ -30,6 +29,9 @@ class CryoTrap(AbstractTrap):
     min_V = -10
     max_V = 10
     z0 = 5.16792281e-05
+    Vrf = 40
+    Omega_rf = 2 * np.pi * 34e6
+    freq_pseudo = 5.6075e6  # this actually depends on the other two
 
     def __init__(self):
         super().__init__()
@@ -41,8 +43,10 @@ class CryoTrap(AbstractTrap):
         self.moments = [partial(self._electrode_potential, index=index) for index in self.electrode_indices]
 
     def _electrode_potential(self, x, index):
-        print(index)
         return getattr(potentialsDC, f"E{index}")(x, 0, self.z0)
+
+    def eval_moments(self, x):
+        return np.stack([m(x) for m in self.moments], axis=0)  # (num_ele * len(x))
 
     # def _load_trap_axis_potential_data_from_comsol(self):
     #     logger.info('Loading cryo trap data')

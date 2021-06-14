@@ -13,11 +13,13 @@ print(w.hessian.shape)
 # print(v)
 
 x = np.arange(-600, 600, 2) * 1e-6
-# x = x[w.roi(x)]
-print(w.timesteps)
-for j in range(w.timesteps):
-    pot = w.potential(x, j)
+print(w.samples)
+for j in range(w.samples):
+    x1 = x[w.roi(x, j)]
+    pot = w.potential(x1, j)
+    weight = w.weight(x1, j)
 
-    l, = plt.plot(x * 1e6, pot)
+    l, = plt.plot(x1 * 1e6, pot)
     plt.plot(x * 1e6, w.gaussian_potential(x, j), ls='--', color=l.get_color())
+    plt.plot(x1 * 1e6, w.gaussian_potential(x1, j), ls='-', color=l.get_color())
 plt.show()

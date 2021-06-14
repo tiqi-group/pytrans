@@ -12,11 +12,7 @@ import numpy as np
 import cvxpy as cx
 
 from scipy.constants import atomic_mass, elementary_charge, pi
-from analytic import potentialsDC
-from analytic import gradientsDC
-from analytic import hessiansDC
-
-from analytic import pseudoPotential
+from pytrans.trap_model.moments_data.cryo.analytic import potentialsDC, gradientsDC, hessiansDC, pseudoPotential
 
 mass = 40 * atomic_mass
 

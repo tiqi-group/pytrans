@@ -51,7 +51,7 @@ def plot_3dpot(fun, r0, args=tuple(), roi=(600, 50, 50), axes=None):
     Y, Z = np.meshgrid(y, z)
     ps = _fun(x0, Y, Z)
 
-    c0 = ax_im.contour(Y * 1e6, Z * 1e6, ps, 100)
+    c0 = ax_im.contour(Y * 1e6, Z * 1e6, ps, 50)
     try:
         #         plt.colorbar(c0, ax=ax_im)
         ax_cb, kk = make_axes(ax0, fraction=0.25, aspect=10)
