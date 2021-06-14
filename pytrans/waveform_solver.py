@@ -11,8 +11,16 @@ Module docstring
 import numpy as np
 import cvxpy as cx
 
+from pytrans.conversion import curv_to_freq
+
 import logging
 logger = logging.getLogger(__name__)
+
+h_weight = np.asarray([
+    [0, 1e-3, 1e-3],
+    [1e-3, 1, 1],
+    [1e-3, 1, 1]
+]).ravel()
 
 
 class Solver:
@@ -26,6 +34,7 @@ class Solver:
         self.wells = wells
         self.samples = wells[0].samples
         self.uopt = cx.Variable(shape=(self.samples, trap.num_electrodes), name="voltages")
+        # self.offset = cx.Variable(shape=(self.samples, 1), name="offset")
 
     # def cost_x_potential(self, x, sample):
     # TODO this is wrong, find out why
@@ -50,10 +59,34 @@ class Solver:
         pot = np.sum([well.gaussian_potential(x1) for well in self.wells], axis=0)
         return cx.sum_squares(self.uopt[sample] @ moments - pot)
 
+    def cost_hessian(self, sample):
+        costs = []
+        for w in self.wells:
+            print("--- hessian cost one well")
+            x = w.x0[sample]
+            print(f"well at {x}")
+            target_h = w.hessian[sample]
+            with np.printoptions(suppress=True):
+                print(curv_to_freq(target_h) * 1e-6)
+            h_dc = self.trap.eval_hessian(x)
+            print(h_dc.shape)
+            h_ps = self.trap.pseudo_hessian(x)
+            wh = np.einsum('i,ijk', self.uopt.value[sample], h_dc) + h_ps
+            with np.printoptions(suppress=True):
+                print(curv_to_freq(wh) * 1e-6)
+            
+            h_dc = h_dc.reshape(h_dc.shape[0], -1)
+            ww = (self.uopt[sample] @ h_dc + h_ps.ravel() - target_h.ravel())
+            print(ww.shape)
+            costs.append(
+                cx.sum_squares(cx.multiply(np.sqrt(h_weight), ww))
+            )
+        return sum(costs)
+
     def static_solver(self, x=None, default_V=None,
-                      r0=1e-6,
+                      r0=1e-6, rx=1, rh=1e-3,
                       extra_constraints=[],
-                      solver="MOSEK", verbose=True):
+                      solver="MOSEK", verbose=False):
         """Static solver
 
         Args:
@@ -62,6 +95,7 @@ class Solver:
         Returns:
         uopt
         """
+        num_electrodes = self.trap.num_electrodes
         x = self.trap.transport_axis if x is None else x
         default_V = self.trap.default_V if default_V is None else default_V
 
@@ -70,7 +104,9 @@ class Solver:
         # static voltage cost
         cost = cx.sum_squares(cx.multiply(np.sqrt(r0), self.uopt - default_V))
         for j in range(self.samples):
-            cost += self.cost_x_potential(x, j)
+            cost += cx.multiply(rx, self.cost_x_potential(x, j))
+            if rh:
+                cost += cx.multiply(rh, self.cost_hessian(j))
 
         # setup constrains
         constraints = [self.trap.min_V <= self.uopt, self.uopt <= self.trap.max_V]
@@ -82,5 +118,5 @@ class Solver:
 
         objective = cx.Minimize(cost)
         problem = cx.Problem(objective, constraints)
-        problem.solve(solver=solver, verbose=verbose)
+        problem.solve(solver=solver, warm_start=True, verbose=verbose)
         return self.uopt

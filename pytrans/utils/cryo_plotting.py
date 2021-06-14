@@ -93,18 +93,20 @@ def plot3d_make_axes(fig, left, right):
     return ax_x, ax_y, ax_z, ax_im, ax0
 
 
-def plot3d_make_layout(n, figsize=(7, 8), d=0.04):
+def plot3d_make_layout(n, figsize=(7, 8), d=0.04, squeeze=True):
     fig = plt.figure(figsize=(n * figsize[0], figsize[1]))
     axes = [
         plot3d_make_axes(fig, left=k / n + d / 2, right=(k + 1) / n - d / 2)
         for k in range(n)
     ]
-    axes = axes[0] if len(axes) == 1 else axes
+    if squeeze:
+        axes = axes[0] if len(axes) == 1 else axes
     return fig, axes
 
 
-def plot_electrodes(ax, y=None, h=None, d=125, L=120):
-
+def plot_electrodes(ax, y=None, h=None, d=125, L=120, scale=1):
+    d *= scale
+    L *= scale
     h = np.ptp(ax.get_ylim()) * 0.06 if h is None else h
     y = min(ax.get_ylim()) + h if y is None else y
 

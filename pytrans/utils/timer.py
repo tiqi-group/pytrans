@@ -19,7 +19,8 @@ def timer(method):
         result = method(*args, **kwargs)
         te = time.time()
         elapsed = te - ts
-        logger.info(f"Exec {method.__name__} elapsed time: {elapsed * 1e3:.3f} ms")
+        print(f"Exec {method.__name__} elapsed time: {elapsed * 1e3:.3f} ms")
+        # logger.info(f"Exec {method.__name__} elapsed time: {elapsed * 1e3:.3f} ms")
         # if 'log_time' in kw:
         #     name = kw.get('log_name', method.__name__.upper())
         #     kw['log_time'][name] = int((te - ts) * 1000)

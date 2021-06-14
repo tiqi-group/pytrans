@@ -10,23 +10,32 @@ Module docstring
 
 import numpy as np
 
-from .cryo_plotting import plot_3dpot
+from .cryo_plotting import plot_3dpot, plot3d_make_layout
 from .cryo_solver import tot_potential_ps, tot_hessian_ps
 from pytrans.conversion import curv_to_freq
 
-from scipy.optimize import minimize
+from .timer import timer
+
+from scipy.optimize import minimize as _minimize
 from matplotlib import patches as mpatches
 from matplotlib import transforms
 
 roi = (400, 30, 30)
 
 
-def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf):
-    #     fig, axes = plot3d_make_layout(n=1)
+@timer
+def minimize(*args, **kwargs):
+    return _minimize(*args, **kwargs)
 
-    fig, axes = plot_3dpot(tot_potential_ps, r0, args=(vv, electrode_indices, Vrf, Omega_rf), roi=roi, axes=None)
+
+def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf, axes=None):
+    if axes is None:
+        fig, axes = plot3d_make_layout(n=1)
+
+    plot_3dpot(tot_potential_ps, r0, args=(vv, electrode_indices, Vrf, Omega_rf), roi=roi, axes=axes)
 
     ax_x, ax_y, ax_z, ax_im, ax0 = axes
+    fig = ax_x.figure
     f_args = (vv, electrode_indices, Vrf, Omega_rf)
 
     def fun3(xyz):
@@ -34,10 +43,10 @@ def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf):
 
     bounds = [(-r * 1e-6 + x, r * 1e-6 + x) for r, x in zip(roi, r0)]
 
-    res = minimize(fun3, r0, method='TNC', bounds=bounds)
+    res = minimize(fun3, r0, method='TNC', bounds=bounds, options=dict(accuracy=1e-3))
 
     x1, y1, z1 = res.x
-    print(res)
+    # print(res)
 
     v0 = res.fun
     H = tot_hessian_ps(x1, y1, z1, *f_args)
@@ -47,7 +56,7 @@ def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf):
 
     with np.printoptions(suppress=True):
         print('Hessian')
-        print(curv_to_freq(H))
+        print(curv_to_freq(H) * 1e-6)
         print('Eigenvalues [MHz]')
         print(freqs)
         print('Eigenvectors')

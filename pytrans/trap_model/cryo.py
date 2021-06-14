@@ -12,7 +12,7 @@ from pathlib import Path
 from functools import partial
 from .abstract_trap import AbstractTrap
 
-from .moments_data.cryo.analytic import potentialsDC
+from .moments_data.cryo.analytic import potentialsDC, hessiansDC, pseudoPotential
 
 import logging
 logger = logging.getLogger(__name__)
@@ -39,14 +39,24 @@ class CryoTrap(AbstractTrap):
 
     def load_trap_axis_potential_data(self):
         self.electrode_indices = list(range(1, self.num_electrodes + 1))
-        self.transport_axis = np.linspace(-3000, 3000, 1000) * 1e-6  # dummy, you don't actually need it with the functions
+        self.transport_axis = np.linspace(-1000, 1000, 2001) * 1e-6  # dummy, you don't actually need it with the functions
         self.moments = [partial(self._electrode_potential, index=index) for index in self.electrode_indices]
+        self.hessians = [partial(self._electrode_hessian, index=index) for index in self.electrode_indices]
 
     def _electrode_potential(self, x, index):
         return getattr(potentialsDC, f"E{index}")(x, 0, self.z0)
 
+    def _electrode_hessian(self, x, index):
+        return getattr(hessiansDC, f"E{index}")(x, 0, self.z0)
+
+    def pseudo_hessian(self, x):
+        return pseudoPotential.ps2(x, 0, self.z0, self.Vrf, self.Omega_rf)
+
     def eval_moments(self, x):
-        return np.stack([m(x) for m in self.moments], axis=0)  # (num_ele * len(x))
+        return np.stack([m(x) for m in self.moments], axis=0)  # (num_electrodes, len(x))
+
+    def eval_hessian(self, x):
+        return np.stack([h(x) for h in self.hessians], axis=0)  # (num_electrodes, 3, 3)
 
     # def _load_trap_axis_potential_data_from_comsol(self):
     #     logger.info('Loading cryo trap data')
