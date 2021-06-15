@@ -45,10 +45,12 @@ def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf, axes=None):
 
     res = minimize(fun3, r0, method='TNC', bounds=bounds, options=dict(accuracy=1e-3))
 
+    print("Offset from r0 [um]")
+    print((res.x - r0) * 1e6)
     x1, y1, z1 = res.x
     # print(res)
 
-    v0 = res.fun
+    f1 = res.fun
     H = tot_hessian_ps(x1, y1, z1, *f_args)
 
     h, vs = np.linalg.eig(H)
@@ -64,10 +66,14 @@ def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf, axes=None):
 
     _range = np.linspace(-roi[0], roi[0], 50) * 1e-6 / 4
     xx1 = _range + x1
-    ax_x.plot(xx1 * 1e6, 0.5 * h[0] * (xx1 - x1)**2 + v0)
+    ax_x.plot(xx1 * 1e6, 0.5 * h[0] * (xx1 - x1)**2 + f1)
 
-#     c = ax3.imshow(vs, cmap='RdBu', vmin=-1, vmax=1)
-#     plt.colorbar(c, ax=ax3)
+    marker_kw = dict(marker='o', mfc='r', mec='r')
+
+    ax_x.plot(x1 * 1e6, f1, **marker_kw)
+    ax_y.plot(y1 * 1e6, f1, **marker_kw)
+    ax_z.plot(f1, z1 * 1e6, **marker_kw)
+    ax_im.plot(y1 * 1e6, z1 * 1e6, **marker_kw)
 
     v1 = vs[1:, 1]
     v2 = vs[1:, 2]

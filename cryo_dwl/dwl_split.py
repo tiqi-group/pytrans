@@ -40,9 +40,9 @@ vw0 = np.asarray([0.00317428, - 0.02277012, 0.08087201, - 0.1745012, 0.63677583,
 
 solver.uopt.value = vw0
 
-voltages = solver.solver(rx=1, rh=0, r0=0,
-                         method_x='g',
-                         verbose=False)
+voltages = solver.static_solver(rx=1, rh=0, r0=0,
+                                method_x='g',
+                                verbose=False)
 voltages = voltages.value[0]
 print(voltages)
 

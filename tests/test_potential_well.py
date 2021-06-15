@@ -2,8 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pytrans.potential_well import PotentialWell
-w = PotentialWell(130e-6, 0.1, 1e6, 1.3e6, 30)
-# w = PotentialWell([0, 130e-6], [0.1, 0.2], 1e6, 1.3e6, 30)
+# w = PotentialWell(130e-6, 0.1, 1e6, 1.3e6, 30)
+w = PotentialWell([0, 130e-6], 0.1, 1e6, 1.3e6, 30)
 
 print(w.x0.shape)
 print(w.hessian.shape)
@@ -22,4 +22,10 @@ for j in range(w.samples):
     l, = plt.plot(x1 * 1e6, pot)
     plt.plot(x * 1e6, w.gaussian_potential(x, j), ls='--', color=l.get_color())
     plt.plot(x1 * 1e6, w.gaussian_potential(x1, j), ls='-', color=l.get_color())
+
+fig, ax1 = plt.subplots()
+ppw = np.stack([w.gaussian_potential(x, j) for j in range(w.samples)], axis=0)
+ax1.imshow(ppw)
+ax1.set_aspect('auto')
+
 plt.show()

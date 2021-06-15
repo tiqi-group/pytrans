@@ -12,7 +12,7 @@ from pathlib import Path
 from functools import partial
 from .abstract_trap import AbstractTrap
 
-from .moments_data.cryo.analytic import potentialsDC, hessiansDC, pseudoPotential
+from .moments_data.cryo.analytic import potentialsDC, gradientsDC, hessiansDC, pseudoPotential
 
 import logging
 logger = logging.getLogger(__name__)
@@ -41,10 +41,14 @@ class CryoTrap(AbstractTrap):
         self.electrode_indices = list(range(1, self.num_electrodes + 1))
         self.transport_axis = np.linspace(-1000, 1000, 2001) * 1e-6  # dummy, you don't actually need it with the functions
         self.moments = [partial(self._electrode_potential, index=index) for index in self.electrode_indices]
+        self.gradients = [partial(self._electrode_gradient, index=index) for index in self.electrode_indices]
         self.hessians = [partial(self._electrode_hessian, index=index) for index in self.electrode_indices]
 
     def _electrode_potential(self, x, index):
         return getattr(potentialsDC, f"E{index}")(x, 0, self.z0)
+
+    def _electrode_gradient(self, x, index):
+        return getattr(gradientsDC, f"E{index}")(x, 0, self.z0)
 
     def _electrode_hessian(self, x, index):
         return getattr(hessiansDC, f"E{index}")(x, 0, self.z0)
@@ -54,6 +58,9 @@ class CryoTrap(AbstractTrap):
 
     def eval_moments(self, x):
         return np.stack([m(x) for m in self.moments], axis=0)  # (num_electrodes, len(x))
+
+    def eval_gradient(self, x):
+        return np.stack([e(x) for e in self.gradients], axis=0)  # (num_electrodes, 3)
 
     def eval_hessian(self, x):
         return np.stack([h(x) for h in self.hessians], axis=0)  # (num_electrodes, 3, 3)

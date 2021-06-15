@@ -39,6 +39,18 @@ def get_hessian(axial, split, tilt, freq_pseudo):
     return target_hessian
 
 
+def get_hessian_dc(axial, split):
+    # force theta = 45, split is approximate
+    v_ax = freq_to_curv(axial)
+    b = C * split * 5.5e6
+    target_hessian = np.stack([
+        [[_v_ax, 0, 0],
+         [0, -_v_ax / 2, _b],
+         [0, _b, -_v_ax / 2]] for _v_ax, _b, in zip(v_ax, b)
+    ])
+    return target_hessian
+
+
 class PotentialWell:
     """
     Just 1d for the moment, but here is where we'll generalize
@@ -65,19 +77,17 @@ class PotentialWell:
         self.curv = freq_to_curv(self.axial)
 
         self.hessian = get_hessian(self.axial, self.split, self.tilt, self.freq_pseudo)
+        self.hessian_dc = get_hessian_dc(self.axial, self.split)
         self.scale_roi = scale_roi
 
     def roi(self, x, sample=0):
-        return abs(x - self.x0[sample]) < 4 * self.scale_roi * self.sigma[sample]  # change to logical array
+        return self.potential(x, sample) < self.scale_roi**2 * self.depth[sample]  # change to logical array
 
     def weight(self, x, sample=0):
         return np.exp(-(x - self.x0[sample])**2 / 2 / (self.scale_roi * self.sigma[sample])**2)
 
-    def potential(self, x, sample=0, clip=False):
-        pot = 0.5 * self.curv[sample] * (x - self.x0[sample])**2 - self.depth[sample]
-        if clip:
-            pot = pot.clip(None, 0)
-        return pot
+    def potential(self, x, sample=0):
+        return 0.5 * self.curv[sample] * (x - self.x0[sample])**2
 
     def gaussian_potential(self, x, sample=0):
         return - self.depth[sample] * np.exp(-(x - self.x0[sample])**2 / 2 / self.sigma[sample]**2)

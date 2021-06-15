@@ -37,23 +37,23 @@ def plot_3dpot(fun, r0, args=tuple(), roi=(600, 50, 50), axes=None):
 
     v0 = _fun(*r0)
 
+    marker_kw = dict(marker='o', color='none', mfc='none', mec='r')
+
     ax_x.plot(x * 1e6, _fun(x, y0, z0))
-    ax_x.plot(x0 * 1e6, v0, 'xr')
+    ax_x.plot(x0 * 1e6, v0, **marker_kw)
 
     ax_y.plot(y * 1e6, _fun(x0, y, z0))
-    ax_y.plot(y0 * 1e6, v0, 'xr')
+    ax_y.plot(y0 * 1e6, v0, **marker_kw)
 
     ax_z.plot(_fun(x0, y0, z), z * 1e6)
-    ax_z.plot(v0, z0 * 1e6, 'xr')
-    #     ax_z.plot(z*1e6, _fun(x0, y0, z))
-    #     ax_z.plot(z0*1e6, v0, 'xr')
+    ax_z.plot(v0, z0 * 1e6, **marker_kw)
 
     Y, Z = np.meshgrid(y, z)
     ps = _fun(x0, Y, Z)
 
     c0 = ax_im.contour(Y * 1e6, Z * 1e6, ps, 50)
     try:
-        #         plt.colorbar(c0, ax=ax_im)
+        # plt.colorbar(c0, ax=ax_im)
         ax_cb, kk = make_axes(ax0, fraction=0.25, aspect=10)
         plt.colorbar(c0, cax=ax_cb, **kk)
         ax_cb.yaxis.set_ticks_position('left')
@@ -61,7 +61,7 @@ def plot_3dpot(fun, r0, args=tuple(), roi=(600, 50, 50), axes=None):
     except Exception:
         pass
 
-    ax_im.plot(y0 * 1e6, z0 * 1e6, 'or')
+    ax_im.plot(y0 * 1e6, z0 * 1e6, **marker_kw)
     ax_x.set(xlabel='x [um]')
     ax_y.set(xlabel='y [um]')
     ax_z.set(ylabel='z [um]')
@@ -93,7 +93,7 @@ def plot3d_make_axes(fig, left, right):
     return ax_x, ax_y, ax_z, ax_im, ax0
 
 
-def plot3d_make_layout(n, figsize=(7, 8), d=0.04, squeeze=True):
+def plot3d_make_layout(n, figsize=(8, 7), d=0.04, squeeze=True):
     fig = plt.figure(figsize=(n * figsize[0], figsize[1]))
     axes = [
         plot3d_make_axes(fig, left=k / n + d / 2, right=(k + 1) / n - d / 2)

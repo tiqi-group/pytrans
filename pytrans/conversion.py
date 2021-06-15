@@ -9,7 +9,7 @@ Module docstring
 '''
 
 import numpy as np
-from pytrans.constants import mass_Ca, atomic_mass, elementary_charge
+from .constants import mass_Ca, atomic_mass, elementary_charge, MHz, um
 
 # def freq_to_curv(freq, mass=mass_Ca, charge=1):
 #     return ((2 * np.pi * freq)**2 * atomic_mass_unit * mass /
@@ -22,6 +22,7 @@ from pytrans.constants import mass_Ca, atomic_mass, elementary_charge
 
 mass = mass_Ca * atomic_mass
 C = mass / elementary_charge * (2 * np.pi)**2
+E0 = C * MHz**2 * um  # E field that shifts x by 1 um
 
 
 def curv_to_freq(curv):
