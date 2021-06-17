@@ -14,7 +14,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def get_hessian(axial, split, tilt, freq_pseudo):
+def get_voltage_params(axial, split, tilt, freq_pseudo):
     if not freq_pseudo:
         return np.ones((len(axial), 3, 3)) * np.nan
     tilt = tilt * np.pi / 180
@@ -29,6 +29,13 @@ def get_hessian(axial, split, tilt, freq_pseudo):
 
     v_split = 2 * lamb * np.cos(tilt)**2 - lamb
     v_tilt = np.sign(tilt) * np.sqrt(lamb**2 - v_split**2)
+
+    return np.asarray([v_ax, v_split, v_tilt, 0, 0, 0]) / C / 1e12
+
+
+def get_hessian(axial, split, tilt, freq_pseudo):
+
+    v_ax, v_split, v_tilt = get_voltage_params(axial, split, tilt, freq_pseudo)[:3] * C * 1e12
 
     # TODO This is brutal. There should be a way to vectorize it but I'm lazy
     target_hessian = np.stack([
