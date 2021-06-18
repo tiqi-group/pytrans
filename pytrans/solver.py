@@ -65,8 +65,10 @@ class Solver:
         # this does not make use of the ROI since the gaussian is anyway finite
         moments = self.trap.eval_moments(x)
         pot = np.sum([well.gaussian_potential(x, sample) for well in self.wells], axis=0)
+        weight = np.sum([well.weight(x, sample) for well in self.wells], axis=0)
         offset = cx.Variable((1,))
         diff = (self.uopt[sample] @ moments - pot - offset) / max(self.wells[0].depth)
+        # return cx.sum_squares(cx.multiply(np.sqrt(weight), diff))
         return cx.sum_squares(diff)
 
     @timer
@@ -128,6 +130,7 @@ class Solver:
             print(f"field gradient for well at {x}")
 
             e_dc = self.trap.eval_gradient(x)  # (ele, 3)
+            e_ps = self.trap.pseudo_gradient(x)
 
             if self.uopt.value is not None:
                 with np.printoptions(suppress=True):
@@ -135,7 +138,7 @@ class Solver:
                     print(eh, E0)
                     print(eh / E0)
 
-            ee = (self.uopt[sample] @ e_dc) / E0
+            ee = (self.uopt[sample] @ e_dc + e_ps) / E0
             print(ee.shape)
             costs.append(cx.sum_squares(ee))
         return sum(costs)

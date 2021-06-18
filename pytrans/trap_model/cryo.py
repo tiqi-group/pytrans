@@ -53,9 +53,6 @@ class CryoTrap(AbstractTrap):
     def _electrode_hessian(self, x, index):
         return getattr(hessiansDC, f"E{index}")(x, 0, self.z0)
 
-    def pseudo_hessian(self, x):
-        return pseudoPotential.ps2(x, 0, self.z0, self.Vrf, self.Omega_rf)
-
     def eval_moments(self, x):
         return np.stack([m(x) for m in self.moments], axis=0)  # (num_electrodes, len(x))
 
@@ -64,6 +61,15 @@ class CryoTrap(AbstractTrap):
 
     def eval_hessian(self, x):
         return np.stack([h(x) for h in self.hessians], axis=0)  # (num_electrodes, 3, 3)
+    
+    def pseudo_potential(self, x):
+        return pseudoPotential.ps0(x, 0, self.z0, self.Vrf, self.Omega_rf)
+
+    def pseudo_gradient(self, x):
+        return pseudoPotential.ps1(x, 0, self.z0, self.Vrf, self.Omega_rf)
+
+    def pseudo_hessian(self, x):
+        return pseudoPotential.ps2(x, 0, self.z0, self.Vrf, self.Omega_rf)
 
     # def _load_trap_axis_potential_data_from_comsol(self):
     #     logger.info('Loading cryo trap data')

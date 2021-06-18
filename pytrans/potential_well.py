@@ -36,7 +36,9 @@ def get_voltage_params(axial, split, tilt, freq_pseudo):
 def get_hessian(axial, split, tilt, freq_pseudo):
 
     v_ax, v_split, v_tilt = get_voltage_params(axial, split, tilt, freq_pseudo)[:3] * C * 1e12
-
+    v_ps = freq_to_curv(freq_pseudo)
+    a = v_ps - v_ax / 2
+    
     # TODO This is brutal. There should be a way to vectorize it but I'm lazy
     target_hessian = np.stack([
         [[_v_ax, 0, 0],
