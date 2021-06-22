@@ -14,28 +14,29 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def get_voltage_params(axial, split, tilt, freq_pseudo):
-    if not freq_pseudo:
-        return np.ones((len(axial), 3, 3)) * np.nan
-    tilt = tilt * np.pi / 180
-    # assert -np.pi / 2 < tilt <= np.pi / 2, "Tilt angle must be within (-90, 90] degrees"
-    v_ax = freq_to_curv(axial)
-    v_ps = freq_to_curv(freq_pseudo)
-    a = v_ps - v_ax / 2
-    nu0 = curv_to_freq(a - freq_to_curv(split / 2))
-    lamb = C * nu0 * split
-    # nu1, nu2 = curv_to_freq(a + lamb) * 1e-6, curv_to_freq(a - lamb) * 1e-6
-    # print(f"Transverse mode freqs: {nu1:.3f}, {nu2:.3f} MHz (split: {nu1 - nu2:.3f})")
+# def get_voltage_params(axial, split, tilt, freq_pseudo):
+#     if not freq_pseudo:
+#         return np.ones((len(axial), 3, 3)) * np.nan
+#     tilt = tilt * np.pi / 180
+#     # assert -np.pi / 2 < tilt <= np.pi / 2, "Tilt angle must be within (-90, 90] degrees"
+#     v_ax = freq_to_curv(axial)
+#     v_ps = freq_to_curv(freq_pseudo)
+#     a = v_ps - v_ax / 2
+#     nu0 = curv_to_freq(a - freq_to_curv(split / 2))
+#     lamb = C * nu0 * split
+#     # nu1, nu2 = curv_to_freq(a + lamb) * 1e-6, curv_to_freq(a - lamb) * 1e-6
+#     # print(f"Transverse mode freqs: {nu1:.3f}, {nu2:.3f} MHz (split: {nu1 - nu2:.3f})")
 
-    v_split = 2 * lamb * np.cos(tilt)**2 - lamb
-    v_tilt = np.sign(tilt) * np.sqrt(lamb**2 - v_split**2)
+#     v_split = 2 * lamb * np.cos(tilt)**2 - lamb
+#     v_tilt = np.sign(tilt) * np.sqrt(lamb**2 - v_split**2)
 
-    return np.asarray([v_ax, v_split, v_tilt, 0, 0, 0]) / C / 1e12
+#     return np.asarray([v_ax, v_split, v_tilt, 0, 0, 0]) / C / 1e12
 
 
 def get_hessian(axial, split, tilt, freq_pseudo):
 
-    v_ax, v_split, v_tilt = get_voltage_params(axial, split, tilt, freq_pseudo)[:3] * C * 1e12
+    # v_ax, v_split, v_tilt = get_voltage_params(axial, split, tilt, freq_pseudo)[:3] * C * 1e12
+    v_ax, v_split, v_tilt = np.asarray([axial, split, tilt]) * C * 1e12
     v_ps = freq_to_curv(freq_pseudo)
     a = v_ps - v_ax / 2
     

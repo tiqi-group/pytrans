@@ -18,34 +18,28 @@ from pytrans.trap_model.cryo import CryoTrap as Trap
 from pytrans.potential_well import PotentialWell
 from pytrans.solver import Solver
 
-
-x0 = 250 * um
+x0 = 0
 depth = 0.05
-axial = 1.34 * MHz
-split = 1 * MHz
-tilt = 30  # degrees
+axial = 1.9
+split = -2
+tilt = -3
 
 trap = Trap()
 wells = [
-    PotentialWell(0e-6, depth, axial, split, tilt, freq_pseudo=trap.freq_pseudo, scale_roi=1),
-    PotentialWell(250e-6, depth, axial, split, tilt, freq_pseudo=trap.freq_pseudo, scale_roi=1),
-    # PotentialWell(x0, depth, axial, split, tilt, freq_pseudo=trap.freq_pseudo, scale_roi=1)
+    PotentialWell(x0, depth, axial, split, tilt, freq_pseudo=trap.freq_pseudo, scale_roi=1),
 ]
 n_wells = len(wells)
 solver = Solver(trap, wells)
 
-vw0 = np.asarray([0.00317428, - 0.02277012, 0.08087201, - 0.1745012, 0.63677583, - 1.30254116,
-                  0.63677459, - 0.17449671, 0.08086666, - 0.02276043, 0.00317427, - 0.02277012,
-                  0.08087201, - 0.1745012, 0.63677583, - 1.30254116, 0.63677459, - 0.17449671,
-                  0.08086666, - 0.02276043, ]).reshape(1, -1)
 
-solver.uopt.value = vw0
-
-voltages = solver.solver(rx=1, rh=0, r0=0,
-                         method_x='q',
+voltages = solver.solver(rx=0, rh=1, r0=0,
+                         method_x='g',
                          verbose=False)
 voltages = voltages.value[0]
 print(voltages)
+
+v_static = trap.calculate_voltage(axial, split, tilt)[:20]
+print(v_static)
 
 args = (
     trap.electrode_indices,
@@ -53,13 +47,12 @@ args = (
     trap.Omega_rf
 )
 
-fig, _axes = plot3d_make_layout(n_wells, squeeze=False)
-for j, w in enumerate(wells):
-    print(f"\nwell{j}:")
-    analyse_pot(voltages, np.asarray((w.x0[0], 0, trap.z0)), *args, axes=_axes[j])
+fig, (axes1, axes2) = plot3d_make_layout(2, squeeze=False)
+print("solver:")
+analyse_pot(voltages, np.asarray((x0, 0, trap.z0)), *args, axes=axes1)
 
-    # plot_3dpot(tot_potential_ps, np.asarray((w.x0[0], 0, trap.z0)), args=(voltages,) + args, roi=(400, 30, 30), axes=_axes[j])
-    # plot_3dpot(tot_potential_ps, np.asarray((w.x0[0], 0, trap.z0)), args=(vw0[0],) + args, roi=(400, 30, 30), axes=_axes[j])
+print("static:")
+analyse_pot(v_static, np.asarray((x0, 0, trap.z0)), *args, axes=axes2)
 
 x = trap.transport_axis
 moments = trap.eval_moments(x)
@@ -71,6 +64,6 @@ ax.plot(x * 1e6, voltages @ moments)
 plot_electrodes(ax, scale=1)
 
 ax1.plot(voltages)
-ax1.plot(vw0[0])
+ax1.plot(v_static)
 
 plt.show()

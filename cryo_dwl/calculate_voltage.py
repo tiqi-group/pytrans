@@ -2,7 +2,7 @@ import numpy as np
 from pathlib import Path
 
 filename = Path(__file__).resolve().parent / 'vbasis_x0.npy'
-vb0 = vb0 = np.load(filename)
+vb0 = np.load(filename)
 
 
 def calculate_voltage(axial, split, tilt, x_comp, y_comp, z_comp):  # , xCubic, vMesh, vGND, xyTilt=0, xzTilt=0):

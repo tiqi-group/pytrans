@@ -17,13 +17,15 @@ from .moments_data.cryo.analytic import potentialsDC, gradientsDC, hessiansDC, p
 import logging
 logger = logging.getLogger(__name__)
 
+filename_basis = Path(__file__).resolve().parent / 'moments_data/cryo/vbasis_x0.npy'
+vb0 = np.load(filename_basis)
+
 
 class CryoTrap(AbstractTrap):
     """
     Cryo trap docstring
     """
 
-    data_path = Path(__file__) / "moments_data/cryo/csv"
     num_electrodes = 20  # they come in pairs
     default_V = 5
     min_V = -10
@@ -61,7 +63,7 @@ class CryoTrap(AbstractTrap):
 
     def eval_hessian(self, x):
         return np.stack([h(x) for h in self.hessians], axis=0)  # (num_electrodes, 3, 3)
-    
+
     def pseudo_potential(self, x):
         return pseudoPotential.ps0(x, 0, self.z0, self.Vrf, self.Omega_rf)
 
@@ -70,6 +72,12 @@ class CryoTrap(AbstractTrap):
 
     def pseudo_hessian(self, x):
         return pseudoPotential.ps2(x, 0, self.z0, self.Vrf, self.Omega_rf)
+
+    def calculate_voltage(self, axial, split, tilt, x_comp=0, y_comp=0, z_comp=0):  # , xCubic, vMesh, vGND, xyTilt=0, xzTilt=0):
+        # Array of voltages. 20 electrodes + mesh + (GND level)*4
+        voltages = (axial, split, tilt, x_comp, y_comp, z_comp) @ vb0
+        voltages = np.r_[voltages, np.zeros((5,))]
+        return voltages
 
     # def _load_trap_axis_potential_data_from_comsol(self):
     #     logger.info('Loading cryo trap data')

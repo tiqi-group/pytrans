@@ -23,25 +23,20 @@ args = (
     trap.Omega_rf
 )
 
-axial = 1e6
-split = (6.7 - 3.15) * 1e6
-tilt = 45
+axial = 2e6
+split = -1.3e6
+tilt = 30
 
-bare_params = (1.9, -3, -2, 0, 0, 0)  # 2.1, 3, 3)
 params = get_voltage_params(axial, split, tilt, trap.freq_pseudo)
 
-print(params)
-print(bare_params)
+print('Calc:', params)
 
 voltages = calculate_voltage(*params)[:20]
-bvoltages = calculate_voltage(*bare_params)[:20]
 
-fig, (axes1, axes2) = plot3d_make_layout(2)
+print('Voltages:', voltages)
+fig, axes1 = plot3d_make_layout(1)
 print('\nmeasured')
 analyse_pot(voltages, np.asarray((0, 0, trap.z0)), *args, axes=axes1)
-print('\nbare params')
-analyse_pot(bvoltages, np.asarray((0, 0, trap.z0)), *args, axes=axes2)
 
 axes1[3].set_title('From measurements')
-axes2[3].set_title('From bare params')
 plt.show()
