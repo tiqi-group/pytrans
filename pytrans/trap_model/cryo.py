@@ -74,9 +74,12 @@ class CryoTrap(AbstractTrap):
         return pseudoPotential.ps2(x, 0, self.z0, self.Vrf, self.Omega_rf)
 
     def calculate_voltage(self, axial, split, tilt, x_comp=0, y_comp=0, z_comp=0):  # , xCubic, vMesh, vGND, xyTilt=0, xzTilt=0):
-        # Array of voltages. 20 electrodes + mesh + (GND level)*4
-        voltages = (axial, split, tilt, x_comp, y_comp, z_comp) @ vb0
-        voltages = np.r_[voltages, np.zeros((5,))]
+        # Array of voltages. 20 electrodes
+        # voltages = (axial, split, tilt, x_comp, y_comp, z_comp) @ vb0
+        v0 = np.asarray([axial, split, tilt]) * 1e-6
+        v0 = np.sign(v0) * v0**2
+        v0 = np.r_[v0, x_comp, y_comp, z_comp]
+        voltages = v0 @ vb0
         return voltages
 
     # def _load_trap_axis_potential_data_from_comsol(self):

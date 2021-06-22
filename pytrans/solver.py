@@ -25,6 +25,8 @@ logger = logging.getLogger(__name__)
 # h_weight = np.ones((9,))
 # h_weight[0] = 0
 
+_depth_scale = 0.05
+
 
 class Solver:
     """
@@ -65,9 +67,9 @@ class Solver:
         # this does not make use of the ROI since the gaussian is anyway finite
         moments = self.trap.eval_moments(x)
         pot = np.sum([well.gaussian_potential(x, sample) for well in self.wells], axis=0)
-        weight = np.sum([well.weight(x, sample) for well in self.wells], axis=0)
+        # weight = np.sum([well.weight(x, sample) for well in self.wells], axis=0)
         offset = cx.Variable((1,))
-        diff = (self.uopt[sample] @ moments - pot - offset) / max(self.wells[0].depth)
+        diff = (self.uopt[sample] @ moments - pot - offset) / _depth_scale
         # return cx.sum_squares(cx.multiply(np.sqrt(weight), diff))
         return cx.sum_squares(diff)
 
@@ -75,27 +77,27 @@ class Solver:
     def cost_hessian(self, sample):
         costs = []
         for w in self.wells:
-            print("--- hessian cost one well")
+            # print("--- hessian cost one well")
             x = w.x0[sample]
-            print(f"Hessian for well at {x}")
+            # print(f"Hessian for well at {x}")
             target_h = w.hessian[sample]
-            with np.printoptions(suppress=True):
-                print(curv_to_freq(target_h) * 1e-6)
+            # with np.printoptions(suppress=True):
+            #     print(curv_to_freq(target_h) * 1e-6)
             h_dc = self.trap.eval_hessian(x)
-            print(h_dc.shape)
+            # print(h_dc.shape)
             h_ps = self.trap.pseudo_hessian(x)
 
             # test
-            if self.uopt.value is not None:
-                with np.printoptions(suppress=True):
-                    wh = np.einsum('i,ijk', self.uopt.value[sample], h_dc) + h_ps
-                    print(curv_to_freq(wh) * 1e-6)
+            # if self.uopt.value is not None:
+            #     with np.printoptions(suppress=True):
+            #         wh = np.einsum('i,ijk', self.uopt.value[sample], h_dc) + h_ps
+            #         print(curv_to_freq(wh) * 1e-6)
 
             h_dc = h_dc.reshape(h_dc.shape[0], -1)
             ww = (self.uopt[sample] @ h_dc + h_ps.ravel() - target_h.ravel()) / C * 1e-12
-            print(ww.shape)
+            # print(ww.shape)
             costs.append(
-                cx.sum_squares(ww)
+                cx.multiply(w.depth[sample] / _depth_scale, cx.sum_squares(ww))
                 # cx.sum_squares(cx.multiply(np.sqrt(h_weight), ww))
             )
         return sum(costs)
@@ -104,17 +106,17 @@ class Solver:
     def cost_hessian_dc(self, sample):
         costs = []
         for w in self.wells:
-            print("--- hessian cost one well")
+            # print("--- hessian cost one well")
             x = w.x0[sample]
-            print(f"Hessian DC for well at {x}")
+            # print(f"Hessian DC for well at {x}")
             target_h = w.hessian_dc[sample]
-            with np.printoptions(suppress=True):
-                print(curv_to_freq(target_h) * 1e-6)
+            # with np.printoptions(suppress=True):
+            #     print(curv_to_freq(target_h) * 1e-6)
             h_dc = self.trap.eval_hessian(x)
 
             h_dc = h_dc.reshape(h_dc.shape[0], -1)
             ww = (self.uopt[sample] @ h_dc - target_h.ravel()) / C * 1e-12
-            print(ww.shape)
+            # print(ww.shape)
             costs.append(
                 cx.sum_squares(ww)
                 # cx.sum_squares(cx.multiply(np.sqrt(h_weight), ww))
@@ -188,7 +190,7 @@ class Solver:
             cost += cx.multiply(r0, cx.sum_squares(self.uopt - default_V))
 
         if self.samples > 1:
-            if r0:
+            if rd:
                 cost += cx.multiply(rd, self.cost_slew0())
 
         # setup constrains

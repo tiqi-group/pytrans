@@ -18,19 +18,23 @@ from pytrans.trap_model.cryo import CryoTrap as Trap
 from pytrans.potential_well import PotentialWell
 from pytrans.solver import Solver
 
+plt.rcParams['toolbar'] = 'toolmanager'
+
 
 x0 = 250 * um
-depth = 0.05
-axial = 1.34 * MHz
-split = 1 * MHz
-tilt = 30  # degrees
+depth = 0.1
+axial = 1.3 * MHz
+split = -2 * MHz
+tilt = -3 * MHz
 
-samples = 111
+samples = 51
 x0 = np.linspace(0, x0, samples)
+d1 = np.linspace(0, depth, samples)
 
 trap = Trap()
 wells = [
     PotentialWell(x0, depth, axial, split, tilt, freq_pseudo=trap.freq_pseudo, scale_roi=1),
+    PotentialWell(0, d1, axial, split, tilt, freq_pseudo=trap.freq_pseudo, scale_roi=1),
 ]
 n_wells = len(wells)
 solver = Solver(trap, wells)
@@ -41,8 +45,8 @@ solver = Solver(trap, wells)
 #                   0.08086666, - 0.02276043, ]).reshape(samples, -1)
 
 
-voltages = solver.solver(rx=1, rh=0, r0=0,
-                         rd=1e3,
+voltages = solver.solver(rx=1, rh=0.1, r0=0,
+                         rd=1,
                          method_x='g',
                          verbose=True)
 
@@ -58,10 +62,12 @@ args = (
     trap.Omega_rf
 )
 
-# fig, _axes = plot3d_make_layout(2, squeeze=False)
-# for j, vv in enumerate(vvs):
-#     print(f"\nsample{j}:")
-#     analyse_pot(vv, np.asarray((poss[j], 0, trap.z0)), *args, axes=_axes[j])
+fig, _axes = plot3d_make_layout(2, squeeze=False)
+for j, vv in enumerate(vvs):
+    title = f"\nsample{j}:"
+    print(title)
+    analyse_pot(vv, np.asarray((poss[j], 0, trap.z0)), *args, axes=_axes[j])
+    _axes[j][3].set_title(title)
 
 x = trap.transport_axis
 moments = trap.eval_moments(x)
@@ -70,9 +76,9 @@ moments = trap.eval_moments(x)
 fig, (ax, ax1) = plt.subplots(1, 2, figsize=(12, 4))
 
 for j, vv in enumerate(vvs):
-    pot = np.sum([well.gaussian_potential(x, j) for well in wells], axis=0)
-    l, = ax.plot(x * 1e6, pot, '--')
-    ax.plot(x * 1e6, vv @ moments, '-', color=l.get_color())
+    # pot = np.sum([well.gaussian_potential(x, j) for well in wells], axis=0)
+    # l, = ax.plot(x * 1e6, pot, '--')
+    ax.plot(x * 1e6, vv @ moments, '-')
 
     ax1.plot(vv)
 
@@ -83,9 +89,11 @@ pp = voltages.value @ moments
 ax.imshow(pp)
 ax.set_aspect('auto')
 
-w = wells[0]
-ppw = np.stack([w.gaussian_potential(x, j) for j in range(w.samples)], axis=0)
-ppw = ppw - ppw.mean(axis=1).reshape(-1, 1)
+ppw = 0
+for w in wells:
+    _pw = np.stack([w.gaussian_potential(x, j) for j in range(w.samples)], axis=0)
+    _pw = _pw - _pw[:, 0].reshape(-1, 1)
+    ppw += _pw
 ax1.imshow(ppw)
 ax1.set_aspect('auto')
 

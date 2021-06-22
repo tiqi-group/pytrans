@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 def get_hessian(axial, split, tilt, freq_pseudo):
 
     # v_ax, v_split, v_tilt = get_voltage_params(axial, split, tilt, freq_pseudo)[:3] * C * 1e12
-    v_ax, v_split, v_tilt = np.asarray([axial, split, tilt]) * C * 1e12
+    v_ax, v_split, v_tilt = freq_to_curv(np.asarray([axial, split, tilt]))
     v_ps = freq_to_curv(freq_pseudo)
     a = v_ps - v_ax / 2
     
@@ -100,4 +100,6 @@ class PotentialWell:
         return 0.5 * self.curv[sample] * (x - self.x0[sample])**2
 
     def gaussian_potential(self, x, sample=0):
+        if self.depth[sample] == 0:
+            return np.zeros_like(x)
         return - self.depth[sample] * np.exp(-(x - self.x0[sample])**2 / 2 / self.sigma[sample]**2)

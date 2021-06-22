@@ -30,4 +30,4 @@ def curv_to_freq(curv):
 
 
 def freq_to_curv(freq):
-    return C * freq**2
+    return C * np.sign(freq) * freq**2

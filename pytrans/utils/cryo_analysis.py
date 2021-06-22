@@ -20,7 +20,7 @@ from scipy.optimize import minimize as _minimize
 from matplotlib import patches as mpatches
 from matplotlib import transforms
 
-roi = (400, 30, 30)
+__roi = (400, 30, 30)
 
 
 @timer
@@ -28,9 +28,10 @@ def minimize(*args, **kwargs):
     return _minimize(*args, **kwargs)
 
 
-def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf, axes=None):
+def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf, axes=None, roi=None):
     if axes is None:
         fig, axes = plot3d_make_layout(n=1)
+    roi = __roi if roi is None else roi
 
     plot_3dpot(tot_potential_ps, r0, args=(vv, electrode_indices, Vrf, Omega_rf), roi=roi, axes=axes)
 
@@ -41,7 +42,12 @@ def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf, axes=None):
     def fun3(xyz):
         return tot_potential_ps(*xyz, *f_args)
 
-    bounds = [(-r * 1e-6 + x, r * 1e-6 + x) for r, x in zip(roi, r0)]
+    _roi = []
+    for lim in roi:
+        lim = lim if isinstance(lim, (int, float)) else min(lim)
+        _roi.append(lim)
+
+    bounds = [(-r * 1e-6 + x, r * 1e-6 + x) for r, x in zip(_roi, r0)]
 
     res = minimize(fun3, r0, method='TNC', bounds=bounds, options=dict(accuracy=1e-3))
 
