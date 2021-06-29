@@ -18,7 +18,9 @@ from pytrans.trap_model.cryo import CryoTrap as Trap
 from pytrans.potential_well import PotentialWell
 from pytrans.solver import Solver
 
-x0 = 0
+plt.rcParams['toolbar'] = 'toolmanager'
+
+x0 = 35e-6
 depth = 0.1
 axial = 1.3 * MHz
 split = -2 * MHz
@@ -33,7 +35,7 @@ n_wells = len(wells)
 solver = Solver(trap, wells)
 
 
-voltages = solver.solver(rx=1, rh=0.1, r0=0.,
+voltages = solver.solver(rx=1, rh=1, r0=0.,
                          method_x='g',
                          verbose=False)
 
@@ -63,7 +65,7 @@ print("\ncalculate_voltage:")
 analyse_pot(v_calc, np.asarray((x0, 0, trap.z0)), *args, axes=None)  # , roi=(400, 30, (-30, 100)))
 
 x = trap.transport_axis
-moments = trap.eval_moments(x)
+moments = trap.moments
 
 fig, (ax, ax1) = plt.subplots(1, 2, figsize=(12, 4))
 ax.plot(x * 1e6, voltages @ moments)

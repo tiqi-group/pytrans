@@ -41,35 +41,35 @@ class Solver:
         self.uopt = cx.Variable(shape=(self.samples, trap.num_electrodes), name="voltages")
         # self.offset = cx.Variable(shape=(self.samples, 1), name="offset")
     
-    @timer
-    def cost_x_potential_q(self, x, sample):
-        roi = np.zeros(x.shape, dtype=bool)
-        for w in self.wells:
-            # build union of all the rois
-            roi += w.roi(x, sample)
-        x1 = x[roi]
-        moments = self.trap.eval_moments(x1)
-        # offset = cx.Variable((1,))
-        costs = []
-        for well in self.wells:
-            weight = well.weight(x1, sample)
-            # here I evaluate the moments function over x[roi], I'd slice them if they were sampled instead
-            pot = well.potential(x1, sample)
-            diff = (self.uopt[sample] @ moments - pot)
-            costs.append(
-                cx.sum_squares(cx.multiply(np.sqrt(weight), diff))
-            )
-        return sum(costs)
+    # @timer
+    # def cost_x_potential_q(self, x, sample):
+    #     roi = np.zeros(x.shape, dtype=bool)
+    #     for w in self.wells:
+    #         # build union of all the rois
+    #         roi += w.roi(x, sample)
+    #     x1 = x[roi]
+    #     moments = self.trap.eval_moments(x1)
+    #     # offset = cx.Variable((1,))
+    #     costs = []
+    #     for well in self.wells:
+    #         weight = well.weight(x1, sample)
+    #         # here I evaluate the moments function over x[roi], I'd slice them if they were sampled instead
+    #         pot = well.potential(x1, sample)
+    #         diff = (self.uopt[sample] @ moments - pot)
+    #         costs.append(
+    #             cx.sum_squares(cx.multiply(np.sqrt(weight), diff))
+    #         )
+    #     return sum(costs)
 
     @timer
-    def cost_x_potential_g(self, x, sample):
+    def cost_x_potential_g(self, sample):
         # g like gaussian
         # this does not make use of the ROI since the gaussian is anyway finite
-        moments = self.trap.eval_moments(x)
-        pot = np.sum([well.gaussian_potential(x, sample) for well in self.wells], axis=0)
+        moments = self.trap.moments
+        pot = np.sum([well.gaussian_potential(self.trap.x, sample) for well in self.wells], axis=0)
         # weight = np.sum([well.weight(x, sample) for well in self.wells], axis=0)
-        offset = cx.Variable((1,))
-        diff = (self.uopt[sample] @ moments - pot - offset) / _depth_scale
+        pot = pot + cx.Variable((1,))
+        diff = (self.uopt[sample] @ moments - pot) / _depth_scale
         # return cx.sum_squares(cx.multiply(np.sqrt(weight), diff))
         return cx.sum_squares(diff)
 
@@ -79,13 +79,14 @@ class Solver:
         for w in self.wells:
             # print("--- hessian cost one well")
             x = w.x0[sample]
-            # print(f"Hessian for well at {x}")
+            xi = np.argmin(abs(x - self.trap.x))
+            print(f"Hessian for well at {x} [{xi}]")
             target_h = w.hessian[sample]
             # with np.printoptions(suppress=True):
             #     print(curv_to_freq(target_h) * 1e-6)
-            h_dc = self.trap.eval_hessian(x)
+            h_dc = self.trap.hessians[..., xi]
             # print(h_dc.shape)
-            h_ps = self.trap.pseudo_hessian(x)
+            h_ps = self.trap.pseudo_hessian[..., xi]
 
             # test
             # if self.uopt.value is not None:
@@ -102,26 +103,26 @@ class Solver:
             )
         return sum(costs)
 
-    @timer
-    def cost_hessian_dc(self, sample):
-        costs = []
-        for w in self.wells:
-            # print("--- hessian cost one well")
-            x = w.x0[sample]
-            # print(f"Hessian DC for well at {x}")
-            target_h = w.hessian_dc[sample]
-            # with np.printoptions(suppress=True):
-            #     print(curv_to_freq(target_h) * 1e-6)
-            h_dc = self.trap.eval_hessian(x)
+    # @timer
+    # def cost_hessian_dc(self, sample):
+    #     costs = []
+    #     for w in self.wells:
+    #         # print("--- hessian cost one well")
+    #         x = w.x0[sample]
+    #         # print(f"Hessian DC for well at {x}")
+    #         target_h = w.hessian_dc[sample]
+    #         # with np.printoptions(suppress=True):
+    #         #     print(curv_to_freq(target_h) * 1e-6)
+    #         h_dc = self.trap.eval_hessian(x)
 
-            h_dc = h_dc.reshape(h_dc.shape[0], -1)
-            ww = (self.uopt[sample] @ h_dc - target_h.ravel()) / C * 1e-12
-            # print(ww.shape)
-            costs.append(
-                cx.sum_squares(ww)
-                # cx.sum_squares(cx.multiply(np.sqrt(h_weight), ww))
-            )
-        return sum(costs)
+    #         h_dc = h_dc.reshape(h_dc.shape[0], -1)
+    #         ww = (self.uopt[sample] @ h_dc - target_h.ravel()) / C * 1e-12
+    #         # print(ww.shape)
+    #         costs.append(
+    #             cx.sum_squares(ww)
+    #             # cx.sum_squares(cx.multiply(np.sqrt(h_weight), ww))
+    #         )
+    #     return sum(costs)
 
     @timer
     def cost_gradient(self, sample):
@@ -129,10 +130,11 @@ class Solver:
         for w in self.wells:
             print("--- gradient cost one well")
             x = w.x0[sample]
-            print(f"field gradient for well at {x}")
+            xi = np.argmin(abs(x - self.trap.x))
+            print(f"field gradient for well at {x} [{xi}]")
 
-            e_dc = self.trap.eval_gradient(x)  # (ele, 3)
-            e_ps = self.trap.pseudo_gradient(x)
+            e_dc = self.trap.gradients[..., xi]  # (ele, 3)
+            e_ps = self.trap.pseudo_gradient[..., xi]
 
             if self.uopt.value is not None:
                 with np.printoptions(suppress=True):
@@ -183,7 +185,7 @@ class Solver:
         cost_x = getattr(self, f"cost_x_potential_{method_x}")
         for j in range(self.samples):
             if rx:
-                cost += cx.multiply(rx, cost_x(x, j))
+                cost += cx.multiply(rx, cost_x(j))
             if rh:
                 cost += cx.multiply(rh, self.cost_hessian(j) + self.cost_gradient(j))
         if r0:

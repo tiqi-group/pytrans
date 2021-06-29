@@ -11,6 +11,7 @@ import numpy as np
 from pathlib import Path
 from functools import partial
 from .abstract_trap import AbstractTrap
+from pytrans.utils.timer import timer
 
 from .moments_data.cryo.analytic import potentialsDC, gradientsDC, hessiansDC, pseudoPotential
 
@@ -26,7 +27,53 @@ class CryoTrap(AbstractTrap):
     Cryo trap docstring
     """
 
-    num_electrodes = 20  # they come in pairs
+    num_electrodes = 20
+    default_V = 5
+    min_V = -10
+    max_V = 10
+    z0 = 5.16792281e-05
+    Vrf = 40
+    Omega_rf = 2 * np.pi * 34e6
+    freq_pseudo = 5.6075e6  # this actually depends on the other two
+
+    def __init__(self, x=None):
+        super().__init__()
+        self.transport_axis = self.x = np.arange(-1000, 1005, 5) * 1e-6 if x is None else x  # nice to have an alias
+        self.electrode_indices = list(range(1, self.num_electrodes + 1))
+        self.load_trap_axis_potential_data()
+
+    @timer
+    def load_trap_axis_potential_data(self):
+        self.moments = np.stack([
+            getattr(potentialsDC, f"E{index}")(self.transport_axis, 0, self.z0) for index in self.electrode_indices
+        ], axis=0)  # (num_electrodes, len(x))
+        self.gradients = np.stack([
+            getattr(gradientsDC, f"E{index}")(self.transport_axis, 0, self.z0) for index in self.electrode_indices
+        ], axis=0)  # (num_electrodes, 3, len(x))
+        self.hessians = np.stack([
+            getattr(hessiansDC, f"E{index}")(self.transport_axis, 0, self.z0).reshape(9, -1) for index in self.electrode_indices
+        ], axis=0)  # (num_electrodes, 9, len(x))
+
+        self.pseudo_potential = pseudoPotential.ps0(self.transport_axis, 0, self.z0, self.Vrf, self.Omega_rf)  # (len(x),)
+        self.pseudo_gradient = pseudoPotential.ps1(self.transport_axis, 0, self.z0, self.Vrf, self.Omega_rf)  # (3, len(x))
+        self.pseudo_hessian = pseudoPotential.ps2(self.transport_axis, 0, self.z0, self.Vrf, self.Omega_rf).reshape(9, -1)  # (9, len(x))
+
+    def calculate_voltage(self, axial, split, tilt, x_comp=0, y_comp=0, z_comp=0):  # , xCubic, vMesh, vGND, xyTilt=0, xzTilt=0):
+        # Array of voltages. 20 electrodes
+        # voltages = (axial, split, tilt, x_comp, y_comp, z_comp) @ vb0
+        v0 = np.asarray([axial, split, tilt]) * 1e-6
+        v0 = np.sign(v0) * v0**2
+        v0 = np.r_[v0, x_comp, y_comp, z_comp]
+        voltages = v0 @ vb0
+        return voltages
+
+
+class CryoTrapFunctions(AbstractTrap):
+    """
+    Cryo trap docstring
+    """
+
+    num_electrodes = 20
     default_V = 5
     min_V = -10
     max_V = 10

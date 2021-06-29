@@ -20,6 +20,7 @@ from pytrans.solver import Solver
 
 plt.rcParams['toolbar'] = 'toolmanager'
 
+trap = Trap()
 
 x0 = 250 * um
 depth = 0.1
@@ -27,14 +28,14 @@ axial = 1.3 * MHz
 split = -2 * MHz
 tilt = -3 * MHz
 
-samples = 51
-x0 = np.linspace(0, x0, samples)
+wh = np.where((trap.x >= 0) & (trap.x <= x0))
+x0 = trap.x[wh]
+samples = len(x0)
 d1 = np.linspace(0, depth, samples)
 
-trap = Trap()
 wells = [
     PotentialWell(x0, depth, axial, split, tilt, freq_pseudo=trap.freq_pseudo, scale_roi=1),
-    PotentialWell(0, d1, axial, split, tilt, freq_pseudo=trap.freq_pseudo, scale_roi=1),
+    # PotentialWell(0, d1, axial, split, tilt, freq_pseudo=trap.freq_pseudo, scale_roi=1),
 ]
 n_wells = len(wells)
 solver = Solver(trap, wells)
@@ -45,7 +46,7 @@ solver = Solver(trap, wells)
 #                   0.08086666, - 0.02276043, ]).reshape(samples, -1)
 
 
-voltages = solver.solver(rx=1, rh=0.1, r0=0,
+voltages = solver.solver(rx=1, rh=1., r0=0,
                          rd=1,
                          method_x='g',
                          verbose=True)
@@ -70,7 +71,7 @@ for j, vv in enumerate(vvs):
     _axes[j][3].set_title(title)
 
 x = trap.transport_axis
-moments = trap.eval_moments(x)
+moments = trap.moments
 
 
 fig, (ax, ax1) = plt.subplots(1, 2, figsize=(12, 4))
@@ -96,5 +97,12 @@ for w in wells:
     ppw += _pw
 ax1.imshow(ppw)
 ax1.set_aspect('auto')
+
+fig, ax = plt.subplots()
+l, = ax.plot(x * 1e6, pp[0])
+
+for j in range(len(pp) * 10):
+    l.set_ydata(pp[j % len(pp)])
+    plt.pause(0.05)
 
 plt.show()

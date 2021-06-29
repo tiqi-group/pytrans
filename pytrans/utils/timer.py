@@ -15,11 +15,12 @@ logger = logging.getLogger(__name__)
 
 def timer(method):
     def timed(*args, **kwargs):
+        print(f"Exec {method.__name__}")
         ts = time.time()
         result = method(*args, **kwargs)
         te = time.time()
         elapsed = te - ts
-        print(f"Exec {method.__name__} elapsed time: {elapsed * 1e3:.3f} ms")
+        print(f"- {method.__name__} elapsed time: {elapsed * 1e3:.3f} ms")
         # logger.info(f"Exec {method.__name__} elapsed time: {elapsed * 1e3:.3f} ms")
         # if 'log_time' in kw:
         #     name = kw.get('log_name', method.__name__.upper())
