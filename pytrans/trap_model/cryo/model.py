@@ -10,15 +10,15 @@ Cryo trap model
 import numpy as np
 from pathlib import Path
 from functools import partial
-from .abstract_trap import AbstractTrap
+from ..abstract_trap import AbstractTrap
 from pytrans.utils.timer import timer
 
-from .moments_data.cryo.analytic import potentialsDC, gradientsDC, hessiansDC, pseudoPotential
+from .data.analytic import potentialsDC, gradientsDC, hessiansDC, pseudoPotential
 
 import logging
 logger = logging.getLogger(__name__)
 
-filename_basis = Path(__file__).resolve().parent / 'moments_data/cryo/vbasis_x0.npy'
+filename_basis = Path(__file__).resolve().parent / 'data/vbasis_x0.npy'
 vb0 = np.load(filename_basis)
 
 
@@ -35,6 +35,8 @@ class CryoTrap(AbstractTrap):
     Vrf = 40
     Omega_rf = 2 * np.pi * 34e6
     freq_pseudo = 5.6075e6  # this actually depends on the other two
+    x: np.typing.ArrayLike
+    moments: np.typing.ArrayLike
 
     def __init__(self, x=None):
         super().__init__()
