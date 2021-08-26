@@ -40,26 +40,23 @@ class Solver:
         self.samples = wells[0].samples
         self.uopt = cx.Variable(shape=(self.samples, trap.num_electrodes), name="voltages")
         # self.offset = cx.Variable(shape=(self.samples, 1), name="offset")
-    
-    # @timer
-    # def cost_x_potential_q(self, x, sample):
-    #     roi = np.zeros(x.shape, dtype=bool)
-    #     for w in self.wells:
-    #         # build union of all the rois
-    #         roi += w.roi(x, sample)
-    #     x1 = x[roi]
-    #     moments = self.trap.eval_moments(x1)
-    #     # offset = cx.Variable((1,))
-    #     costs = []
-    #     for well in self.wells:
-    #         weight = well.weight(x1, sample)
-    #         # here I evaluate the moments function over x[roi], I'd slice them if they were sampled instead
-    #         pot = well.potential(x1, sample)
-    #         diff = (self.uopt[sample] @ moments - pot)
-    #         costs.append(
-    #             cx.sum_squares(cx.multiply(np.sqrt(weight), diff))
-    #         )
-    #     return sum(costs)
+
+    @timer
+    def cost_x_potential_q(self, sample):
+        x = self.trap.x
+        # offset = cx.Variable((1,))
+        costs = []
+        for well in self.wells:
+            roi = well.roi(x, sample)
+            x1 = x[roi]
+            weight = well.weight(x1, sample)
+            pot = well.potential(x1, sample)
+            moments = self.trap.moments[:, roi]
+            diff = (self.uopt[sample] @ moments - pot)
+            costs.append(
+                cx.sum_squares(cx.multiply(np.sqrt(weight), diff))
+            )
+        return sum(costs)
 
     @timer
     def cost_x_potential_g(self, sample):
