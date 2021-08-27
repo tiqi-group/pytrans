@@ -12,8 +12,8 @@ import numpy as np
 
 from .cryo_plotting import plot_3dpot, plot3d_make_layout
 from .cryo_solver import tot_potential_ps, tot_hessian_ps
-from pytrans.conversion import curv_to_freq
-
+from pytrans.conversion import curv_to_freq as _curv_to_freq
+from pytrans.constants import ion_masses, elementary_charge
 from .timer import timer
 
 from scipy.optimize import minimize as _minimize
@@ -21,6 +21,13 @@ from matplotlib import patches as mpatches
 from matplotlib import transforms
 
 __roi = (400, 30, 30)
+
+mass = ion_masses["Ca"]
+charge = elementary_charge
+
+
+def curv_to_freq(c):
+    return _curv_to_freq(c, mass, charge)
 
 
 @timer

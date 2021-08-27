@@ -15,6 +15,16 @@ logger = logging.getLogger(__name__)
 
 
 class AbstractTrap(ABC):
+    """ I have to define here:
+    - transport axis (alias to x)
+    - moments and their derivatives
+    - pseudo_potential and its derivatives
+    - num_electrodes
+    - electrode mapping
+    - electrode_constrains (min, max, slew rate)
+    - filters?
+    """
+    num_electrodes: int
 
     @property
     @abstractmethod

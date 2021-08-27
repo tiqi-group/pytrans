@@ -1,6 +1,6 @@
 #! python3
 
-from .abstract_trap import AbstractTrap
+from ..abstract_trap import AbstractTrap
 import numpy
 import os
 import scipy.io as sio

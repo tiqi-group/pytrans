@@ -35,8 +35,8 @@ class CryoTrap(AbstractTrap):
     Vrf = 40
     Omega_rf = 2 * np.pi * 34e6
     freq_pseudo = 5.6075e6  # this actually depends on the other two
-    x: np.typing.ArrayLike
-    moments: np.typing.ArrayLike
+    x: np.typing.ArrayLike = None
+    moments: np.typing.ArrayLike = None
 
     def __init__(self, x=None):
         super().__init__()
