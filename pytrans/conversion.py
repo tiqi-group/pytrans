@@ -14,12 +14,12 @@ import numpy as np
 
 
 def curv_to_freq(curv, mass, charge):
-    C = mass / charge * (2 * np.pi)**2
+    C = (2 * np.pi)**2 * mass / charge
     return np.sign(curv) * np.sqrt(np.abs(curv) / C)
 
 
 def freq_to_curv(freq, mass, charge):
-    C = mass / charge * (2 * np.pi)**2
+    C = (2 * np.pi)**2 * mass / charge
     return C * np.sign(freq) * freq**2
 
 
@@ -41,7 +41,7 @@ def get_hessian(axial, split, tilt, freq_pseudo, mass, charge):
 def get_hessian_dc(axial, split, mass, charge):
     # force theta = 45, split is approximate
     v_ax = freq_to_curv(axial, mass, charge)
-    b = mass / charge * (2 * np.pi)**2 * split * 5.5e6
+    b = (2 * np.pi)**2 * mass / charge * split * 5.5e6
     target_hessian = np.stack([
         [[_v_ax, 0, 0],
          [0, -_v_ax / 2, _b],

@@ -10,7 +10,7 @@ Module docstring
 from abc import ABC, abstractmethod
 from typing import Union, List
 from .trap_model.abstract_trap import AbstractTrap
-from .potential_well import PotentialWell
+from .potential_well import PotentialWell, MultiplePotentialWell
 import numpy as np
 import cvxpy as cx
 import operator
@@ -30,9 +30,14 @@ constraint_operator_mapping = {
 
 
 class Objective(ABC):
-    weight: float = 1.
     value: np.typing.ArrayLike = 0
+    weight: float = 1.
     constraint_type = None
+
+    def __init__(self, value, weight=1., constraint_type=None):
+        self.value = value
+        self.weight = weight
+        self.constraint_type = constraint_type
 
     @abstractmethod
     def objective(self, trap: AbstractTrap, voltages: cx.Variable, electrode_indices: Union[slice, List[int]] = slice(None)):
@@ -42,7 +47,6 @@ class Objective(ABC):
 
     def constraint(self, trap: AbstractTrap, voltages: cx.Variable):
         """constrain"""
-        print(voltages, self.constraint_type, self.value)
         try:
             yield constraint_operator_mapping[self.constraint_type](voltages, self.value)  # type: ignore
         except KeyError:
@@ -76,12 +80,12 @@ class CurvatureObjective(Objective):
         yield cost
 
 
-class PotentialWellObjective(Objective):
+class GridPotentialObjective(Objective):
 
-    def __init__(self, well: PotentialWell, ignore_offset=True):
+    def __init__(self, well: Union[PotentialWell, MultiplePotentialWell], optimize_offset=False):
         self.well = well
-        self.extra_offset = cx.Variable((1,)) if ignore_offset else None
-        
+        self.extra_offset = cx.Variable((1,)) if optimize_offset else None
+
     def objective(self, trap, voltages, electrode_indices=slice(None)):
         roi = self.well.roi(trap.x)
         x = trap.x[roi]
@@ -89,8 +93,7 @@ class PotentialWellObjective(Objective):
         value = self.well.potential(x)
         if self.extra_offset:
             value = value + self.extra_offset
-        print(voltages, np.where(roi)[0].shape)
         moments = trap.moments[electrode_indices][:, roi]
-        print(voltages.shape, moments.shape)
         diff = (voltages @ moments - value)
-        yield cx.sum_squares(cx.multiply(np.sqrt(weight), diff))
+        cost = cx.multiply(self.weight, cx.sum_squares(cx.multiply(np.sqrt(weight), diff)))
+        yield cost
