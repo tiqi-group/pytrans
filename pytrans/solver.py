@@ -40,10 +40,13 @@ def solver(trap: AbstractTrap,
 
     for voltages, ci in zip(waveform, objectives):
         for cj in ci:
-            costs.extend(cj.objective(trap, voltages, electrode_indices))
+            if cj.constraint_type is None:
+                costs.extend(cj.objective(trap, voltages, electrode_indices))
+            else:
+                cstr.extend(cj.constraint(trap, voltages, electrode_indices))
 
     for c in constraints:
-        cstr.extend(c.constraint(trap, waveform))
+        cstr.extend(c.constraint(trap, waveform, electrode_indices))
 
     cost = sum(costs)
     objective = cx.Minimize(cost)
@@ -52,6 +55,6 @@ def solver(trap: AbstractTrap,
 
     final_costs = []
     for voltages, ci in zip(waveform, objectives):
-        final_costs.append({cj.__class__.__name__: [c.value for c in cj.objective(trap, voltages, electrode_indices)] for cj in ci})
+        final_costs.append({f"{j}_{cj.__class__.__name__}": [c.value for c in cj.objective(trap, voltages, electrode_indices)] for j, cj in enumerate(ci)})
 
     return waveform, final_costs

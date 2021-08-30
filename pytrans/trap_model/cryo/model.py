@@ -11,15 +11,19 @@ import numpy as np
 from pathlib import Path
 from functools import partial
 from ..abstract_trap import AbstractTrap
+
 from pytrans.utils.timer import timer
+from pytrans.utils.indexing import get_derivative
 
 from .data.analytic import potentialsDC, gradientsDC, hessiansDC, pseudoPotential
+from .data.calculate_voltage import calculate_voltage as _calculate_voltage
 
 import logging
 logger = logging.getLogger(__name__)
 
-filename_basis = Path(__file__).resolve().parent / 'data/vbasis_x0.npy'
-vb0 = np.load(filename_basis)
+basis_filename = Path(__file__).resolve().parent / 'data/vbasis_x0.npy'
+cache_filename = Path(__file__).resolve().parent / 'data/cached_data.npz'
+vb0 = np.load(basis_filename)
 
 
 class CryoTrap(AbstractTrap):
@@ -35,38 +39,71 @@ class CryoTrap(AbstractTrap):
     Vrf = 40
     Omega_rf = 2 * np.pi * 34e6
     freq_pseudo = 5.6075e6  # this actually depends on the other two
-    x: np.typing.ArrayLike = None
-    moments: np.typing.ArrayLike = None
 
     def __init__(self, x=None):
         super().__init__()
-        self.transport_axis = self.x = np.arange(-1000, 1005, 5) * 1e-6 if x is None else x  # nice to have an alias
+        self._x = np.arange(-1000, 1005, 5) * 1e-6 if x is None else x  # nice to have an alias
         self.electrode_indices = list(range(1, self.num_electrodes + 1))
         self.load_trap_axis_potential_data()
 
+    @property
+    def x(self):
+        return self._x
+
+    @property
+    def transport_axis(self):
+        return self._x
+
+    @property
+    def moments(self):
+        return np.squeeze(self.dc_potential(derivatives=0))  # (num_electrodes, len(x))
+
     @timer
     def load_trap_axis_potential_data(self):
-        self.moments = np.stack([
-            getattr(potentialsDC, f"E{index}")(self.transport_axis, 0, self.z0) for index in self.electrode_indices
-        ], axis=0)  # (num_electrodes, len(x))
-        self.gradients = np.stack([
-            getattr(gradientsDC, f"E{index}")(self.transport_axis, 0, self.z0) for index in self.electrode_indices
-        ], axis=0)  # (num_electrodes, 3, len(x))
-        self.hessians = np.stack([
-            getattr(hessiansDC, f"E{index}")(self.transport_axis, 0, self.z0).reshape(9, -1) for index in self.electrode_indices
-        ], axis=0)  # (num_electrodes, 9, len(x))
+        if cache_filename.exists(): 
+            A = np.load(cache_filename)
+            if np.array_equal(A['x'], self.x):
+                self._dc_potential = A['dc']
+                self._pseudo_potential = A['pseudo']
+                print("Load from cache")
+                return
+        self._load_data()
 
-        self.pseudo_potential = pseudoPotential.ps0(self.transport_axis, 0, self.z0, self.Vrf, self.Omega_rf)  # (len(x),)
-        self.pseudo_gradient = pseudoPotential.ps1(self.transport_axis, 0, self.z0, self.Vrf, self.Omega_rf)  # (3, len(x))
-        self.pseudo_hessian = pseudoPotential.ps2(self.transport_axis, 0, self.z0, self.Vrf, self.Omega_rf).reshape(9, -1)  # (9, len(x))
+    def _load_data(self):
+        data = [
+            [
+                getattr(potentialsDC, f"E{index}")(self.x, 0, self.z0)[np.newaxis, :],    # (1, len(x))
+                getattr(gradientsDC, f"E{index}")(self.x, 0, self.z0),                    # (3, len(x))
+                getattr(hessiansDC, f"E{index}")(self.x, 0, self.z0)[np.triu_indices(3)]  # (6, len(x))
+            ]
+            for index in self.electrode_indices
+        ]
+        self._dc_potential = np.stack([np.concatenate(d, axis=0) for d in data], axis=0)  # (num_electrodes, 10, len(x))
+
+        data = [
+            pseudoPotential.ps0(self.x, 0, self.z0, self.Vrf, self.Omega_rf)[np.newaxis, :],        # (1, len(x))
+            pseudoPotential.ps1(self.x, 0, self.z0, self.Vrf, self.Omega_rf),                       # (3, len(x))
+            pseudoPotential.ps2(self.x, 0, self.z0, self.Vrf, self.Omega_rf)[np.triu_indices(3)],   # (6, len(x))
+        ]
+        self._pseudo_potential = np.concatenate(data, axis=0)  # (10, len(x))
+        print("Save to cache")
+        np.savez(cache_filename, x=self.x, dc=self._dc_potential, pseudo=self._pseudo_potential)
+
+    def dc_potential(self, derivatives="", electrode_indices=slice(None)):
+        derivative_indices = get_derivative(derivatives)
+        return self._dc_potential[electrode_indices][:, derivative_indices, :]
+
+    def pseudo_potential(self, derivatives=""):
+        derivative_indices = get_derivative(derivatives)
+        return self._pseudo_potential[derivative_indices, :]
 
     def calculate_voltage(self, axial, split, tilt, x_comp=0, y_comp=0, z_comp=0):  # , xCubic, vMesh, vGND, xyTilt=0, xzTilt=0):
         # Array of voltages. 20 electrodes
-        # voltages = (axial, split, tilt, x_comp, y_comp, z_comp) @ vb0
-        v0 = np.asarray([axial, split, tilt]) * 1e-6
-        v0 = np.sign(v0) * v0**2
-        v0 = np.r_[v0, x_comp, y_comp, z_comp]
-        voltages = v0 @ vb0
+        # v0 = np.asarray([axial, split, tilt]) * 1e-6
+        # v0 = np.sign(v0) * v0**2
+        # v0 = np.r_[v0, x_comp, y_comp, z_comp]
+        # voltages = v0 @ vb0
+        voltages = _calculate_voltage(axial * 1e-6, tilt * 1e-6, x_comp, y_comp, z_comp)
         return voltages
 
 

@@ -71,6 +71,7 @@ def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf, axes=None, roi=None):
 
     with np.printoptions(suppress=True):
         print('Hessian')
+        print(H)
         print(curv_to_freq(H) * 1e-6)
         print('Eigenvalues [MHz]')
         print(freqs)

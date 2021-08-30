@@ -4,12 +4,18 @@ import numpy as np
 def vSet_axial(curv):
     # Voltage set creating 1 MHz axial frequency
     # volt_axial = [-0.25685, 0, 0, 0, 0, 0.34665, 0.34665, -1.6753, 0.34665, 0.34665,
-                  # -0.25685, 0, 0, 0, 0, 0.34665, 0.34665, -1.6753, 0.34665, 0.34665,
-                  # 0, 0, 0, 0, 0]
-                  
-    volt_axial = [-0.26442, 0, 0, 0, 0, 0, 0, 0.61973, -1.9491, 0.61973, 
-                  -0.26442, 0, 0, 0, 0, 0, 0, 0.61973, -1.9491, 0.61973,
+    # -0.25685, 0, 0, 0, 0, 0.34665, 0.34665, -1.6753, 0.34665, 0.34665,
+    # 0, 0, 0, 0, 0]
+
+    # 3 electrodes, zone 2
+    volt_axial = [-0.26442, 0, 0, 0, 0.61973, -1.9491, 0.61973, 0, 0, 0,
+                  -0.26442, 0, 0, 0, 0.61973, -1.9491, 0.61973, 0, 0, 0,
                   0, 0, 0, 0, 0]
+
+    # 3 electrodes, zone 3
+    # volt_axial = [-0.26442, 0, 0, 0, 0, 0, 0, 0.61973, -1.9491, 0.61973,
+    #               -0.26442, 0, 0, 0, 0, 0, 0, 0.61973, -1.9491, 0.61973,
+    #               0, 0, 0, 0, 0]
 
     assert(len(volt_axial) == 25)
     return np.sign(curv) * curv**2 * np.array(volt_axial)
@@ -53,6 +59,8 @@ def vSet_zComp(zComp):
     return -zComp * np.array(volt_zComp)
 
 # dont' worry
+
+
 def vSet_xCubic(xCubic):
     # Voltage set creating 1 kHz^2/um cubic potential along x
     volt_xCubic = [0, 0, 0, 0, 0, -0.000492, 0.000189, 0, -0.000189, 0.000492,
@@ -119,6 +127,7 @@ def _calculate_voltage(curv, tilt, xComp, yComp, zComp, xCubic, vMesh, vGND, xyT
 
     return voltages
 
+
 def calculate_voltage(curv, tilt, xComp, yComp, zComp):
     voltages = np.zeros(25)
     # Sum up all contributions
@@ -127,6 +136,6 @@ def calculate_voltage(curv, tilt, xComp, yComp, zComp):
                 + vSet_xComp(xComp)
                 + vSet_yComp(yComp)
                 + vSet_zComp(zComp)
-               )
+                )
 
     return voltages[:20]

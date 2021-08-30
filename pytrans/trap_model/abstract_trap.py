@@ -7,6 +7,7 @@
 Module docstring
 
 """
+from typing import Union, List
 from numpy.typing import ArrayLike
 from abc import ABC, abstractmethod
 
@@ -32,8 +33,12 @@ class AbstractTrap(ABC):
         '''transport axis'''
         pass
 
-    @property
     @abstractmethod
-    def moments(self) -> ArrayLike:
-        '''trap moments: shape (n_electrodes, len(x))'''
+    def dc_potential(self, derivatives: Union[int, str, List[str]], electrode_indices: Union[slice, List[int], ArrayLike]) -> ArrayLike:
+        '''dc potentials: shape (n_electrodes, derivative, len(x))'''
+        pass
+
+    @abstractmethod
+    def pseudo_potential(self, derivatives: Union[int, str, List[str]]) -> ArrayLike:
+        '''pseudo potential: shape (derivative, len(x))'''
         pass
