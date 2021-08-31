@@ -13,6 +13,8 @@ from collections import defaultdict
 _derivative_names = [[""]] + [s.split() for s in [
     "x y z",
     "xx xy xz yy yz zz",
+    "xxx",
+    "xxxx"
 ]]
 
 _name_to_index_map = {}

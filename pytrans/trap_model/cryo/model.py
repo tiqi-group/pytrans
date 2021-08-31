@@ -9,13 +9,13 @@ Cryo trap model
 
 import numpy as np
 from pathlib import Path
-from functools import partial
-from ..abstract_trap import AbstractTrap
+from math import factorial
 
+from ..abstract_trap import AbstractTrap
 from pytrans.utils.timer import timer
 from pytrans.utils.indexing import get_derivative
 
-from .data.analytic import potentialsDC, gradientsDC, hessiansDC, pseudoPotential
+from .data.analytic import potentialsDC, gradientsDC, hessiansDC, third_order_axial_DC, fourth_order_axial_DC, pseudoPotential
 from .data.calculate_voltage import calculate_voltage as _calculate_voltage
 
 import logging
@@ -40,13 +40,13 @@ class CryoTrap(AbstractTrap):
     Omega_rf = 2 * np.pi * 34e6
     freq_pseudo = 5.6075e6  # this actually depends on the other two
 
-    def __init__(self, x=None, selected_electrodes=None):
+    def __init__(self, x=None, selected_electrodes=None, use_cache=True):
         super().__init__()
-        self._x = np.arange(-1000, 1005, 5) * 1e-6 if x is None else x  # nice to have an alias
+        self._x = np.arange(-1000, 1005, 5) * 1e-6 if x is None else x
         self.selected_electrodes = slice(None) if selected_electrodes is None else selected_electrodes
         self._electrode_indices = np.asarray(range(1, self._num_electrodes + 1))
         self._electrode_x = np.asarray([(n - 6) * 125e-6 for n in range(1, 11)] * 2)
-        self.load_trap_axis_potential_data()
+        self.load_trap_axis_potential_data(use_cache)
 
     @property
     def x(self):
@@ -55,10 +55,6 @@ class CryoTrap(AbstractTrap):
     @property
     def transport_axis(self):
         return self._x
-
-    @property
-    def moments(self):
-        return np.squeeze(self.dc_potential(derivatives=0))  # (num_electrodes, len(x))
 
     @property
     def electrode_indices(self):
@@ -73,8 +69,8 @@ class CryoTrap(AbstractTrap):
         return len(self.electrode_indices)
 
     @timer
-    def load_trap_axis_potential_data(self):
-        if cache_filename.exists():
+    def load_trap_axis_potential_data(self, use_cache):
+        if use_cache and cache_filename.exists():
             A = np.load(cache_filename)
             if np.array_equal(A['x'], self.x):
                 self._dc_potential = A['dc']
@@ -86,13 +82,15 @@ class CryoTrap(AbstractTrap):
     def _load_data(self):
         data = [
             [
-                getattr(potentialsDC, f"E{index}")(self.x, 0, self.z0)[np.newaxis, :],    # (1, len(x))
-                getattr(gradientsDC, f"E{index}")(self.x, 0, self.z0),                    # (3, len(x))
-                getattr(hessiansDC, f"E{index}")(self.x, 0, self.z0)[np.triu_indices(3)]  # (6, len(x))
+                getattr(potentialsDC, f"E{index}")(self.x, 0, self.z0)[np.newaxis, :],           # (1, len(x))
+                getattr(gradientsDC, f"E{index}")(self.x, 0, self.z0),                           # (3, len(x))
+                getattr(hessiansDC, f"E{index}")(self.x, 0, self.z0)[np.triu_indices(3)],        # (6, len(x))
+                getattr(third_order_axial_DC, f"E{index}")(self.x, 0, self.z0)[np.newaxis, :],   # (1, len(x))
+                getattr(fourth_order_axial_DC, f"E{index}")(self.x, 0, self.z0)[np.newaxis, :],  # (1, len(x))
             ]
             for index in self._electrode_indices
         ]
-        self._dc_potential = np.stack([np.concatenate(d, axis=0) for d in data], axis=0)  # (num_electrodes, 10, len(x))
+        self._dc_potential = np.stack([np.concatenate(d, axis=0) for d in data], axis=0)  # (num_electrodes, 12, len(x))
 
         data = [
             pseudoPotential.ps0(self.x, 0, self.z0, self.Vrf, self.Omega_rf)[np.newaxis, :],        # (1, len(x))
@@ -115,85 +113,23 @@ class CryoTrap(AbstractTrap):
         assert len(voltages) == self._num_electrodes, "Need all voltages here"
         return voltages @ self._dc_potential[:, 0, :] + self._pseudo_potential[0, :]
 
-    def from_static_params(self, axial, split, tilt, x_comp=0, y_comp=0, z_comp=0):  # , xCubic, vMesh, vGND, xyTilt=0, xzTilt=0):
+    @property
+    def moments(self):
+        return np.squeeze(self.dc_potential(derivatives=0))  # (num_electrodes, len(x))
+
+    @property
+    def taylor_moments(self):
+        f = np.asarray([1 / factorial(j) for j in range(5)]).reshape(1, -1, 1)
+        derivatives = [''.join(['x'] * j) for j in range(5)]
+        taylor = f * self.dc_potential(derivatives)
+        return taylor
+
+    def from_static_params(self, axial, split, tilt, x_comp=0, y_comp=0, z_comp=0, zone=2):  # , xCubic, vMesh, vGND, xyTilt=0, xzTilt=0):
         # Array of voltages. 20 electrodes
         # v0 = np.asarray([axial, split, tilt]) * 1e-6
         # v0 = np.sign(v0) * v0**2
         # v0 = np.r_[v0, x_comp, y_comp, z_comp]
         # voltages = v0 @ vb0
-        voltages = _calculate_voltage(axial * 1e-6, tilt * 1e-6, x_comp, y_comp, z_comp)
+        voltages = _calculate_voltage(axial * 1e-6, tilt * 1e-6, x_comp, y_comp, z_comp, zone)
         potential = voltages @ self._dc_potential[:, 0, :]
         return voltages, potential
-
-
-class CryoTrapFunctions(AbstractTrap):
-    """
-    Cryo trap docstring
-    """
-
-    num_electrodes = 20
-    default_V = 5
-    min_V = -10
-    max_V = 10
-    z0 = 5.16792281e-05
-    Vrf = 40
-    Omega_rf = 2 * np.pi * 34e6
-    freq_pseudo = 5.6075e6  # this actually depends on the other two
-
-    def __init__(self):
-        super().__init__()
-        self.load_trap_axis_potential_data()
-
-    def load_trap_axis_potential_data(self):
-        self.electrode_indices = list(range(1, self.num_electrodes + 1))
-        self.transport_axis = np.linspace(-1000, 1000, 2001) * 1e-6  # dummy, you don't actually need it with the functions
-        self.moments = [partial(self._electrode_potential, index=index) for index in self.electrode_indices]
-        self.gradients = [partial(self._electrode_gradient, index=index) for index in self.electrode_indices]
-        self.hessians = [partial(self._electrode_hessian, index=index) for index in self.electrode_indices]
-
-    def _electrode_potential(self, x, index):
-        return getattr(potentialsDC, f"E{index}")(x, 0, self.z0)
-
-    def _electrode_gradient(self, x, index):
-        return getattr(gradientsDC, f"E{index}")(x, 0, self.z0)
-
-    def _electrode_hessian(self, x, index):
-        return getattr(hessiansDC, f"E{index}")(x, 0, self.z0)
-
-    def eval_moments(self, x):
-        return np.stack([m(x) for m in self.moments], axis=0)  # (num_electrodes, len(x))
-
-    def eval_gradient(self, x):
-        return np.stack([e(x) for e in self.gradients], axis=0)  # (num_electrodes, 3)
-
-    def eval_hessian(self, x):
-        return np.stack([h(x) for h in self.hessians], axis=0)  # (num_electrodes, 3, 3)
-
-    def pseudo_potential(self, x):
-        return pseudoPotential.ps0(x, 0, self.z0, self.Vrf, self.Omega_rf)
-
-    def pseudo_gradient(self, x):
-        return pseudoPotential.ps1(x, 0, self.z0, self.Vrf, self.Omega_rf)
-
-    def pseudo_hessian(self, x):
-        return pseudoPotential.ps2(x, 0, self.z0, self.Vrf, self.Omega_rf)
-
-    def calculate_voltage(self, axial, split, tilt, x_comp=0, y_comp=0, z_comp=0):  # , xCubic, vMesh, vGND, xyTilt=0, xzTilt=0):
-        # Array of voltages. 20 electrodes
-        # voltages = (axial, split, tilt, x_comp, y_comp, z_comp) @ vb0
-        v0 = np.asarray([axial, split, tilt]) * 1e-6
-        v0 = np.sign(v0) * v0**2
-        v0 = np.r_[v0, x_comp, y_comp, z_comp]
-        voltages = v0 @ vb0
-        return voltages
-
-    # def _load_trap_axis_potential_data_from_comsol(self):
-    #     logger.info('Loading cryo trap data')
-    #     self.moments = []
-    #     for j in range(10):
-    #         filepath = self.data_path / f'Axial2QubitTrap_xline_DC{j + 1}.csv'
-    #         x, v = np.loadtxt(filepath, comments='%', delimiter=',', unpack=True)
-    #         self.moments.append(v)
-    #     self.moments.extend(self.moments)
-    #     self.transport_axis = -x * um  # flip comsol reference frame and make it SI
-    #     self.moments = np.stack(self.moments, axis=0)  # shape = (num_electrodes, len(x))

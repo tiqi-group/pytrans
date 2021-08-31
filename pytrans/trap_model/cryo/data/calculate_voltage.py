@@ -1,6 +1,39 @@
 import numpy as np
 
 
+_basis = []
+
+
+def _populate_basis():
+    M = np.asarray([
+        [-0.26442, 0.61973, -1.9491, 0.61973],      # axial
+        [0.11526, -0.28313, 0.013373, -0.28313],    # tilt
+        [0, -0.025833, 0, 0.025833],                # x
+        [0, 0.06717, 0.06717, 0.06717],             # y
+        [0.018312, 0.11655, 0.042762, 0.11655]      # z
+    ])
+
+    sign = np.asarray([1, -1, 1, -1, 1]).reshape(-1, 1)
+    M = np.concatenate([M, sign * M], axis=1)
+    for zone in 1, 2, 3:
+        B = np.zeros((5, 20))
+        B[:, [0, 10]] = M[:, [0, 4]]
+        q = 3 * zone - 2
+        B[:, q:q + 3] = M[:, 1:4]
+        B[:, q + 10:q + 13] = M[:, 5:8]
+        _basis.append(B)
+
+
+_populate_basis()
+
+
+def calculate_voltage(curv, tilt, xComp, yComp, zComp, zone=2):
+    assert zone in [1, 2, 3]
+    x = [np.sign(curv) * curv**2, tilt, xComp, yComp, zComp]
+    voltages = x @ _basis[zone - 1]
+    return voltages
+
+
 def vSet_axial(curv):
     # Voltage set creating 1 MHz axial frequency
     # volt_axial = [-0.25685, 0, 0, 0, 0, 0.34665, 0.34665, -1.6753, 0.34665, 0.34665,
@@ -128,7 +161,7 @@ def _calculate_voltage(curv, tilt, xComp, yComp, zComp, xCubic, vMesh, vGND, xyT
     return voltages
 
 
-def calculate_voltage(curv, tilt, xComp, yComp, zComp):
+def _calculate_voltage1(curv, tilt, xComp, yComp, zComp):
     voltages = np.zeros(25)
     # Sum up all contributions
     voltages = (voltages + vSet_axial(curv)
@@ -139,3 +172,11 @@ def calculate_voltage(curv, tilt, xComp, yComp, zComp):
                 )
 
     return voltages[:20]
+
+
+if __name__ == '__main__':
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots()
+    for zone in [1, 2, 3]:
+        ax.plot(calculate_voltage(1, 0, 0, 0, 0, zone))
+    plt.show()
