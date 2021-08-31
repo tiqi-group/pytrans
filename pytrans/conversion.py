@@ -9,16 +9,53 @@ Module docstring
 '''
 
 import numpy as np
-# mass = mass_Ca * atomic_mass
-# E0 = C * MHz**2 * um  # E field that shifts x by 1 um
+
+
+def field_to_shift(E, mass, charge):
+    """
+    Shift in position produced by the electric field E
+    in a potential well of 1 MHz
+
+    Parameters
+        E: electric field [V/m]
+        mass: mass of the ion [kg]
+        charge: charge if the ion [C]
+
+    Returns
+        shift: position shift [m]
+    """
+    curv = (2 * np.pi * 1e6)**2 * mass / charge
+    return E / curv
 
 
 def curv_to_freq(curv, mass, charge):
+    """
+    Secular frequency for the given curvature and ion
+
+    Parameters
+        curv: potential curvature [V/m^2]
+        mass: mass of the ion [kg]
+        charge: charge if the ion [C]
+
+    Returns
+        freq: secular frequency [Hz]
+    """
     C = (2 * np.pi)**2 * mass / charge
     return np.sign(curv) * np.sqrt(np.abs(curv) / C)
 
 
 def freq_to_curv(freq, mass, charge):
+    """
+    Curvature corresponding to the given secular frequency and ion
+
+    Parameters
+        freq: secular frequency [Hz]
+        mass: mass of the ion [kg]
+        charge: charge if the ion [C]
+
+    Returns
+        curv: potential curvature [V/m^2]
+    """
     C = (2 * np.pi)**2 * mass / charge
     return C * np.sign(freq) * freq**2
 

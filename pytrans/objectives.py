@@ -8,14 +8,14 @@
 Module docstring
 '''
 from abc import ABC, abstractmethod
-from typing import Union, List
+from typing import Union
 from .trap_model.abstract_trap import AbstractTrap
 from .potential_well import PotentialWell, MultiplePotentialWell
 import numpy as np
 import cvxpy as cx
 import operator
 
-constraint_operator_map = {
+_constraint_operator_map = {
     '<': operator.lt,
     '<=': operator.le,
     '==': operator.eq,
@@ -39,32 +39,40 @@ class Objective(ABC):
         self.constraint_type = constraint_type
 
     @abstractmethod
-    def objective(self, trap: AbstractTrap, voltages: cx.Variable, electrode_indices: Union[slice, List[int]] = slice(None)):
+    def objective(self, trap: AbstractTrap, voltages: cx.Variable):
         """objective"""
         return
         yield
 
-    def constraint(self, trap: AbstractTrap, voltages: cx.Variable, electrode_indices: Union[slice, List[int]] = slice(None)):
+    @abstractmethod
+    def constraint(self, trap: AbstractTrap, voltages: cx.Variable):
         """constrain"""
         return
         yield
 
+    def _yield_constraint(self, lhs, rhs):
+        try:
+            yield _constraint_operator_map[self.constraint_type](lhs, rhs)  # type: ignore
+        except KeyError:
+            raise KeyError(f"Wrong constraint type defined: {self.constraint_type}")
+
 
 class VoltageObjective(Objective):
 
-    def __init__(self, value, **kwargs):
+    def __init__(self, value, voltage_weights=None, **kwargs):
         super().__init__(**kwargs)
         self.value = value
+        self.voltage_weights = voltage_weights
 
-    def objective(self, trap, voltages, electrode_indices=slice(None)):
-        cost = cx.multiply(self.weight, cx.sum_squares(voltages - self.value))
+    def objective(self, trap, voltages):
+        diff = voltages - self.value
+        if self.voltage_weights is not None:
+            diff = cx.multiply(np.sqrt(self.voltage_weights), diff)
+        cost = cx.multiply(self.weight, cx.sum_squares(diff))
         yield cost
 
-    def constraint(self, trap, voltages, electrode_indices):
-        try:
-            yield constraint_operator_map[self.constraint_type](voltages, self.value)  # type: ignore
-        except KeyError:
-            raise KeyError(f"Wrong constraint type defined: {self.constraint_type}")
+    def constraint(self, trap, voltages):
+        return self._yield_constraint(voltages, self.value)
 
 
 class PotentialObjective(Objective):
@@ -75,25 +83,22 @@ class PotentialObjective(Objective):
         self.derivatives = derivatives
         self.value = value
 
-    def objective(self, trap, voltages, electrode_indices=slice(None)):
+    def objective(self, trap, voltages):
         # assert len(electrode_indices) == voltages.shape[1], 'Wrong electrode indexing'
         xi = np.argmin(abs(self.x0 - trap.x))
-        pot = voltages @ trap.dc_potential(self.derivatives, electrode_indices)[..., xi] + trap.pseudo_potential(self.derivatives)[..., xi]
-        v = voltages.value
-        if v is not None:
-            vpot = v @ trap.dc_potential(self.derivatives, electrode_indices)[..., xi] + trap.pseudo_potential(self.derivatives)[..., xi]
-            print(vpot.shape, vpot)
+        pot = voltages @ trap.dc_potential(self.derivatives)[..., xi] + trap.pseudo_potential(self.derivatives)[..., xi]
+        # v = voltages.value
+        # if v is not None:
+        #     vpot = v @ trap.dc_potential(self.derivatives)[..., xi] + trap.pseudo_potential(self.derivatives)[..., xi]
+        #     print(vpot.shape, vpot)
         cost = cx.multiply(self.weight, cx.sum_squares(pot - self.value))
         yield cost
 
-    def constraint(self, trap, voltages, electrode_indices=slice(None)):
+    def constraint(self, trap, voltages):
         # assert len(electrode_indices) == voltages.shape[1], 'Wrong electrode indexing'
         xi = np.argmin(abs(self.x0 - trap.x))
-        pot = voltages @ trap.dc_potential(self.derivatives, electrode_indices)[..., xi] + trap.pseudo_potential(self.derivatives)[..., xi]
-        try:
-            yield constraint_operator_map[self.constraint_type](pot, self.value)  # type: ignore
-        except KeyError:
-            raise KeyError(f"Wrong constraint type defined: {self.constraint_type}")
+        pot = voltages @ trap.dc_potential(self.derivatives)[..., xi] + trap.pseudo_potential(self.derivatives)[..., xi]
+        return self._yield_constraint(pot, self.value)
 
 
 class GridPotentialObjective(Objective):
@@ -103,14 +108,14 @@ class GridPotentialObjective(Objective):
         self.well = well
         self.extra_offset = cx.Variable((1,)) if optimize_offset else None
 
-    def objective(self, trap, voltages, electrode_indices=slice(None)):
+    def objective(self, trap, voltages):
         roi = self.well.roi(trap.x)
         x = trap.x[roi]
         weight = self.well.weight(x)
         value = self.well.potential(x)
         if self.extra_offset:
             value = value + self.extra_offset
-        moments = trap.moments[electrode_indices][..., roi]
+        moments = trap.moments[..., roi]
         # v = voltages.value
         # if v is not None:
         #     import matplotlib.pyplot as plt
@@ -122,5 +127,5 @@ class GridPotentialObjective(Objective):
         cost = cx.multiply(self.weight, cx.sum_squares(cx.multiply(np.sqrt(weight), diff)))
         yield cost
 
-    def constraint(self, trap, voltages, electrode_indices):
+    def constraint(self, trap, voltages):
         raise NotImplementedError

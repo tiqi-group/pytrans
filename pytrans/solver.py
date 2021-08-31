@@ -17,7 +17,6 @@ from typing import List
 def solver(trap: AbstractTrap,
            objectives: List[List[Objective]],
            constraints: List[Objective],
-           electrode_indices=None,
            solver="MOSEK", verbose=False):
     """Static solver
 
@@ -30,9 +29,7 @@ def solver(trap: AbstractTrap,
         """
 
     # static voltage cost
-    num_electrodes = trap.num_electrodes if electrode_indices is None else len(electrode_indices)
-    electrode_indices = slice(None) if electrode_indices is None else electrode_indices
-    shape = (len(objectives), num_electrodes)
+    shape = (len(objectives), trap.num_electrodes)
     print(shape)
     waveform = cx.Variable(shape=shape, name="waveform")
     costs = []
@@ -41,12 +38,12 @@ def solver(trap: AbstractTrap,
     for voltages, ci in zip(waveform, objectives):
         for cj in ci:
             if cj.constraint_type is None:
-                costs.extend(cj.objective(trap, voltages, electrode_indices))
+                costs.extend(cj.objective(trap, voltages))
             else:
-                cstr.extend(cj.constraint(trap, voltages, electrode_indices))
+                cstr.extend(cj.constraint(trap, voltages))
 
     for c in constraints:
-        cstr.extend(c.constraint(trap, waveform, electrode_indices))
+        cstr.extend(c.constraint(trap, waveform))
 
     cost = sum(costs)
     objective = cx.Minimize(cost)
@@ -55,6 +52,6 @@ def solver(trap: AbstractTrap,
 
     final_costs = []
     for voltages, ci in zip(waveform, objectives):
-        final_costs.append({f"{j}_{cj.__class__.__name__}": [c.value for c in cj.objective(trap, voltages, electrode_indices)] for j, cj in enumerate(ci)})
+        final_costs.append({f"{j}_{cj.__class__.__name__}": [c.value for c in cj.objective(trap, voltages)] for j, cj in enumerate(ci)})
 
     return waveform, final_costs

@@ -23,8 +23,8 @@ def vSet_axial(curv):
 
 def vSet_tilt(tilt):
     # Voltage set creating 1MHz along y+z and -1MHz along y-z
-    volt_tilt = [0.11526, 0, 0, 0, 0, 0, 0, -0.28313, 0.013373, -0.28313,
-                 -0.11526, 0, 0, 0, 0, 0, 0, 0.28313, -0.013373, 0.28313,
+    volt_tilt = [0.11526, 0, 0, 0, -0.28313, 0.013373, -0.28313, 0, 0, 0,
+                 -0.11526, 0, 0, 0, 0.28313, -0.013373, 0.28313, 0, 0, 0,
                  0, 0, 0, 0, 0]
     assert(len(volt_tilt) == 25)
     return tilt * np.array(volt_tilt)

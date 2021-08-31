@@ -39,7 +39,7 @@ class PotentialWell(GridPotential):
     Just 1d for the moment, but here is where we'll generalize
     """
 
-    def __init__(self, x0, axial, depth, offset=0, mass='Ca', charge=1, cutoff=4):
+    def __init__(self, x0, axial, depth, offset=0, mass='Ca', charge=1, cutoff=1):
 
         self.x0 = x0
         self.depth = depth
