@@ -13,17 +13,16 @@ from math import factorial
 
 from ..abstract_trap import AbstractTrap
 from pytrans.utils.timer import timer
-from pytrans.utils.indexing import get_derivative
+from pytrans.utils import indexing as uix
 
 from .data.analytic import potentialsDC, gradientsDC, hessiansDC, third_order_axial_DC, fourth_order_axial_DC, pseudoPotential
 from .data.calculate_voltage import calculate_voltage as _calculate_voltage
+from .fastino_wf_gen import generate_waveform as _generate_waveform
 
 import logging
 logger = logging.getLogger(__name__)
 
-basis_filename = Path(__file__).resolve().parent / 'data/vbasis_x0.npy'
 cache_filename = Path(__file__).resolve().parent / 'data/cached_data.npz'
-vb0 = np.load(basis_filename)
 
 
 class CryoTrap(AbstractTrap):
@@ -39,11 +38,21 @@ class CryoTrap(AbstractTrap):
     Vrf = 40
     Omega_rf = 2 * np.pi * 34e6
     freq_pseudo = 5.6075e6  # this actually depends on the other two
+    dc_gain = 2.5
+
+    _d_names = [[""]] + [s.split() for s in [
+        "x y z",
+        "xx xy xz yy yz zz",
+        "xxx",
+        "xxxx"
+    ]]
+
+    _d_map = uix.populate_map(_d_names)
 
     def __init__(self, x=None, selected_electrodes=None, use_cache=True):
         super().__init__()
         self._x = np.arange(-1000, 1005, 5) * 1e-6 if x is None else x
-        self.selected_electrodes = slice(None) if selected_electrodes is None else selected_electrodes
+        self.selected_electrodes = slice(0, self._num_electrodes) if selected_electrodes is None else selected_electrodes
         self._electrode_indices = np.asarray(range(1, self._num_electrodes + 1))
         self._electrode_x = np.asarray([(n - 6) * 125e-6 for n in range(1, 11)] * 2)
         self.load_trap_axis_potential_data(use_cache)
@@ -102,11 +111,11 @@ class CryoTrap(AbstractTrap):
         np.savez(cache_filename, x=self.x, dc=self._dc_potential, pseudo=self._pseudo_potential)
 
     def dc_potential(self, derivatives):
-        derivative_indices = get_derivative(derivatives)
+        derivative_indices = uix.get_derivative(derivatives, self._d_map)
         return self._dc_potential[self.selected_electrodes][:, derivative_indices, :]
 
     def pseudo_potential(self, derivatives):
-        derivative_indices = get_derivative(derivatives)
+        derivative_indices = uix.get_derivative(derivatives, self._d_map)
         return self._pseudo_potential[derivative_indices, :]
 
     def potential(self, voltages):
@@ -125,11 +134,17 @@ class CryoTrap(AbstractTrap):
         return taylor
 
     def from_static_params(self, axial, split, tilt, x_comp=0, y_comp=0, z_comp=0, zone=2):  # , xCubic, vMesh, vGND, xyTilt=0, xzTilt=0):
-        # Array of voltages. 20 electrodes
-        # v0 = np.asarray([axial, split, tilt]) * 1e-6
-        # v0 = np.sign(v0) * v0**2
-        # v0 = np.r_[v0, x_comp, y_comp, z_comp]
-        # voltages = v0 @ vb0
         voltages = _calculate_voltage(axial * 1e-6, tilt * 1e-6, x_comp, y_comp, z_comp, zone)
         potential = voltages @ self._dc_potential[:, 0, :]
         return voltages, potential
+
+    def generate_waveform(self, voltages, index, description='', generated=True, uid=None,
+                          waveform_filename=None, verbose=False,
+                          monitor_values=None):
+        assert len(voltages.shape) == 2, "Voltages must be 2d (time, electrodes)"
+        full_voltages = np.zeros((voltages.shape[0], self._num_electrodes + 6))
+        full_voltages[:, self.selected_electrodes] = voltages
+        if monitor_values is not None:
+            full_voltages[:, -1] = monitor_values
+        return _generate_waveform(full_voltages / self.dc_gain, index, description, generated, uid,
+                                  waveform_filename, verbose)
