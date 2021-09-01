@@ -75,6 +75,25 @@ class VoltageObjective(Objective):
         return self._yield_constraint(voltages, self.value)
 
 
+class SlewRateObjective(Objective):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def objective(self, trap, voltages):
+        n_samples = voltages.shape[0]
+        M = np.zeros((n_samples, n_samples))
+        M += np.diagflat([1] * (n_samples - 1), k=1) / 2
+        M += np.diagflat([-1] * (n_samples - 1), k=-1) / 2
+        M[0, [0, 1]] = -1, 1
+        M[-1, [-2, -1]] = -1, 1
+        # print("--- grad")
+        yield cx.multiply(self.weight, cx.sum_squares(M @ voltages))
+
+    def constraint(self, trap, voltages):
+        raise NotImplementedError
+
+
 class PotentialObjective(Objective):
 
     def __init__(self, x0, derivatives, value, **kwargs):
