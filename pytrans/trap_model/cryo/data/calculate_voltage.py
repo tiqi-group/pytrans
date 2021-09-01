@@ -1,7 +1,7 @@
 import numpy as np
 
 
-_basis = []
+_basis = {}
 
 
 def _populate_basis():
@@ -14,23 +14,22 @@ def _populate_basis():
     ])
 
     sign = np.asarray([1, -1, 1, -1, 1]).reshape(-1, 1)
-    M = np.concatenate([M, sign * M], axis=1)
-    for zone in 1, 2, 3:
-        B = np.zeros((5, 20))
-        B[:, [0, 10]] = M[:, [0, 4]]
-        q = 3 * zone - 2
-        B[:, q:q + 3] = M[:, 1:4]
-        B[:, q + 10:q + 13] = M[:, 5:8]
-        _basis.append(B)
+    for center in range(3, 10):
+        q = center - 2
+        B = np.zeros((5, 10))
+        B[:, 0] = M[:, 0]
+        B[:, q:q + 3] = M[:, 1:]
+        B = np.concatenate([B, sign * B], axis=1)
+        _basis[center] = B
 
 
 _populate_basis()
 
 
-def calculate_voltage(curv, tilt, xComp, yComp, zComp, zone=2):
-    assert zone in [1, 2, 3]
+def calculate_voltage(curv, tilt, xComp, yComp, zComp, center=6):
+    assert center in range(3, 10)
     x = [np.sign(curv) * curv**2, tilt, xComp, yComp, zComp]
-    voltages = x @ _basis[zone - 1]
+    voltages = x @ _basis[center]
     return voltages
 
 

@@ -60,7 +60,7 @@ def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf, axes=None, roi=None):
 
     bounds = [(-r * 1e-6 + x, r * 1e-6 + x) for r, x in zip(_roi, r0)]
 
-    res = minimize(fun3, r0, method='TNC', bounds=bounds, options=dict(accuracy=1e-3))
+    res = minimize(fun3, r0, method='TNC', bounds=bounds, options=dict(accuracy=1e-2))
 
     print("Offset from r0 [um]")
     print((res.x - r0) * 1e6)

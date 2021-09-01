@@ -133,8 +133,8 @@ class CryoTrap(AbstractTrap):
         taylor = f * self.dc_potential(derivatives)
         return taylor
 
-    def from_static_params(self, axial, split, tilt, x_comp=0, y_comp=0, z_comp=0, zone=2):  # , xCubic, vMesh, vGND, xyTilt=0, xzTilt=0):
-        voltages = _calculate_voltage(axial * 1e-6, tilt * 1e-6, x_comp, y_comp, z_comp, zone)
+    def from_static_params(self, axial, split, tilt, x_comp=0, y_comp=0, z_comp=0, center=6):  # , xCubic, vMesh, vGND, xyTilt=0, xzTilt=0):
+        voltages = _calculate_voltage(axial * 1e-6, tilt * 1e-6, x_comp, y_comp, z_comp, center)
         potential = voltages @ self._dc_potential[:, 0, :]
         return voltages, potential
 

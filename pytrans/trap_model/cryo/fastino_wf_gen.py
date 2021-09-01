@@ -109,11 +109,11 @@ def voltages_to_wf(voltages, verbose=False):
 
     if verbose:
         s = -1
-        print(f"Generating waveform with {len(voltages)} samples (printing {s})")
+        print(f"Generating waveform with {len(voltages)} samples (printing {s}) {voltages.shape}")
         for j, v in enumerate(voltages[s]):
             # j, v = -1, voltages[-1][0]
             print(Fore.YELLOW + f"  Electrode {j + 1:02d} ", end='')
-            print(f"({electrode_subD_map[j + 1]:s}): {v * 2.5:+.4f} V  -> [{samples[3*32 + electrode_DAC_map[j + 1] - 1][0]:+.4f}]")
+            print(f"({electrode_subD_map[j + 1]:s}): {v * 2.5:+.4f} V  -> [{samples[3*32 + electrode_DAC_map[j + 1] - 1][s]:+.4f}]")
             # [f"    Electrode {j + 1:02d} (DAC_p{electrode_DAC_map[j + 1]:02d}): {v * 2.5:+.4f} V  -> [{samples[3*32 + electrode_DAC_map[j + 1] - 1][0]:+.4f}]" for j, v in enumerate(voltages)]
     return samples
 
