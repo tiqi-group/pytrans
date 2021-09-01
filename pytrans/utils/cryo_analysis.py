@@ -11,9 +11,9 @@ Module docstring
 import numpy as np
 
 from .cryo_plotting import plot_3dpot, plot3d_make_layout
-from .cryo_solver import tot_potential_ps, tot_hessian_ps
-from pytrans.conversion import curv_to_freq
-
+from .cryo_solver import tot_potential_ps, tot_gradient_ps, tot_hessian_ps
+from pytrans.conversion import curv_to_freq as _curv_to_freq, field_to_shift as _field_to_shift
+from pytrans.constants import ion_masses, elementary_charge
 from .timer import timer
 
 from scipy.optimize import minimize as _minimize
@@ -21,6 +21,17 @@ from matplotlib import patches as mpatches
 from matplotlib import transforms
 
 __roi = (400, 30, 30)
+
+mass = ion_masses["Ca"]
+charge = elementary_charge
+
+
+def field_to_shift(e):
+    return _field_to_shift(e, mass, charge)
+
+
+def curv_to_freq(c):
+    return _curv_to_freq(c, mass, charge)
 
 
 @timer
@@ -49,7 +60,7 @@ def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf, axes=None, roi=None):
 
     bounds = [(-r * 1e-6 + x, r * 1e-6 + x) for r, x in zip(_roi, r0)]
 
-    res = minimize(fun3, r0, method='TNC', bounds=bounds, options=dict(accuracy=1e-3))
+    res = minimize(fun3, r0, method='TNC', bounds=bounds, options=dict(accuracy=1e-2))
 
     print("Offset from r0 [um]")
     print((res.x - r0) * 1e6)
@@ -57,13 +68,18 @@ def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf, axes=None, roi=None):
     # print(res)
 
     f1 = res.fun
+    E = tot_gradient_ps(x1, y1, z1, *f_args)
     H = tot_hessian_ps(x1, y1, z1, *f_args)
 
     h, vs = np.linalg.eig(H)
     freqs = curv_to_freq(h) * 1e-6
 
     with np.printoptions(suppress=True):
+        print('Gradient')
+        print(E)
+        print(field_to_shift(E) * 1e6)
         print('Hessian')
+        print(H)
         print(curv_to_freq(H) * 1e-6)
         print('Eigenvalues [MHz]')
         print(freqs)

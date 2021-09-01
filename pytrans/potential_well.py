@@ -8,98 +8,153 @@ Hardcode for Ca+
 """
 
 import numpy as np
-from .conversion import curv_to_freq, freq_to_curv, C
+import numpy.typing as npt
+from abc import ABC, abstractmethod
+from .conversion import freq_to_curv, curv_to_freq
+from .constants import ion_masses, elementary_charge
+
+from typing import List
 
 import logging
 logger = logging.getLogger(__name__)
 
 
-# def get_voltage_params(axial, split, tilt, freq_pseudo):
-#     if not freq_pseudo:
-#         return np.ones((len(axial), 3, 3)) * np.nan
-#     tilt = tilt * np.pi / 180
-#     # assert -np.pi / 2 < tilt <= np.pi / 2, "Tilt angle must be within (-90, 90] degrees"
-#     v_ax = freq_to_curv(axial)
-#     v_ps = freq_to_curv(freq_pseudo)
-#     a = v_ps - v_ax / 2
-#     nu0 = curv_to_freq(a - freq_to_curv(split / 2))
-#     lamb = C * nu0 * split
-#     # nu1, nu2 = curv_to_freq(a + lamb) * 1e-6, curv_to_freq(a - lamb) * 1e-6
-#     # print(f"Transverse mode freqs: {nu1:.3f}, {nu2:.3f} MHz (split: {nu1 - nu2:.3f})")
+class GridPotential(ABC):
 
-#     v_split = 2 * lamb * np.cos(tilt)**2 - lamb
-#     v_tilt = np.sign(tilt) * np.sqrt(lamb**2 - v_split**2)
+    @abstractmethod
+    def potential(self, x: npt.ArrayLike) -> npt.ArrayLike:
+        pass
 
-#     return np.asarray([v_ax, v_split, v_tilt, 0, 0, 0]) / C / 1e12
+    @abstractmethod
+    def roi(self, x: npt.ArrayLike) -> npt.ArrayLike:
+        pass
+
+    @abstractmethod
+    def weight(self, x: npt.ArrayLike) -> npt.ArrayLike:
+        pass
 
 
-def get_hessian(axial, split, tilt, freq_pseudo):
-
-    # v_ax, v_split, v_tilt = get_voltage_params(axial, split, tilt, freq_pseudo)[:3] * C * 1e12
-    v_ax, v_split, v_tilt = freq_to_curv(np.asarray([axial, split, tilt]))
-    v_ps = freq_to_curv(freq_pseudo)
-    a = v_ps - v_ax / 2
-    
-    # TODO This is brutal. There should be a way to vectorize it but I'm lazy
-    target_hessian = np.stack([
-        [[_v_ax, 0, 0],
-         [0, _a + _v_split, _v_tilt],
-         [0, _v_tilt, _a - _v_split]] for _v_ax, _a, _v_split, _v_tilt in zip(v_ax, a, v_split, v_tilt)
-    ])
-    return target_hessian
-
-
-def get_hessian_dc(axial, split):
-    # force theta = 45, split is approximate
-    v_ax = freq_to_curv(axial)
-    b = C * split * 5.5e6
-    target_hessian = np.stack([
-        [[_v_ax, 0, 0],
-         [0, -_v_ax / 2, _b],
-         [0, _b, -_v_ax / 2]] for _v_ax, _b, in zip(v_ax, b)
-    ])
-    return target_hessian
-
-
-class PotentialWell:
+class PotentialWell(GridPotential):
     """
     Just 1d for the moment, but here is where we'll generalize
     """
 
-    def __init__(self, x0, depth, axial, split, tilt, freq_pseudo=None, scale_roi=2):
-        """
-        A moving potential well
-        First index of all the arrays is reserved for the number of samples (time)
-        Stored values (x0, axial etc.): (time,)
-        potential: (time) + x.shape
-        hessian: (time, 3, 3)
+    def __init__(self, x0, axial, depth, offset=0, mass='Ca', charge=1, cutoff=1):
 
-        Args:
-        moments
-        """
+        self.x0 = x0
+        self.depth = depth
+        self.offset = offset
+        self._cutoff = cutoff
+        self._axial = axial
+        self._mass = ion_masses[mass] if isinstance(mass, str) else mass
+        self._charge = charge * elementary_charge
+        self._curvature = freq_to_curv(self._axial, self._mass, self._charge)
 
-        self.x0, self.depth, self.axial, self.split, self.tilt = \
-            np.broadcast_arrays(np.atleast_1d(x0), depth, axial, split, tilt)
-        self.samples = len(self.x0)
-        self.freq_pseudo = freq_pseudo
+    @property
+    def axial(self):
+        return self._axial
 
-        self.sigma = np.sqrt(self.depth / C) / self.axial
-        self.curv = freq_to_curv(self.axial)
+    @axial.setter
+    def axial(self, value):
+        self._axial = value
+        self._curvature = freq_to_curv(self._axial, self._mass, self._charge)
 
-        self.hessian = get_hessian(self.axial, self.split, self.tilt, self.freq_pseudo)
-        self.hessian_dc = get_hessian_dc(self.axial, self.split)
-        self.scale_roi = scale_roi
+    @property
+    def curvature(self):
+        return self._curvature
 
-    def roi(self, x, sample=0):
-        return self.potential(x, sample) < self.scale_roi**2 * self.depth[sample]  # change to logical array
+    @curvature.setter
+    def curvature(self, value):
+        self._curvature = value
+        self._axial = curv_to_freq(self._curvature, self._mass, self._charge)
 
-    def weight(self, x, sample=0):
-        return np.exp(-(x - self.x0[sample])**2 / 2 / (self.scale_roi * self.sigma[sample])**2)
+    @property
+    def sigma(self):
+        return np.sqrt(self.depth / self.curvature)
 
-    def potential(self, x, sample=0):
-        return 0.5 * self.curv[sample] * (x - self.x0[sample])**2
+    @property
+    def cutoff(self):
+        return self._cutoff * self.depth
 
-    def gaussian_potential(self, x, sample=0):
-        if self.depth[sample] == 0:
-            return np.zeros_like(x)
-        return - self.depth[sample] * np.exp(-(x - self.x0[sample])**2 / 2 / self.sigma[sample]**2)
+    def __add__(self, other):
+        if isinstance(other, PotentialWell):
+            return MultiplePotentialWell([self, other])
+        elif isinstance(other, MultiplePotentialWell):
+            return MultiplePotentialWell(other.wells + [self])
+
+    def potential(self, x):
+        v = 0.5 * self.curvature * (x - self.x0)**2
+        return v.clip(0, self.cutoff) + self.offset
+
+    def gaussian_potential(self, x):
+        if self.depth == 0:
+            return np.zeros_like(x) + self.offset
+
+        return self.depth - self.depth * np.exp(-(x - self.x0)**2 / 2 / self.sigma**2) + self.offset
+
+    def roi(self, x):
+        _roi = self.potential(x) - self.offset < self.cutoff  # change to logical array
+        return _roi.astype(bool)
+
+    def weight(self, x):
+        return np.exp(-(x - self.x0)**2 / 2 / self.sigma**2)
+
+
+class MultiplePotentialWell(GridPotential):
+
+    def __init__(self, wells: List[PotentialWell]):
+        self.wells = wells
+
+    @property
+    def axial(self):
+        return [w._axial for w in self.wells]
+
+    @property
+    def curvature(self):
+        return [w._curvature for w in self.wells]
+
+    def potential(self, x):
+        return np.stack([w.potential(x) for w in self.wells], axis=0).sum(0)
+
+    def gaussian_potential(self, x):
+        return np.stack([w.gaussian_potential(x) for w in self.wells], axis=0).sum(0)
+
+    def roi(self, x):
+        return np.stack([w.roi(x) for w in self.wells], axis=0).sum(0).astype(bool)
+
+    def weight(self, x):
+        return np.stack([w.weight(x) for w in self.wells], axis=0).sum(0)
+
+
+class QuarticPotentialWell(GridPotential):
+    """ Ref: Home, Steane, Electrode Configurations for Fast Separation of Trapped Ions
+        https://arxiv.org/abs/quant-ph/0411102
+    """
+
+    def __init__(self, x0, alpha, beta, depth, offset=0, mass='Ca', charge=1, cutoff=4):
+
+        self.x0 = x0
+        self.alpha = alpha
+        self.beta = beta
+        self.depth = depth
+        self.offset = offset
+        self._cutoff = cutoff
+        self._mass = ion_masses[mass] if isinstance(mass, str) else mass
+        self._charge = charge * elementary_charge
+
+    @property
+    def cutoff(self):
+        return self._cutoff * self.depth
+
+    def potential(self, x):
+        x1 = (x - self.x0)
+        v = self.alpha * x1**2 + self.beta * x1**4
+        return v.clip(v.min(), self.cutoff) + self.offset
+
+    def roi(self, x):
+        _roi = self.potential(x) - self.offset < self.cutoff  # change to logical array
+        return _roi.astype(bool)
+
+    def weight(self, x):
+        sigma2 = 2 * abs(self.alpha) / self.beta  # 2 x the well separation at alpha < 0
+        return np.exp(-(x - self.x0)**2 / 2 / sigma2)

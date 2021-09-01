@@ -9,10 +9,10 @@ Unit definitions, all in SI
 
 from scipy.constants import atomic_mass, elementary_charge, epsilon_0  # noqa
 
-# electron_charge = 1.60217662e-19  # coulombs
-# atomic_mass_unit = 1.66053904e-27  # kg
-mass_Be = 9.012
-mass_Ca = 39.962591
+ion_masses = {
+    'Ca': 39.962591 * atomic_mass,
+    'Be': 9.012 * atomic_mass
+}
 um = 1e-6
 us = 1e-6
 ns = 1e-9
