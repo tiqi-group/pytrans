@@ -10,7 +10,7 @@ def _populate_basis():
         [0.11526, -0.28313, 0.013373, -0.28313],    # tilt
         [0, -0.025833, 0, 0.025833],                # x
         [0, 0.06717, 0.06717, 0.06717],             # y
-        [0.018312, 0.11655, 0.042762, 0.11655]      # z
+        [-0.018312, -0.11655, -0.042762, -0.11655]      # z
     ])
 
     sign = np.asarray([1, -1, 1, -1, 1]).reshape(-1, 1)
@@ -27,8 +27,7 @@ _populate_basis()
 
 
 def calculate_voltage(curv, tilt, xComp, yComp, zComp, center=6):
-    assert center in range(3, 10)
-    x = [np.sign(curv) * curv**2, tilt, xComp, yComp, zComp]
+    x = np.asarray([np.sign(curv) * curv**2, tilt, xComp, yComp, zComp])
     voltages = x @ _basis[center]
     return voltages
 
@@ -64,8 +63,8 @@ def vSet_tilt(tilt):
 
 def vSet_xComp(xComp):
     # Voltage set displacing the ion by along x
-    volt_xComp = [0, 0, 0, 0, 0, 0, 0, -0.025833, 0, 0.025833,
-                  0, 0, 0, 0, 0, 0, 0, -0.025833, 0, 0.025833,
+    volt_xComp = [0, 0, 0, 0, -0.025833, 0, 0.025833, 0, 0, 0,
+                  0, 0, 0, 0, -0.025833, 0, 0.025833, 0, 0, 0,
                   0, 0, 0, 0, 0]
     assert(len(volt_xComp) == 25)
     return xComp * np.array(volt_xComp)
@@ -74,8 +73,8 @@ def vSet_xComp(xComp):
 def vSet_yComp(yComp):
     # Voltage set displacing the ion by (roughly) 1um along y
     # Assuming 3 MHz radial frequency
-    volt_yComp = [0, 0, 0, 0, 0, 0, 0, 0.06717, 0.06717, 0.06717,
-                  0, 0, 0, 0, 0, 0, 0, -0.06717, -0.06717, -0.06717,
+    volt_yComp = [0, 0, 0, 0, 0.06717, 0.06717, 0.06717, 0, 0, 0,
+                  0, 0, 0, 0, -0.06717, -0.06717, -0.06717, 0, 0, 0,
                   0, 0, 0, 0, 0]
     assert(len(volt_yComp) == 25)
     return yComp * np.array(volt_yComp)
@@ -84,8 +83,8 @@ def vSet_yComp(yComp):
 def vSet_zComp(zComp):
     # Voltage set displacing the ion by (roughly) 1um along z
     # Assuming 3 MHz radial frequency
-    volt_zComp = [0.018312, 0, 0, 0, 0, 0, 0, 0.11655, 0.042762, 0.11655,
-                  0.018312, 0, 0, 0, 0, 0, 0, 0.11655, 0.042762, 0.11655,
+    volt_zComp = [0.018312, 0, 0, 0, 0.11655, 0.042762, 0.11655, 0, 0, 0,
+                  0.018312, 0, 0, 0, 0.11655, 0.042762, 0.11655, 0, 0, 0,
                   0, 0, 0, 0, 0]
     assert(len(volt_zComp) == 25)
     return -zComp * np.array(volt_zComp)
