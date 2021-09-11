@@ -94,29 +94,45 @@ class SlewRateObjective(Objective):
         raise NotImplementedError
 
 
+class SymmetryObjective(Objective):
+
+    def __init__(self, lhs_indices, rhs_indices, **kwargs):
+        super().__init__(**kwargs)
+        self.lhs_indices = lhs_indices
+        self.rhs_indices = rhs_indices
+
+    def objective(self, trap, voltages):
+        return
+        yield
+
+    def constraint(self, trap, voltages):
+        return self._yield_constraint(voltages[self.lhs_indices], voltages[self.rhs_indices])
+
+
 class PotentialObjective(Objective):
 
-    def __init__(self, x0, derivatives, value, **kwargs):
+    def __init__(self, x0, derivatives, value, pseudo=True, **kwargs):
         super().__init__(**kwargs)
         self.x0 = x0
         self.derivatives = derivatives
         self.value = value
+        self.pseudo = pseudo
 
     def objective(self, trap, voltages):
         # assert len(electrode_indices) == voltages.shape[1], 'Wrong electrode indexing'
         xi = np.argmin(abs(self.x0 - trap.x))
-        pot = voltages @ trap.dc_potential(self.derivatives)[..., xi] + trap.pseudo_potential(self.derivatives)[..., xi]
-        # v = voltages.value
-        # if v is not None:
-        #     vpot = v @ trap.dc_potential(self.derivatives)[..., xi] + trap.pseudo_potential(self.derivatives)[..., xi]
-        #     print(vpot.shape, vpot)
+        pot = voltages @ trap.dc_potential(self.derivatives)[..., xi]
+        if self.pseudo:
+            pot += trap.pseudo_potential(self.derivatives)[..., xi]
         cost = cx.multiply(self.weight, cx.sum_squares(pot - self.value))
         yield cost
 
     def constraint(self, trap, voltages):
         # assert len(electrode_indices) == voltages.shape[1], 'Wrong electrode indexing'
         xi = np.argmin(abs(self.x0 - trap.x))
-        pot = voltages @ trap.dc_potential(self.derivatives)[..., xi] + trap.pseudo_potential(self.derivatives)[..., xi]
+        pot = voltages @ trap.dc_potential(self.derivatives)[..., xi]
+        if self.pseudo:
+            pot += trap.pseudo_potential(self.derivatives)[..., xi]
         return self._yield_constraint(pot, self.value)
 
 

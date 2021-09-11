@@ -11,6 +11,7 @@ OneNote: Cryo-Experiment/Hardware/DC/Fastino adapter board
 
 import random
 import json
+import numpy as np
 from colorama import Fore
 
 
@@ -48,6 +49,8 @@ electrode_DAC_map = {1: 29,
                      25: 27,  # GND, FuzzButton 47
                      26: MONITOR_CHANNEL[0]
                      }
+
+DAC_electrode_map = {v: k for k, v in electrode_DAC_map.items()}
 
 # A map from electrode index to subD25 output -- to make testing easier
 # Just for printing out, not used anywhere in the actual communication
@@ -116,6 +119,14 @@ def voltages_to_wf(voltages, verbose=False):
             print(f"({electrode_subD_map[j + 1]:s}): {v * 2.5:+.4f} V  -> [{samples[3*32 + electrode_DAC_map[j + 1] - 1][s]:+.4f}]")
             # [f"    Electrode {j + 1:02d} (DAC_p{electrode_DAC_map[j + 1]:02d}): {v * 2.5:+.4f} V  -> [{samples[3*32 + electrode_DAC_map[j + 1] - 1][0]:+.4f}]" for j, v in enumerate(voltages)]
     return samples
+
+
+def wf_to_voltages(samples, verbose=False):
+    n_volts = 26
+    voltages = np.zeros((len(samples[0]), n_volts))
+    for channel, electrode_ix in DAC_electrode_map.items():
+        voltages[:, electrode_ix - 1] = samples[channel - 1 + DAC_IDX * 32]
+    return voltages
 
 
 def generate_waveform(voltages, index, description='', generated=True, uid=None,

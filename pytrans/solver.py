@@ -55,7 +55,7 @@ def solver(trap: AbstractTrap,
 
     final_costs = []
     for voltages, ci in zip(waveform, step_objectives):
-        final_costs.append({f"{j}_{cj.__class__.__name__}": [c.value for c in cj.objective(trap, voltages)] for j, cj in enumerate(ci)})
-    final_costs.append({f"{j}_global_{cj.__class__.__name__}": [c.value for c in cj.objective(trap, voltages)] for j, cj in enumerate(global_objectives)})
+        final_costs.append({f"{j}_{cj.__class__.__name__}": [c for c in cj.objective(trap, voltages)] for j, cj in enumerate(ci)})
+    final_costs.append({f"{j}_global_{cj.__class__.__name__}": [c for c in cj.objective(trap, waveform)] for j, cj in enumerate(global_objectives)})
 
     return waveform, final_costs

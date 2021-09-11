@@ -17,7 +17,7 @@ from pytrans.utils import indexing as uix
 
 from .data.analytic import potentialsDC, gradientsDC, hessiansDC, third_order_axial_DC, fourth_order_axial_DC, pseudoPotential
 from .data.calculate_voltage import calculate_voltage as _calculate_voltage
-from .fastino_wf_gen import generate_waveform as _generate_waveform
+from . import fastino_wf_gen as wf_gen
 
 import logging
 logger = logging.getLogger(__name__)
@@ -118,9 +118,10 @@ class CryoTrap(AbstractTrap):
         derivative_indices = uix.get_derivative(derivatives, self._d_map)
         return self._pseudo_potential[derivative_indices, :]
 
-    def potential(self, voltages):
+    def potential(self, voltages, derivatives=''):
         assert len(voltages) == self._num_electrodes, "Need all voltages here"
-        return voltages @ self._dc_potential[:, 0, :] + self._pseudo_potential[0, :]
+        derivative_indices = uix.get_derivative(derivatives, self._d_map)
+        return voltages @ self._dc_potential[:, derivative_indices, :] + self._pseudo_potential[derivative_indices, :]
 
     @property
     def moments(self):
@@ -146,5 +147,11 @@ class CryoTrap(AbstractTrap):
         full_voltages[:, self.selected_electrodes] = voltages
         if monitor_values is not None:
             full_voltages[:, -1] = monitor_values
-        return _generate_waveform(full_voltages / self.dc_gain, index, description, generated, uid,
-                                  waveform_filename, verbose)
+        return wf_gen.generate_waveform(full_voltages / self.dc_gain, index, description, generated, uid,
+                                        waveform_filename, verbose)
+
+    def read_waveform(self, filename, index):
+        wf_d = wf_gen.load_waveforms(filename)
+        key = f"wav{index:d}"
+        voltages = wf_gen.wf_to_voltages(wf_d[key]['samples']) * self.dc_gain
+        return voltages[:, self.selected_electrodes]
