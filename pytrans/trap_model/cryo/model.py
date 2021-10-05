@@ -121,7 +121,13 @@ class CryoTrap(AbstractTrap):
     def potential(self, voltages, derivatives=''):
         assert len(voltages) == self._num_electrodes, "Need all voltages here"
         derivative_indices = uix.get_derivative(derivatives, self._d_map)
-        return voltages @ self._dc_potential[:, derivative_indices, :] + self._pseudo_potential[derivative_indices, :]
+        return np.einsum('i, i...', voltages, self._dc_potential[:, derivative_indices, :]) + self._pseudo_potential[derivative_indices, :]
+
+    def hessian(self, voltages, x):
+        ix = np.argmin(abs(self.x - x))
+        hessian = self.potential(voltages, derivatives=2)[:, ix]
+        hessian = (hessian[[0, 1, 2, 1, 3, 4, 2, 4, 5]]).reshape(3, 3)
+        return hessian
 
     @property
     def moments(self):

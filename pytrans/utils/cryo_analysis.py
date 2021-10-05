@@ -20,6 +20,10 @@ from scipy.optimize import minimize as _minimize
 from matplotlib import patches as mpatches
 from matplotlib import transforms
 
+from colorama import init as colorama_init, Fore
+
+colorama_init(autoreset=True)
+
 __roi = (400, 30, 30)
 
 mass = ion_masses["Ca"]
@@ -37,6 +41,16 @@ def curv_to_freq(c):
 @timer
 def minimize(*args, **kwargs):
     return _minimize(*args, **kwargs)
+
+
+def analyse_hessian(H):
+    h, vs = np.linalg.eig(H)
+    ix = np.argsort(abs(h))
+    h = h[ix]
+    vs = vs[:, ix]
+    # angle = np.arccos(vs[1, 1]) * 180 / np.pi
+    angle = np.arctan2(vs[2, 2], vs[2, 1]) * 180 / np.pi
+    return h, vs, angle
 
 
 def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf, axes=None, roi=None):
@@ -60,31 +74,35 @@ def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf, axes=None, roi=None):
 
     bounds = [(-r * 1e-6 + x, r * 1e-6 + x) for r, x in zip(_roi, r0)]
 
+    print('--------------\n' + Fore.YELLOW + "Analyse potential")
+
     res = minimize(fun3, r0, method='TNC', bounds=bounds, options=dict(accuracy=1e-2))
 
-    print("Offset from r0 [um]")
+    print(Fore.YELLOW + "Offset from r0 [um]")
     print((res.x - r0) * 1e6)
     x1, y1, z1 = res.x
-    # print(res)
 
     f1 = res.fun
     E = tot_gradient_ps(x1, y1, z1, *f_args)
     H = tot_hessian_ps(x1, y1, z1, *f_args)
 
-    h, vs = np.linalg.eig(H)
+    h, vs, angle = analyse_hessian(H)
     freqs = curv_to_freq(h) * 1e-6
 
     with np.printoptions(suppress=True):
-        print('Gradient')
+        print(Fore.YELLOW + 'Gradient')
         print(E)
         print(field_to_shift(E) * 1e6)
-        print('Hessian')
+        print(Fore.YELLOW + 'Hessian')
         print(H)
         print(curv_to_freq(H) * 1e-6)
-        print('Eigenvalues [MHz]')
-        print(freqs)
-        print('Eigenvectors')
-        print(vs)
+        print(Fore.YELLOW + 'Eigenvalues [MHz]')
+        with np.printoptions(formatter={'float': lambda x: f"{x:g}" if x > 0 else Fore.RED + f"{x:g}" + Fore.RESET}):
+            print(freqs)
+        print(Fore.YELLOW + 'Eigenvectors')
+        with np.printoptions(formatter={'float': lambda x: Fore.GREEN + f"{x:.3g}" + Fore.RESET if abs(x) > 0.9 else f"{x:.3g}"}):
+            print(vs)
+        print(f"{Fore.YELLOW}Tilt angle of mode 2 ({freqs[2]:.2f}): {Fore.RESET}{angle:.2f}°")
 
     _range = np.linspace(-roi[0], roi[0], 50) * 1e-6 / 4
     xx1 = _range + x1
@@ -102,9 +120,6 @@ def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf, axes=None, roi=None):
     f1, f2 = freqs[[1, 2]]
     f0 = np.sqrt(f1 * f2)
 
-    angle = np.arccos(v2 @ [1, 0]) * 180 / np.pi
-    print(f"Tilt angle of mode 2 ({freqs[2]:.2f}): {angle:.2f}°")
-
     tr = fig.dpi_scale_trans + transforms.ScaledTranslation(y1 * 1e6, z1 * 1e6, ax_im.transData)
 
     circle = mpatches.Ellipse((0, 0), f0 / f1, f0 / f2, angle=90 + angle,
@@ -115,5 +130,7 @@ def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf, axes=None, roi=None):
     ax_im.add_patch(a1)
     a2 = mpatches.Arrow(0, 0, *v2 * f0 / f2, width=0.2, transform=tr, color='C1')
     ax_im.add_patch(a2)
+
+    print()
 
     return res

@@ -46,5 +46,5 @@ def zpspace(a, b, npts, k=3, gap=1.5, gap2=None):
 
 def vlinspace(start_vec, end_vec, npts, lin_fn=np.linspace):
     """ Linspace on column vectors specifying the starts and ends"""
-    assert start_vec.shape[1] == end_vec.shape[1] == 1, "Need to input column vectors"
-    return np.vstack(list(lin_fn(sv, ev, npts) for sv, ev in zip(start_vec, end_vec)))
+    assert start_vec.shape == end_vec.shape and start_vec.ndim == 1, "Inputs don't have the same length"
+    return np.stack([lin_fn(sv, ev, npts) for sv, ev in zip(start_vec, end_vec)], axis=1)
