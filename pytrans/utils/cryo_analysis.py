@@ -49,7 +49,7 @@ def analyse_hessian(H):
     h = h[ix]
     vs = vs[:, ix]
     # angle = np.arccos(vs[1, 1]) * 180 / np.pi
-    angle = np.arctan2(vs[2, 2], vs[2, 1]) * 180 / np.pi
+    angle = np.arctan(vs[2, 2] / vs[1, 2]) * 180 / np.pi
     return h, vs, angle
 
 
@@ -58,10 +58,52 @@ def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf, axes=None, roi=None):
         fig, axes = plot3d_make_layout(n=1)
     roi = __roi if roi is None else roi
 
+    res = analyse_pot_data(vv, r0, electrode_indices, Vrf, Omega_rf, roi)
+    x1, y1, z1 = res['x'], res['y'], res['z']
+    freqs = res['fx'], res['fy'], res['fz']
+    f1 = res['fun']
+    vs = res['eigenvectors']
+    curv_x = res['eigenvalues'][0]
+    angle = res['angle']
+
     plot_3dpot(tot_potential_ps, r0, args=(vv, electrode_indices, Vrf, Omega_rf), roi=roi, axes=axes)
 
     ax_x, ax_y, ax_z, ax_im, ax0 = axes
     fig = ax_x.figure
+
+    _range = np.linspace(-roi[0], roi[0], 50) * 1e-6 / 4
+    xx1 = _range + x1
+    ax_x.plot(xx1 * 1e6, 0.5 * curv_x * (xx1 - x1)**2 + f1)
+
+    marker_kw = dict(marker='o', mfc='r', mec='r')
+
+    ax_x.plot(x1 * 1e6, f1, **marker_kw)
+    ax_y.plot(y1 * 1e6, f1, **marker_kw)
+    ax_z.plot(f1, z1 * 1e6, **marker_kw)
+    ax_im.plot(y1 * 1e6, z1 * 1e6, **marker_kw)
+
+    v1 = vs[1:, 1]
+    v2 = vs[1:, 2]
+    f1, f2 = freqs[1], freqs[2]
+    f0 = np.sqrt(f1 * f2)
+
+    tr = fig.dpi_scale_trans + transforms.ScaledTranslation(y1 * 1e6, z1 * 1e6, ax_im.transData)
+
+    circle = mpatches.Ellipse((0, 0), f0 / f1, f0 / f2, angle=90 + angle,
+                              fill=None, transform=tr, color='C0')
+    ax_im.add_patch(circle)
+
+    a1 = mpatches.Arrow(0, 0, *v1 * f0 / f1, width=0.2, transform=tr, color='C0')
+    ax_im.add_patch(a1)
+    a2 = mpatches.Arrow(0, 0, *v2 * f0 / f2, width=0.2, transform=tr, color='C1')
+    ax_im.add_patch(a2)
+
+    return res
+
+
+def analyse_pot_data(vv, r0, electrode_indices, Vrf, Omega_rf, roi=None):
+    roi = __roi if roi is None else roi
+
     f_args = (vv, electrode_indices, Vrf, Omega_rf)
 
     def fun3(xyz):
@@ -75,14 +117,13 @@ def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf, axes=None, roi=None):
     bounds = [(-r * 1e-6 + x, r * 1e-6 + x) for r, x in zip(_roi, r0)]
 
     print('--------------\n' + Fore.YELLOW + "Analyse potential")
-
     res = minimize(fun3, r0, method='TNC', bounds=bounds, options=dict(accuracy=1e-2))
 
     print(Fore.YELLOW + "Offset from r0 [um]")
     print((res.x - r0) * 1e6)
     x1, y1, z1 = res.x
+    # print(res)
 
-    f1 = res.fun
     E = tot_gradient_ps(x1, y1, z1, *f_args)
     H = tot_hessian_ps(x1, y1, z1, *f_args)
 
@@ -103,34 +144,18 @@ def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf, axes=None, roi=None):
         with np.printoptions(formatter={'float': lambda x: Fore.GREEN + f"{x:.3g}" + Fore.RESET if abs(x) > 0.9 else f"{x:.3g}"}):
             print(vs)
         print(f"{Fore.YELLOW}Tilt angle of mode 2 ({freqs[2]:.2f}): {Fore.RESET}{angle:.2f}°")
-
-    _range = np.linspace(-roi[0], roi[0], 50) * 1e-6 / 4
-    xx1 = _range + x1
-    ax_x.plot(xx1 * 1e6, 0.5 * h[0] * (xx1 - x1)**2 + f1)
-
-    marker_kw = dict(marker='o', mfc='r', mec='r')
-
-    ax_x.plot(x1 * 1e6, f1, **marker_kw)
-    ax_y.plot(y1 * 1e6, f1, **marker_kw)
-    ax_z.plot(f1, z1 * 1e6, **marker_kw)
-    ax_im.plot(y1 * 1e6, z1 * 1e6, **marker_kw)
-
-    v1 = vs[1:, 1]
-    v2 = vs[1:, 2]
-    f1, f2 = freqs[[1, 2]]
-    f0 = np.sqrt(f1 * f2)
-
-    tr = fig.dpi_scale_trans + transforms.ScaledTranslation(y1 * 1e6, z1 * 1e6, ax_im.transData)
-
-    circle = mpatches.Ellipse((0, 0), f0 / f1, f0 / f2, angle=90 + angle,
-                              fill=None, transform=tr, color='C0')
-    ax_im.add_patch(circle)
-
-    a1 = mpatches.Arrow(0, 0, *v1 * f0 / f1, width=0.2, transform=tr, color='C0')
-    ax_im.add_patch(a1)
-    a2 = mpatches.Arrow(0, 0, *v2 * f0 / f2, width=0.2, transform=tr, color='C1')
-    ax_im.add_patch(a2)
-
     print()
-
-    return res
+    
+    results = dict(
+        fun=res.fun,
+        x=res.x[0],
+        y=res.x[1],
+        z=res.x[2],
+        fx=freqs[0],
+        fy=freqs[1],
+        fz=freqs[2],
+        eigenvalues=h,
+        eigenvectors=vs,
+        angle=angle
+    )
+    return results

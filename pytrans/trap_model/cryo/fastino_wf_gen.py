@@ -112,7 +112,7 @@ def voltages_to_wf(voltages, verbose=False):
 
     if verbose:
         s = -1
-        print(f"Generating waveform with {len(voltages)} samples (printing {s}) {voltages.shape}")
+        print(f"Generating waveform with {len(voltages)} samples (printing {s})")
         for j, v in enumerate(voltages[s]):
             # j, v = -1, voltages[-1][0]
             print(Fore.YELLOW + f"  Electrode {j + 1:02d} ", end='')

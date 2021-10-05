@@ -26,12 +26,8 @@ cache_filename = Path(__file__).resolve().parent / 'data/cached_data.npz'
 
 
 class CryoTrap(AbstractTrap):
-    """
-    Cryo trap docstring
-    """
 
     _num_electrodes = 20
-    default_V = 5
     min_V = -10
     max_V = 10
     z0 = 5.16792281e-05
