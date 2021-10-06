@@ -115,6 +115,6 @@ def plot_electrodes(ax, electrode_indices=None, y=None, h=None, d=125, L=120, sc
     for n in electrode_indices:
         c = (n - 6) * d
         r = Rectangle(((c - L / 2), y - h / 2), L, h, color='gold', zorder=-99)
-        ax.text(c, y, n)
+        ax.text(c, y, n - 1)
         ax.add_patch(r)
     ax.autoscale_view()

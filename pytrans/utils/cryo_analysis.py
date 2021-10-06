@@ -53,12 +53,12 @@ def analyse_hessian(H):
     return h, vs, angle
 
 
-def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf, axes=None, roi=None):
+def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf, axes=None, roi=None, find_3dmin=True):
     if axes is None:
         fig, axes = plot3d_make_layout(n=1)
     roi = __roi if roi is None else roi
 
-    res = analyse_pot_data(vv, r0, electrode_indices, Vrf, Omega_rf, roi)
+    res = analyse_pot_data(vv, r0, electrode_indices, Vrf, Omega_rf, roi, find_3dmin)
     x1, y1, z1 = res['x'], res['y'], res['z']
     freqs = res['fx'], res['fy'], res['fz']
     f1 = res['fun']
@@ -101,7 +101,7 @@ def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf, axes=None, roi=None):
     return res
 
 
-def analyse_pot_data(vv, r0, electrode_indices, Vrf, Omega_rf, roi=None):
+def analyse_pot_data(vv, r0, electrode_indices, Vrf, Omega_rf, roi=None, find_3dmin=True):
     roi = __roi if roi is None else roi
 
     f_args = (vv, electrode_indices, Vrf, Omega_rf)
@@ -109,20 +109,25 @@ def analyse_pot_data(vv, r0, electrode_indices, Vrf, Omega_rf, roi=None):
     def fun3(xyz):
         return tot_potential_ps(*xyz, *f_args)
 
-    _roi = []
-    for lim in roi:
-        lim = lim if isinstance(lim, (int, float)) else min(lim)
-        _roi.append(lim)
-
-    bounds = [(-r * 1e-6 + x, r * 1e-6 + x) for r, x in zip(_roi, r0)]
-
     print('--------------\n' + Fore.YELLOW + "Analyse potential")
-    res = minimize(fun3, r0, method='TNC', bounds=bounds, options=dict(accuracy=1e-2))
+    if find_3dmin:
+        _roi = []
+        for lim in roi:
+            lim = lim if isinstance(lim, (int, float)) else min(lim)
+            _roi.append(lim)
 
-    print(Fore.YELLOW + "Offset from r0 [um]")
-    print((res.x - r0) * 1e6)
-    x1, y1, z1 = res.x
-    # print(res)
+        bounds = [(-r * 1e-6 + x, r * 1e-6 + x) for r, x in zip(_roi, r0)]
+
+        res = minimize(fun3, r0, method='TNC', bounds=bounds, options=dict(accuracy=1e-2))
+
+        print(Fore.YELLOW + "Offset from r0 [um]")
+        print((res.x - r0) * 1e6)
+        x1, y1, z1 = res.x
+        v = res.fun
+    else:
+        print(Fore.YELLOW + "Set position to r0")
+        x1, y1, z1 = r0
+        v = fun3(r0)
 
     E = tot_gradient_ps(x1, y1, z1, *f_args)
     H = tot_hessian_ps(x1, y1, z1, *f_args)
@@ -145,12 +150,12 @@ def analyse_pot_data(vv, r0, electrode_indices, Vrf, Omega_rf, roi=None):
             print(vs)
         print(f"{Fore.YELLOW}Tilt angle of mode 2 ({freqs[2]:.2f}): {Fore.RESET}{angle:.2f}°")
     print()
-    
+
     results = dict(
-        fun=res.fun,
-        x=res.x[0],
-        y=res.x[1],
-        z=res.x[2],
+        fun=v,
+        x=x1,
+        y=y1,
+        z=z1,
         fx=freqs[0],
         fy=freqs[1],
         fz=freqs[2],

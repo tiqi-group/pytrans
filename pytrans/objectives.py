@@ -59,12 +59,15 @@ class Objective(ABC):
 
 class VoltageObjective(Objective):
 
-    def __init__(self, value, voltage_weights=None, **kwargs):
+    def __init__(self, value, index=None, voltage_weights=None, **kwargs):
         super().__init__(**kwargs)
         self.value = value
+        self.index = index
         self.voltage_weights = voltage_weights
 
     def objective(self, trap, voltages):
+        if self.index is not None:
+            voltages = voltages[self.index]
         diff = voltages - self.value
         if self.voltage_weights is not None:
             diff = cx.multiply(np.sqrt(self.voltage_weights), diff)
@@ -72,6 +75,8 @@ class VoltageObjective(Objective):
         yield cost
 
     def constraint(self, trap, voltages):
+        if self.index is not None:
+            voltages = voltages[self.index]
         return self._yield_constraint(voltages, self.value)
 
 
