@@ -48,8 +48,7 @@ def analyse_hessian(H):
     ix = np.argsort(abs(h))
     h = h[ix]
     vs = vs[:, ix]
-    # angle = np.arccos(vs[1, 1]) * 180 / np.pi
-    angle = np.arctan(vs[2, 2] / vs[1, 2]) * 180 / np.pi
+    angle = np.arctan2(1, vs[1, 2] / vs[2, 2]) * 180 / np.pi
     return h, vs, angle
 
 

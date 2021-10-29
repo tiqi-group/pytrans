@@ -17,7 +17,7 @@ from typing import List
 def solver(trap: AbstractTrap,
            step_objectives: List[List[Objective]],
            global_objectives: List[Objective],
-           solver="MOSEK", verbose=False):
+           solver="MOSEK", start_value=None, verbose=False):
     """Static solver
 
         Args:
@@ -51,6 +51,8 @@ def solver(trap: AbstractTrap,
     cost = sum(costs)
     objective = cx.Minimize(cost)
     problem = cx.Problem(objective, cstr)
+    if start_value is not None:
+        waveform.value = start_value
     problem.solve(solver=solver, warm_start=True, verbose=verbose)
 
     final_costs = []
