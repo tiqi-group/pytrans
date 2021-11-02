@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 
 cache_filename = Path(__file__).resolve().parent / 'data/cached_data.npz'
 
+# _x_default = np.arange(-1000, 1005, 5) * 1e-6
+_x_default = np.arange(-600, 601, 0.5) * 1e-6
+
 
 class CryoTrap(AbstractTrap):
 
@@ -47,7 +50,8 @@ class CryoTrap(AbstractTrap):
 
     def __init__(self, x=None, selected_electrodes=None, use_cache=True):
         super().__init__()
-        self._x = np.arange(-1000, 1005, 5) * 1e-6 if x is None else x
+        self._x = _x_default if x is None else x
+        self._dx = np.diff(self._x)[0]
         self.selected_electrodes = slice(0, self._num_electrodes) if selected_electrodes is None else selected_electrodes
         self._electrode_indices = np.asarray(range(1, self._num_electrodes + 1))
         self._electrode_x = np.asarray([(n - 6) * 125e-6 for n in range(1, 11)] * 2)
@@ -60,6 +64,10 @@ class CryoTrap(AbstractTrap):
     @property
     def transport_axis(self):
         return self._x
+
+    @property
+    def dx(self):
+        return self._dx
 
     @property
     def electrode_indices(self):
@@ -157,3 +165,10 @@ class CryoTrap(AbstractTrap):
         key = f"wav{index:d}"
         voltages = wf_gen.wf_to_voltages(wf_d[key]['samples']) * self.dc_gain
         return voltages[:, self.selected_electrodes]
+
+    def resample_x(self, x):
+        '''assume x is ordered, resample it using positions from self.x'''
+        x0, x1 = x.min(), x.max()
+        resampled_x = self.x[(self.x >= x0) & (self.x < x1)]
+        resampled_x = resampled_x[::len(resampled_x) // len(x) + 1]
+        return resampled_x

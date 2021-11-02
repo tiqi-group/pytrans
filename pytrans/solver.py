@@ -30,7 +30,6 @@ def solver(trap: AbstractTrap,
 
     # static voltage cost
     shape = (len(step_objectives), trap.num_electrodes)
-    print(shape)
     waveform = cx.Variable(shape=shape, name="waveform")
     costs = []  # type: ignore
     cstr = []   # type: ignore
