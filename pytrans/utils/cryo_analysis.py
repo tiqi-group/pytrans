@@ -52,7 +52,7 @@ def analyse_hessian(H):
     return h, vs, angle
 
 
-def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf, axes=None, roi=None, find_3dmin=True):
+def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf, axes=None, roi=None, find_3dmin=True, plot_pot=True):
     if axes is None:
         fig, axes = plot3d_make_layout(n=1)
     roi = __roi if roi is None else roi
@@ -65,7 +65,8 @@ def analyse_pot(vv, r0, electrode_indices, Vrf, Omega_rf, axes=None, roi=None, f
     curv_x = res['eigenvalues'][0]
     angle = res['angle']
 
-    plot_3dpot(tot_potential_ps, r0, args=(vv, electrode_indices, Vrf, Omega_rf), roi=roi, axes=axes)
+    if plot_pot:
+        plot_3dpot(tot_potential_ps, r0, args=(vv, electrode_indices, Vrf, Omega_rf), roi=roi, axes=axes)
 
     ax_x, ax_y, ax_z, ax_im, ax0 = axes
     fig = ax_x.figure
