@@ -11,6 +11,7 @@ from abc import ABC, abstractmethod
 from typing import Union
 from .trap_model.abstract_trap import AbstractTrap
 from .potential_well import PotentialWell, MultiplePotentialWell
+from .indexing import parse_indexing
 import numpy as np
 import cvxpy as cx
 import operator
@@ -30,7 +31,6 @@ _constraint_operator_map = {
 
 
 class Objective(ABC):
-    value: np.typing.ArrayLike = 0
     weight: float = 1.
     constraint_type = None
 
@@ -59,10 +59,10 @@ class Objective(ABC):
 
 class VoltageObjective(Objective):
 
-    def __init__(self, value, index=None, voltage_weights=None, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, value, index=None, voltage_weights=None, weight=1., constraint_type=None):
+        super().__init__(weight, constraint_type)
         self.value = value
-        self.index = index
+        self.index = parse_indexing(index) if index is not None else index
         self.voltage_weights = voltage_weights
 
     def objective(self, trap, voltages):
@@ -82,8 +82,8 @@ class VoltageObjective(Objective):
 
 class SlewRateObjective(Objective):
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, weight=1., constraint_type=None):
+        super().__init__(weight, constraint_type)
 
     def objective(self, trap, voltages):
         n_samples = voltages.shape[0]
@@ -103,8 +103,8 @@ class SymmetryObjective(Objective):
 
     def __init__(self, lhs_indices, rhs_indices, **kwargs):
         super().__init__(**kwargs)
-        self.lhs_indices = lhs_indices
-        self.rhs_indices = rhs_indices
+        self.lhs_indices = parse_indexing(lhs_indices)
+        self.rhs_indices = parse_indexing(rhs_indices)
 
     def objective(self, trap, voltages):
         return
