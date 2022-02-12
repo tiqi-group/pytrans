@@ -138,6 +138,52 @@ class PotentialObjective(Objective):
         return self._yield_constraint(pot, self.value)
 
 
+class GradientObjective(Objective):
+
+    def __init__(self, value, x, y, z, pseudo=True, weight=1., constraint_type=None):
+        super().__init__(weight, constraint_type)
+        self.xyz = x, y, z
+        self.value = value
+        self.pseudo = pseudo
+
+    def objective(self, trap, voltages):
+        pot = voltages @ trap.dc_gradients(*self.xyz)  # resulting shape is (3, len(x))
+        if self.pseudo:
+            pot += trap.pseudo_gradient(*self.xyz)
+        cost = cx.multiply(self.weight, cx.sum_squares(pot - self.value))
+        yield cost
+
+    def constraint(self, trap, voltages):
+        pot = voltages @ trap.dc_gradients(*self.xyz)
+        if self.pseudo:
+            pot += trap.pseudo_gradient(*self.xyz)
+        return self._yield_constraint(pot, self.value)
+
+
+class HessianObjective(Objective):
+
+    def __init__(self, value, x, y, z, pseudo=True, weight=1., constraint_type=None):
+        super().__init__(weight, constraint_type)
+        self.xyz = x, y, z
+        self.value = value
+        self.pseudo = pseudo
+
+    def objective(self, trap, voltages):
+        nv = voltages.shape[-1]
+        pot = voltages @ trap.dc_hessians(*self.xyz).reshape(nv, 9, -1)
+        if self.pseudo:
+            pot += trap.pseudo_hessian(*self.xyz).reshape(9, -1)
+        cost = cx.multiply(self.weight, cx.sum_squares(pot - self.value))
+        yield cost
+
+    def constraint(self, trap, voltages):
+        nv = voltages.shape[-1]
+        pot = voltages @ trap.dc_hessians(*self.xyz).reshape(nv, 9, -1)
+        if self.pseudo:
+            pot += trap.pseudo_hessian(*self.xyz).reshape(9, -1)
+        return self._yield_constraint(pot, self.value)
+
+
 class GridPotentialObjective(Objective):
 
     def __init__(self, well: Union[PotentialWell, MultiplePotentialWell], optimize_offset=False, **kwargs):
