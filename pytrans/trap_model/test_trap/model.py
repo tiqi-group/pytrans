@@ -17,10 +17,14 @@ class TestTrap(AbstractTrap):
     _electrodes = "E1 E2 E3 E4 E5 E6".split()
     v_rf = 30  # 30 volt
     omega_rf = 2 * np.pi * 30e6  # 30 MHz
+    z0 = 5e-5  # RF null
 
-    def __init__(self, use_electrodes='all'):
-
-        pass
+    def __init__(self, use_electrodes=None):
+        if isinstance(use_electrodes, list):
+            for name in use_electrodes:
+                if name not in self._all_electrodes:
+                    raise AttributeError(f"Trap {self.__class__.__name__} has no electrode {name}")
+            self._electrodes = use_electrodes
 
     def dc_potentials(self, x, y, z):
         return np.stack([getattr(dc, name)(x, y, z) for name in self.electrodes], axis=0)

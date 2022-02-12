@@ -16,8 +16,6 @@ import numpy as np
 import cvxpy as cx
 import operator
 
-from warnings import DeprecationWarning
-
 _constraint_operator_map = {
     '<': operator.lt,
     '<=': operator.le,

@@ -26,12 +26,12 @@ class AbstractTrap(ABC):
     """
     __required_attributes = ['_electrodes', 'v_rf', 'omega_rf']
 
-    def __new__(cls):
+    def __new__(cls, *args, **kwargs):
         print("Creating a new trap")
         for name in cls.__required_attributes:
             if not hasattr(cls, name):
                 raise TypeError(f"Can't instantiate abstract class {cls.__name__} with abstract attributes {','.join(cls.__required_attributes)}")
-
+        cls._all_electrodes = cls._electrodes
         return super().__new__(cls)
 
     @abstractmethod
@@ -86,23 +86,28 @@ class AbstractTrap(ABC):
         raise NotImplementedError
 
     def potential(self, voltages, x, y, z):
-        return np.einsum('i,i...', voltages, self.dc_potentials(x, y, z)) + self.pseudo_potential(x, y, z)
+        return np.tensordot(voltages, self.dc_potentials(x, y, z), axes=1) + self.pseudo_potential(x, y, z)
 
     def gradient(self, voltages, x, y, z):
-        return np.einsum('i,i...', voltages, self.dc_gradients(x, y, z)) + self.pseudo_gradient(x, y, z)
+        return np.tensordot(voltages, self.dc_gradients(x, y, z), axes=1) + self.pseudo_gradient(x, y, z)
 
     def hessian(self, voltages, x, y, z):
-        return np.einsum('i,i...', voltages, self.dc_hessians(x, y, z)) + self.pseudo_hessian(x, y, z)
+        return np.tensordot(voltages, self.dc_hessians(x, y, z), axes=1) + self.pseudo_hessian(x, y, z)
 
     @property
     def electrodes(self):
         return self._electrodes
 
     @property
-    def n_dc(self):
+    def n_electrodes(self):
         """Number of active electrodes
         """
         return len(self.electrodes)
+
+    def el_index(self, names):
+        if isinstance(names, str):
+            return self.electrodes.index(names)
+        return [self.electrodes.index(n) for n in names]
 
 
 if __name__ == '__main__':
