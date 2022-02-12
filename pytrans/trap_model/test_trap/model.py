@@ -40,11 +40,3 @@ class TestTrap(AbstractTrap):
 
     def pseudo_hessian(self, x, y, z):
         raise NotImplementedError
-
-
-if __name__ == '__main__':
-
-    class Trap(AbstractTrap):
-        n_dc = 10
-        pass
-    trap = Trap()
