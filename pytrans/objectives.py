@@ -16,6 +16,8 @@ import numpy as np
 import cvxpy as cx
 import operator
 
+from warnings import DeprecationWarning
+
 _constraint_operator_map = {
     '<': operator.lt,
     '<=': operator.le,
@@ -116,34 +118,30 @@ class SymmetryObjective(Objective):
 
 class PotentialObjective(Objective):
 
-    def __init__(self, x0, derivatives, value, pseudo=True, **kwargs):
-        super().__init__(**kwargs)
-        self.x0 = x0
-        self.derivatives = derivatives
+    def __init__(self, value, x, y, z, pseudo=True, weight=1., constraint_type=None):
+        super().__init__(weight, constraint_type)
+        self.xyz = x, y, z
         self.value = value
         self.pseudo = pseudo
 
     def objective(self, trap, voltages):
-        # assert len(electrode_indices) == voltages.shape[1], 'Wrong electrode indexing'
-        xi = np.argmin(abs(self.x0 - trap.x))
-        pot = voltages @ trap.dc_potential(self.derivatives)[..., xi]
+        pot = voltages @ trap.dc_potentials(*self.xyz)
         if self.pseudo:
-            pot += trap.pseudo_potential(self.derivatives)[..., xi]
+            pot += trap.pseudo_potential(*self.xyz)
         cost = cx.multiply(self.weight, cx.sum_squares(pot - self.value))
         yield cost
 
     def constraint(self, trap, voltages):
-        # assert len(electrode_indices) == voltages.shape[1], 'Wrong electrode indexing'
-        xi = np.argmin(abs(self.x0 - trap.x))
-        pot = voltages @ trap.dc_potential(self.derivatives)[..., xi]
+        pot = voltages @ trap.dc_potentials(*self.xyz)
         if self.pseudo:
-            pot += trap.pseudo_potential(self.derivatives)[..., xi]
+            pot += trap.pseudo_potential(*self.xyz)
         return self._yield_constraint(pot, self.value)
 
 
 class GridPotentialObjective(Objective):
 
     def __init__(self, well: Union[PotentialWell, MultiplePotentialWell], optimize_offset=False, **kwargs):
+        raise DeprecationWarning("This class is now obsolete, as PotentialObjective can be evaluated on an arbtrary grid of points.")
         super().__init__(**kwargs)
         self.well = well
         self.extra_offset = cx.Variable((1,)) if optimize_offset else None
