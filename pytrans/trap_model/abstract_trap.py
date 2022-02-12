@@ -24,7 +24,7 @@ class AbstractTrap(ABC):
     - electrode_constrains (min, max, slew rate)
     - filters?
     """
-    __required_attributes = ['n_dc']
+    __required_attributes = ['_electrodes', 'v_rf', 'omega_rf']
 
     def __new__(cls):
         print("Creating a new trap")
@@ -40,7 +40,7 @@ class AbstractTrap(ABC):
         Returns:
             out: array_like, shape: (n_dc,) + x.shape
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def dc_gradients(self, x, y, z):
@@ -48,7 +48,7 @@ class AbstractTrap(ABC):
         Returns:
             out: array_like, shape: (n_dc, 3) + x.shape
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def dc_hessians(self, x, y, z):
@@ -56,7 +56,7 @@ class AbstractTrap(ABC):
         Returns:
             out: array_like, shape: (n_dc, 3, 3) + x.shape
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def pseudo_potential(self, x, y, z):
@@ -65,7 +65,7 @@ class AbstractTrap(ABC):
         Returns:
             out: array_like, shape: x.shape
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def pseudo_gradient(self, x, y, z):
@@ -74,7 +74,7 @@ class AbstractTrap(ABC):
         Returns:
             out: array_like, shape: (3,) + x.shape
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def pseudo_hessian(self, x, y, z):
@@ -83,7 +83,7 @@ class AbstractTrap(ABC):
         Returns:
             out: array_like, shape: (3, 3) + x.shape
         """
-        pass
+        raise NotImplementedError
 
     def potential(self, voltages, x, y, z):
         return np.einsum('i,i...', voltages, self.dc_potentials(x, y, z)) + self.pseudo_potential(x, y, z)
@@ -94,10 +94,22 @@ class AbstractTrap(ABC):
     def hessian(self, voltages, x, y, z):
         return np.einsum('i,i...', voltages, self.dc_hessians(x, y, z)) + self.pseudo_hessian(x, y, z)
 
+    @property
+    def electrodes(self):
+        return self._electrodes
+
+    @property
+    def n_dc(self):
+        """Number of active electrodes
+        """
+        return len(self.electrodes)
+
 
 if __name__ == '__main__':
 
     class Trap(AbstractTrap):
-        n_dc = 10
-        pass
+        _electrodes = ["E1", "E2"]
+        v_rf = 1.
+        omega_rf = 2 * np.pi * 1e6
+
     trap = Trap()
