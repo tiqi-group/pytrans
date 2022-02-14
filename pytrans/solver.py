@@ -9,7 +9,7 @@ Module docstring
 '''
 
 import cvxpy as cx
-from .trap_model.abstract_trap import AbstractTrap
+from .abstract_model import AbstractTrap
 from .objectives import Objective
 from typing import List, Any
 

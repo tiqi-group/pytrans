@@ -9,7 +9,7 @@ Module docstring
 '''
 from abc import ABC, abstractmethod
 from typing import Union
-from .trap_model.abstract_trap import AbstractTrap
+from .abstract_model import AbstractTrap
 from .potential_well import PotentialWell, MultiplePotentialWell
 from .indexing import parse_indexing
 import numpy as np
