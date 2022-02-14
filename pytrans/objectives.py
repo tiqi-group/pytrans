@@ -11,6 +11,7 @@ from abc import ABC, abstractmethod
 from typing import Union
 from .trap_model.abstract_trap import AbstractTrap
 from .potential_well import PotentialWell, MultiplePotentialWell
+from .indexing import parse_indexing
 import numpy as np
 import cvxpy as cx
 import operator
@@ -30,7 +31,6 @@ _constraint_operator_map = {
 
 
 class Objective(ABC):
-    value: np.typing.ArrayLike = 0
     weight: float = 1.
     constraint_type = None
 
@@ -59,10 +59,10 @@ class Objective(ABC):
 
 class VoltageObjective(Objective):
 
-    def __init__(self, value, index=None, voltage_weights=None, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, value, index=None, voltage_weights=None, weight=1., constraint_type=None):
+        super().__init__(weight, constraint_type)
         self.value = value
-        self.index = index
+        self.index = parse_indexing(index) if index is not None else index
         self.voltage_weights = voltage_weights
 
     def objective(self, trap, voltages):
@@ -82,8 +82,8 @@ class VoltageObjective(Objective):
 
 class SlewRateObjective(Objective):
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, weight=1., constraint_type=None):
+        super().__init__(weight, constraint_type)
 
     def objective(self, trap, voltages):
         n_samples = voltages.shape[0]
@@ -103,8 +103,8 @@ class SymmetryObjective(Objective):
 
     def __init__(self, lhs_indices, rhs_indices, **kwargs):
         super().__init__(**kwargs)
-        self.lhs_indices = lhs_indices
-        self.rhs_indices = rhs_indices
+        self.lhs_indices = parse_indexing(lhs_indices)
+        self.rhs_indices = parse_indexing(rhs_indices)
 
     def objective(self, trap, voltages):
         return
@@ -116,34 +116,76 @@ class SymmetryObjective(Objective):
 
 class PotentialObjective(Objective):
 
-    def __init__(self, x0, derivatives, value, pseudo=True, **kwargs):
-        super().__init__(**kwargs)
-        self.x0 = x0
-        self.derivatives = derivatives
+    def __init__(self, value, x, y, z, pseudo=True, weight=1., constraint_type=None):
+        super().__init__(weight, constraint_type)
+        self.xyz = x, y, z
         self.value = value
         self.pseudo = pseudo
 
     def objective(self, trap, voltages):
-        # assert len(electrode_indices) == voltages.shape[1], 'Wrong electrode indexing'
-        xi = np.argmin(abs(self.x0 - trap.x))
-        pot = voltages @ trap.dc_potential(self.derivatives)[..., xi]
+        pot = voltages @ trap.dc_potentials(*self.xyz)
         if self.pseudo:
-            pot += trap.pseudo_potential(self.derivatives)[..., xi]
+            pot += trap.pseudo_potential(*self.xyz)
         cost = cx.multiply(self.weight, cx.sum_squares(pot - self.value))
         yield cost
 
     def constraint(self, trap, voltages):
-        # assert len(electrode_indices) == voltages.shape[1], 'Wrong electrode indexing'
-        xi = np.argmin(abs(self.x0 - trap.x))
-        pot = voltages @ trap.dc_potential(self.derivatives)[..., xi]
+        pot = voltages @ trap.dc_potentials(*self.xyz)
         if self.pseudo:
-            pot += trap.pseudo_potential(self.derivatives)[..., xi]
+            pot += trap.pseudo_potential(*self.xyz)
+        return self._yield_constraint(pot, self.value)
+
+
+class GradientObjective(Objective):
+
+    def __init__(self, value, x, y, z, pseudo=True, weight=1., constraint_type=None):
+        super().__init__(weight, constraint_type)
+        self.xyz = x, y, z
+        self.value = value
+        self.pseudo = pseudo
+
+    def objective(self, trap, voltages):
+        pot = voltages @ trap.dc_gradients(*self.xyz)  # resulting shape is (3, len(x))
+        if self.pseudo:
+            pot += trap.pseudo_gradient(*self.xyz)
+        cost = cx.multiply(self.weight, cx.sum_squares(pot - self.value))
+        yield cost
+
+    def constraint(self, trap, voltages):
+        pot = voltages @ trap.dc_gradients(*self.xyz)
+        if self.pseudo:
+            pot += trap.pseudo_gradient(*self.xyz)
+        return self._yield_constraint(pot, self.value)
+
+
+class HessianObjective(Objective):
+
+    def __init__(self, value, x, y, z, pseudo=True, weight=1., constraint_type=None):
+        super().__init__(weight, constraint_type)
+        self.xyz = x, y, z
+        self.value = value
+        self.pseudo = pseudo
+
+    def objective(self, trap, voltages):
+        nv = voltages.shape[-1]
+        pot = voltages @ trap.dc_hessians(*self.xyz).reshape(nv, 9, -1)
+        if self.pseudo:
+            pot += trap.pseudo_hessian(*self.xyz).reshape(9, -1)
+        cost = cx.multiply(self.weight, cx.sum_squares(pot - self.value))
+        yield cost
+
+    def constraint(self, trap, voltages):
+        nv = voltages.shape[-1]
+        pot = voltages @ trap.dc_hessians(*self.xyz).reshape(nv, 9, -1)
+        if self.pseudo:
+            pot += trap.pseudo_hessian(*self.xyz).reshape(9, -1)
         return self._yield_constraint(pot, self.value)
 
 
 class GridPotentialObjective(Objective):
 
     def __init__(self, well: Union[PotentialWell, MultiplePotentialWell], optimize_offset=False, **kwargs):
+        raise DeprecationWarning("This class is now obsolete, as PotentialObjective can be evaluated on an arbtrary grid of points.")
         super().__init__(**kwargs)
         self.well = well
         self.extra_offset = cx.Variable((1,)) if optimize_offset else None

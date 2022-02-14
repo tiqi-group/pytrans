@@ -11,12 +11,13 @@ Module docstring
 import cvxpy as cx
 from .trap_model.abstract_trap import AbstractTrap
 from .objectives import Objective
-from typing import List
+from typing import List, Any
 
 
 def solver(trap: AbstractTrap,
            step_objectives: List[List[Objective]],
            global_objectives: List[Objective],
+           extra_constraints: List[Any] = None,
            solver="MOSEK", start_value=None, verbose=False):
     """Static solver
 
@@ -29,7 +30,7 @@ def solver(trap: AbstractTrap,
         """
 
     # static voltage cost
-    shape = (len(step_objectives), trap.num_electrodes)
+    shape = (len(step_objectives), trap.n_electrodes)
     waveform = cx.Variable(shape=shape, name="waveform")
     costs = []  # type: ignore
     cstr = []   # type: ignore
@@ -47,6 +48,8 @@ def solver(trap: AbstractTrap,
         else:
             cstr.extend(c.constraint(trap, waveform))
 
+    if extra_constraints is not None:
+        cstr.extend(extra_constraints)
     cost = sum(costs)
     objective = cx.Minimize(cost)
     problem = cx.Problem(objective, cstr)

@@ -5,6 +5,8 @@ death_outputs_to_use.txt
 .idea/
 waveform_files/
 
+pytrans/trap_model/*/*
+
 # bakup files (bad practice, they will go soon)
 bak_*
 
