@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 from typing import Union
 from .abstract_model import AbstractTrap
 from .potential_well import PotentialWell, MultiplePotentialWell
-from .indexing import parse_indexing
+from .indexing import parse_indexing, get_derivative, gradient_matrix
 import numpy as np
 import cvxpy as cx
 import operator
@@ -87,11 +87,7 @@ class SlewRateObjective(Objective):
 
     def objective(self, trap, voltages):
         n_samples = voltages.shape[0]
-        M = np.zeros((n_samples, n_samples))
-        M += np.diagflat([1] * (n_samples - 1), k=1) / 2
-        M += np.diagflat([-1] * (n_samples - 1), k=-1) / 2
-        M[0, [0, 1]] = -1, 1
-        M[-1, [-2, -1]] = -1, 1
+        M = gradient_matrix(n_samples)
         # print("--- grad")
         yield cx.multiply(self.weight, cx.sum_squares(M @ voltages))
 
@@ -138,16 +134,18 @@ class PotentialObjective(Objective):
 
 class GradientObjective(Objective):
 
-    def __init__(self, value, x, y, z, pseudo=True, weight=1., constraint_type=None):
+    def __init__(self, value, x, y, z, entries=None, pseudo=True, weight=1., constraint_type=None):
         super().__init__(weight, constraint_type)
         self.xyz = x, y, z
         self.value = value
         self.pseudo = pseudo
+        self.entries = slice(None) if entries is None else get_derivative(entries)
 
     def objective(self, trap, voltages):
         pot = voltages @ trap.dc_gradients(*self.xyz)  # resulting shape is (3, len(x))
         if self.pseudo:
             pot += trap.pseudo_gradient(*self.xyz)
+        pot = pot[self.entries]
         cost = cx.multiply(self.weight, cx.sum_squares(pot - self.value))
         yield cost
 
@@ -155,30 +153,34 @@ class GradientObjective(Objective):
         pot = voltages @ trap.dc_gradients(*self.xyz)
         if self.pseudo:
             pot += trap.pseudo_gradient(*self.xyz)
+        pot = pot[self.entries]
         return self._yield_constraint(pot, self.value)
 
 
 class HessianObjective(Objective):
 
-    def __init__(self, value, x, y, z, pseudo=True, weight=1., constraint_type=None):
+    def __init__(self, value, x, y, z, entries=None, pseudo=True, weight=1., constraint_type=None):
         super().__init__(weight, constraint_type)
         self.xyz = x, y, z
         self.value = value
         self.pseudo = pseudo
+        self.entries = slice(None) if entries is None else get_derivative(entries)
 
     def objective(self, trap, voltages):
         nv = voltages.shape[-1]
-        pot = voltages @ trap.dc_hessians(*self.xyz).reshape(nv, 9, -1)
+        pot = voltages @ trap.dc_hessians(*self.xyz).reshape(nv, 9)
         if self.pseudo:
-            pot += trap.pseudo_hessian(*self.xyz).reshape(9, -1)
+            pot += trap.pseudo_hessian(*self.xyz).reshape(9)
+        pot = pot[self.entries]
         cost = cx.multiply(self.weight, cx.sum_squares(pot - self.value))
         yield cost
 
     def constraint(self, trap, voltages):
         nv = voltages.shape[-1]
-        pot = voltages @ trap.dc_hessians(*self.xyz).reshape(nv, 9, -1)
+        pot = voltages @ trap.dc_hessians(*self.xyz).reshape(nv, 9)
         if self.pseudo:
-            pot += trap.pseudo_hessian(*self.xyz).reshape(9, -1)
+            pot += trap.pseudo_hessian(*self.xyz).reshape(9)
+        pot = pot[self.entries]
         return self._yield_constraint(pot, self.value)
 
 

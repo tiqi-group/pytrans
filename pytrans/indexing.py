@@ -1,5 +1,60 @@
+#!/usr/bin/env python
+# -*- coding:utf-8 -*-
+#
+# Created: 08/2021
+# Author: Carmelo Mordini <cmordini@phys.ethz.ch>
+
+""" Various tools to easily index arrays
+Inspired by:
+- https://github.com/nist-ionstorage/electrode/blob/master/electrode/utils.py
+- https://stackoverflow.com/a/43090200
+"""
+
+
 import re
+import numpy as np
+
 re_ix = r"(\[[\s\d,]+\]|[-\d:]+)"
+
+
+def gradient_matrix(n):
+    M = np.zeros((n, n))
+    M += np.diagflat([1] * (n - 1), k=1) / 2
+    M += np.diagflat([-1] * (n - 1), k=-1) / 2
+    M[0, [0, 1]] = -1, 1
+    M[-1, [-2, -1]] = -1, 1
+    return M
+
+
+def populate_map(names):
+    d_map = {}
+    for order, names in enumerate(names):
+        idx = 0
+        d_map[order] = []
+        for name in names:
+            d_map[name] = idx
+            d_map[order].append(idx)
+            idx += 1
+    return d_map
+
+
+d_names = [[""]] + [s.split() for s in [
+    "x y z",
+    "xx xy xz yx yy yz zx zy zz",
+]]
+
+d_map = populate_map(d_names)
+
+
+def get_derivative(d, d_map=d_map):
+    if isinstance(d, int):
+        return d_map[d]
+    elif isinstance(d, str):
+        return d_map[d]
+    elif isinstance(d, list):
+        return [d_map[name] for name in d]
+    else:
+        raise TypeError(f"Undefined derivative: {d}")
 
 
 def parse_indexing_string(indexing: str):
@@ -38,7 +93,7 @@ def parse_indexing_string(indexing: str):
 
 
 def parse_indexing(indexing):
-    if isinstance(indexing, (slice, list, int)):
+    if isinstance(indexing, (slice, tuple, list, int)):
         return indexing
     elif isinstance(indexing, str):
         return parse_indexing_string(indexing)
@@ -61,3 +116,9 @@ if __name__ == '__main__':
             print(parse_indexing_string(string))
         except ValueError as e:
             print(e)
+
+    print(d_names)
+    __import__('pprint').pprint(d_map)
+    print(get_derivative(1, d_map))
+    print(get_derivative('xy', d_map))
+    print(get_derivative(['x', 'xy'], d_map))

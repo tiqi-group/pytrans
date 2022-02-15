@@ -27,12 +27,38 @@ class AbstractTrap(ABC):
     __required_attributes = ['_electrodes', 'v_rf', 'omega_rf']
 
     def __new__(cls, *args, **kwargs):
-        print("Creating a new trap")
         for name in cls.__required_attributes:
             if not hasattr(cls, name):
                 raise TypeError(f"Can't instantiate abstract class {cls.__name__} with abstract attributes {','.join(cls.__required_attributes)}")
         cls._all_electrodes = cls._electrodes
         return super().__new__(cls)
+
+    def __init__(self, electrodes=None):
+        if electrodes is not None:
+            for name in electrodes:
+                if name not in self._all_electrodes:
+                    raise AttributeError(f"Trap {self.__class__.__name__} has no electrode {name}")
+            self._electrodes = electrodes
+
+    @property
+    def electrodes(self):
+        return self._electrodes
+
+    @property
+    def n_electrodes(self):
+        """Number of active electrodes
+        """
+        return len(self.electrodes)
+
+    @property
+    def electrode_all_indices(self):
+        return self.electrode_to_index(self.electrodes, in_all=True)
+
+    def electrode_to_index(self, names, in_all=False):
+        el_list = self._all_electrodes if in_all else self.electrodes
+        if isinstance(names, str):
+            return el_list.index(names)
+        return [el_list.index(n) for n in names]
 
     @abstractmethod
     def dc_potentials(self, x, y, z):
@@ -93,21 +119,6 @@ class AbstractTrap(ABC):
 
     def hessian(self, voltages, x, y, z):
         return np.tensordot(voltages, self.dc_hessians(x, y, z), axes=1) + self.pseudo_hessian(x, y, z)
-
-    @property
-    def electrodes(self):
-        return self._electrodes
-
-    @property
-    def n_electrodes(self):
-        """Number of active electrodes
-        """
-        return len(self.electrodes)
-
-    def el_index(self, names):
-        if isinstance(names, str):
-            return self.electrodes.index(names)
-        return [self.electrodes.index(n) for n in names]
 
 
 if __name__ == '__main__':
