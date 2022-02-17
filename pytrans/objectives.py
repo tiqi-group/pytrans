@@ -10,7 +10,6 @@ Module docstring
 from abc import ABC, abstractmethod
 from typing import Union
 from .abstract_model import AbstractTrap
-from .potential_well import PotentialWell, MultiplePotentialWell
 from .indexing import parse_indexing, get_derivative, gradient_matrix
 import numpy as np
 import cvxpy as cx
@@ -184,32 +183,32 @@ class HessianObjective(Objective):
         return self._yield_constraint(pot, self.value)
 
 
-class GridPotentialObjective(Objective):
+# class GridPotentialObjective(Objective):
 
-    def __init__(self, well: Union[PotentialWell, MultiplePotentialWell], optimize_offset=False, **kwargs):
-        raise DeprecationWarning("This class is now obsolete, as PotentialObjective can be evaluated on an arbtrary grid of points.")
-        super().__init__(**kwargs)
-        self.well = well
-        self.extra_offset = cx.Variable((1,)) if optimize_offset else None
+#     def __init__(self, well: Union[PotentialWell, MultiplePotentialWell], optimize_offset=False, **kwargs):
+#         raise DeprecationWarning("This class is now obsolete, as PotentialObjective can be evaluated on an arbtrary grid of points.")
+#         super().__init__(**kwargs)
+#         self.well = well
+#         self.extra_offset = cx.Variable((1,)) if optimize_offset else None
 
-    def objective(self, trap, voltages):
-        roi = self.well.roi(trap.x)
-        x = trap.x[roi]
-        weight = self.well.weight(x)
-        value = self.well.potential(x)
-        if self.extra_offset:
-            value = value + self.extra_offset
-        moments = trap.moments[..., roi]
-        # v = voltages.value
-        # if v is not None:
-        #     import matplotlib.pyplot as plt
-        #     fig, ax = plt.subplots()
-        #     ax.plot(trap.x * 1e6, v @ trap.moments[electrode_indices])
-        #     ax.plot(x * 1e6, self.well.potential(x))
-        #     plt.show()
-        diff = (voltages @ moments - value)
-        cost = cx.multiply(self.weight, cx.sum_squares(cx.multiply(np.sqrt(weight), diff)))
-        yield cost
+#     def objective(self, trap, voltages):
+#         roi = self.well.roi(trap.x)
+#         x = trap.x[roi]
+#         weight = self.well.weight(x)
+#         value = self.well.potential(x)
+#         if self.extra_offset:
+#             value = value + self.extra_offset
+#         moments = trap.moments[..., roi]
+#         # v = voltages.value
+#         # if v is not None:
+#         #     import matplotlib.pyplot as plt
+#         #     fig, ax = plt.subplots()
+#         #     ax.plot(trap.x * 1e6, v @ trap.moments[electrode_indices])
+#         #     ax.plot(x * 1e6, self.well.potential(x))
+#         #     plt.show()
+#         diff = (voltages @ moments - value)
+#         cost = cx.multiply(self.weight, cx.sum_squares(cx.multiply(np.sqrt(weight), diff)))
+#         yield cost
 
-    def constraint(self, trap, voltages):
-        raise NotImplementedError
+#     def constraint(self, trap, voltages):
+#         raise NotImplementedError
