@@ -11,7 +11,6 @@ import numpy as np
 import numpy.typing as npt
 from abc import ABC, abstractmethod
 from .conversion import freq_to_curv, curv_to_freq
-from .constants import ion_masses, elementary_charge
 
 from typing import List
 

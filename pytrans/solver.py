@@ -13,6 +13,8 @@ from .abstract_model import AbstractTrap
 from .objectives import Objective
 from typing import List, Any
 
+from tqdm import tqdm
+
 
 def solver(trap: AbstractTrap,
            step_objectives: List[List[Objective]],
@@ -35,7 +37,7 @@ def solver(trap: AbstractTrap,
     costs = []  # type: ignore
     cstr = []   # type: ignore
 
-    for voltages, ci in zip(waveform, step_objectives):
+    for voltages, ci in zip(waveform, tqdm(step_objectives, desc="Compiling step objectives")):
         for cj in ci:
             if cj.constraint_type is None:
                 costs.extend(cj.objective(trap, voltages))
