@@ -9,9 +9,10 @@ Module docstring
 '''
 
 import numpy as np
+from .ions import Ion
 
 
-def field_to_shift(E, mass, charge):
+def field_to_shift(E, mass=None, charge=None, ion: Ion = None):
     """
     Shift in position produced by the electric field E
     in a potential well of 1 MHz
@@ -19,43 +20,55 @@ def field_to_shift(E, mass, charge):
     Parameters
         E: electric field [V/m]
         mass: mass of the ion [kg]
-        charge: charge if the ion [C]
+        charge: charge of the ion [C]
+        ion (optional): ion species class specifying mass and charge
 
     Returns
         shift: position shift [m]
     """
+    if ion is not None:
+        mass = ion.mass
+        charge = ion.charge
     curv = (2 * np.pi * 1e6)**2 * mass / charge
     return E / curv
 
 
-def curv_to_freq(curv, mass, charge):
+def curv_to_freq(curv, mass=None, charge=None, ion: Ion = None):
     """
     Secular frequency for the given curvature and ion
 
     Parameters
         curv: potential curvature [V/m^2]
         mass: mass of the ion [kg]
-        charge: charge if the ion [C]
+        charge: charge of the ion [C]
+        ion (optional): ion species class specifying mass and charge
 
     Returns
         freq: secular frequency [Hz]
     """
+    if ion is not None:
+        mass = ion.mass
+        charge = ion.charge
     C = (2 * np.pi)**2 * mass / charge
     return np.sign(curv) * np.sqrt(np.abs(curv) / C)
 
 
-def freq_to_curv(freq, mass, charge):
+def freq_to_curv(freq, mass=None, charge=None, ion: Ion = None):
     """
     Curvature corresponding to the given secular frequency and ion
 
     Parameters
         freq: secular frequency [Hz]
         mass: mass of the ion [kg]
-        charge: charge if the ion [C]
+        charge: charge of the ion [C]
+        ion (optional): ion species class specifying mass and charge
 
     Returns
         curv: potential curvature [V/m^2]
     """
+    if ion is not None:
+        mass = ion.mass
+        charge = ion.charge
     C = (2 * np.pi)**2 * mass / charge
     return C * np.sign(freq) * freq**2
 

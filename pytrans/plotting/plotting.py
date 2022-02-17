@@ -1,13 +1,15 @@
 import numpy as np
+from numpy.typing import ArrayLike
+from pytrans.abstract_model import AbstractTrap
+
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 from matplotlib.colorbar import make_axes
 from matplotlib.patches import Rectangle
 
-y_rf, z_rf = 0, 51.67922e-6
 
-
-def plot_3dpot(fun, r0, args=tuple(), roi=(600, 50, 50), axes=None):
+def plot3d_potential(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
+                     roi=(600, 50, 50), axes=None):
 
     if axes is None:
         fig, axes = plot3d_make_layout(n=1)
@@ -32,29 +34,14 @@ def plot_3dpot(fun, r0, args=tuple(), roi=(600, 50, 50), axes=None):
 
     _xyz = np.stack([_x, _y, _z], axis=0)
 
-    x, y, z = _xyz + r0.reshape((-1, 1))
+    x, y, z = _xyz + np.asarray(r0).reshape((-1, 1))
 
     def _fun(x, y, z):
-        return fun(x, y, z, *args)
-
-    v0 = _fun(*r0)
-    r_rf = r0[0], y_rf, z_rf
-    v_rf = _fun(*r_rf)
-
-    marker_kw = dict(marker='o', color='none', mfc='none', mec='r')
-    marker_rf = dict(marker='x', color='none', mec='r', mew=2)
+        return trap.potential(voltages, x, y, z)
 
     ax_x.plot(x * 1e6, _fun(x, y0, z0))
-    ax_x.plot(x0 * 1e6, v0, **marker_kw)
-    ax_x.plot(x0 * 1e6, v_rf, **marker_rf)
-
     ax_y.plot(y * 1e6, _fun(x0, y, z0))
-    ax_y.plot(y0 * 1e6, v0, **marker_kw)
-    ax_y.plot(y_rf * 1e6, v_rf, **marker_rf)
-
     ax_z.plot(_fun(x0, y0, z), z * 1e6)
-    ax_z.plot(v0, z0 * 1e6, **marker_kw)
-    ax_z.plot(v_rf, z_rf * 1e6, **marker_rf)
 
     Y, Z = np.meshgrid(y, z)
     ps = _fun(x0, Y, Z)
@@ -69,8 +56,25 @@ def plot_3dpot(fun, r0, args=tuple(), roi=(600, 50, 50), axes=None):
     except Exception:
         pass
 
+    # mark the center of the roi (r0)
+    marker_kw = dict(marker='o', color='none', mfc='none', mec='r')
+    v0 = _fun(*r0)
+    ax_x.plot(x0 * 1e6, v0, **marker_kw)
+    ax_y.plot(y0 * 1e6, v0, **marker_kw)
+    ax_z.plot(v0, z0 * 1e6, **marker_kw)
     ax_im.plot(y0 * 1e6, z0 * 1e6, **marker_kw)
+
+    # mark RF null
+    marker_rf = dict(marker='x', color='none', mec='r', mew=2)
+    y_rf = getattr(trap, 'y0', 0)
+    z_rf = getattr(trap, 'z0', 0)
+    r_rf = r0[0], y_rf, z_rf
+    v_rf = _fun(*r_rf)
+    ax_x.plot(x0 * 1e6, v_rf, **marker_rf)
+    ax_y.plot(y_rf * 1e6, v_rf, **marker_rf)
+    ax_z.plot(v_rf, z_rf * 1e6, **marker_rf)
     ax_im.plot(y_rf * 1e6, z_rf * 1e6, **marker_rf)
+
     ax_x.set(xlabel='x [um]')
     ax_y.set(xlabel='y [um]')
     ax_z.set(ylabel='z [um]')
