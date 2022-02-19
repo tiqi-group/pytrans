@@ -109,17 +109,21 @@ class SymmetryObjective(Objective):
 
 class PotentialObjective(Objective):
 
-    def __init__(self, x, y, z, value, pseudo=True, weight=1., constraint_type=None):
+    def __init__(self, x, y, z, value, pseudo=True, local_weight=None, weight=1., constraint_type=None):
         super().__init__(weight, constraint_type)
         self.xyz = x, y, z
         self.value = value
         self.pseudo = pseudo
+        self.local_weight = local_weight
 
     def objective(self, trap, voltages):
         pot = voltages @ trap.dc_potentials(*self.xyz)
         if self.pseudo:
             pot += trap.pseudo_potential(*self.xyz)
-        cost = cx.multiply(self.weight, cx.sum_squares(pot - self.value))
+        diff = pot - self.value
+        if self.local_weight is not None:
+            diff = cx.multiply(np.sqrt(self.local_weight), diff)
+        cost = cx.multiply(self.weight, cx.sum_squares(diff))
         yield cost
 
     def constraint(self, trap, voltages):
