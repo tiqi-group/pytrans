@@ -131,3 +131,29 @@ def plot_electrodes(ax, electrode_indices=None, y=None, h=None, d=125, L=120, sc
         ax.text(c, y, n - 1)
         ax.add_patch(r)
     ax.autoscale_view()
+
+
+def plot_curvatures(modes, angle, ax=None):
+    if ax is None:
+        fig, ax = plt.subplots()
+    t = np.arange(len(angle))
+    lf = ax.plot(t, modes * 1e-6, label="x r1 r2".split())
+    ax2 = ax.twinx()
+    ax2.format_coord = _make_format(ax2, ax)
+    la = ax2.plot(t, angle, 'k--', label="angle")
+    lines = lf + la
+    labels = [line.get_label() for line in lines]
+    ax.legend(lines, labels)
+
+
+def _make_format(current, other):
+    # https://stackoverflow.com/a/21585524
+    def format_coord(x, y):
+        # x, y are data coordinates
+        # convert to display coords
+        display_coord = current.transData.transform((x, y))
+        inv = other.transData.inverted()
+        # convert back to data coords with respect to ax
+        x1, y1 = inv.transform(display_coord)
+        return f"x: {x:.2f}    freq: {y1:.2f}    angle: {y:.2f}"
+    return format_coord

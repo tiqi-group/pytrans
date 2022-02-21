@@ -10,8 +10,7 @@ Module docstring
 
 import numpy as np
 from numpy.typing import ArrayLike
-
-from pytrans.plotting import plot3d_potential, plot3d_make_layout
+from pytrans.plotting import plot3d_potential, plot3d_make_layout, plot_curvatures
 from pytrans.conversion import curv_to_freq, field_to_shift
 from pytrans.ions import Ca40
 from pytrans.utils.timer import timer
@@ -22,6 +21,7 @@ from matplotlib import patches as mpatches
 from matplotlib import transforms
 
 from colorama import init as colorama_init, Fore
+from tqdm import tqdm
 
 colorama_init(autoreset=True)
 
@@ -31,13 +31,28 @@ __roi = (400, 30, 30)
 minimize = timer(minimize)
 
 
-def analyse_hessian(H):
+def _eig_hessian(H):
     h, vs = np.linalg.eig(H)
     ix = np.argsort(abs(h))
     h = h[ix]
     vs = vs[:, ix]
     angle = np.arctan2(1, vs[1, 2] / vs[2, 2]) * 180 / np.pi
     return h, vs, angle
+
+
+def analyse_curvatures(trap: AbstractTrap, voltages: ArrayLike, x, y=None, z=None, plot=True, ax=None):
+    y = getattr(trap, 'y0', 0) if y is None else y
+    z = getattr(trap, 'z0', 0) if z is None else z
+    print('--------------\n' + Fore.YELLOW + "Analyse curvatures along trajectory")
+    modes = np.empty(x.shape + (3,))
+    angle = np.empty_like(x)
+    for j, x1 in enumerate(tqdm(x)):
+        H = trap.hessian(voltages[j], x1, y, z)
+        h, _, angle[j] = _eig_hessian(H)
+        modes[j] = curv_to_freq(h, ion=trap.ion)
+    if plot:
+        plot_curvatures(modes, angle, ax)
+    return modes, angle
 
 
 def analyse_potential_data(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
@@ -71,7 +86,7 @@ def analyse_potential_data(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLik
     E = trap.gradient(voltages, x1, y1, z1)
     H = trap.hessian(voltages, x1, y1, z1)
 
-    h, vs, angle = analyse_hessian(H)
+    h, vs, angle = _eig_hessian(H)
 
     ion = trap.ion if hasattr(trap, 'ion') else Ca40
     freqs = curv_to_freq(h, ion=ion) * 1e-6

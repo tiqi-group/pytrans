@@ -37,7 +37,7 @@ def animate_waveform(trap, waveform, x, y, z, **kwargs):
         lnv.set_ydata(waveform[j])
         return ln, lnv
 
-    kw = dict(blit=True, interval=50)
+    kw = dict(blit=True, interval=20, repeat_delay=2000)
     kw.update(kwargs)
 
     ani = FuncAnimation(fig, update, frames=range(len(waveform)),
