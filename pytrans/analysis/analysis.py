@@ -116,6 +116,7 @@ def analyse_potential_data(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLik
         fx=freqs[0],
         fy=freqs[1],
         fz=freqs[2],
+        hessian=H,
         eigenvalues=h,
         eigenvectors=vs,
         angle=angle

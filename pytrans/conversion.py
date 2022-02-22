@@ -12,27 +12,6 @@ import numpy as np
 from .ions import Ion
 
 
-def field_to_shift(E, mass=None, charge=None, ion: Ion = None):
-    """
-    Shift in position produced by the electric field E
-    in a potential well of 1 MHz
-
-    Parameters
-        E: electric field [V/m]
-        mass: mass of the ion [kg]
-        charge: charge of the ion [C]
-        ion (optional): ion species class specifying mass and charge
-
-    Returns
-        shift: position shift [m]
-    """
-    if ion is not None:
-        mass = ion.mass
-        charge = ion.charge
-    curv = (2 * np.pi * 1e6)**2 * mass / charge
-    return E / curv
-
-
 def curv_to_freq(curv, mass=None, charge=None, ion: Ion = None):
     """
     Secular frequency for the given curvature and ion
@@ -71,6 +50,42 @@ def freq_to_curv(freq, mass=None, charge=None, ion: Ion = None):
         charge = ion.charge
     C = (2 * np.pi)**2 * mass / charge
     return C * np.sign(freq) * freq**2
+
+
+def field_to_shift(E, mass=None, charge=None, ion: Ion = None):
+    """
+    Shift in position produced by the electric field E
+    in a potential well of 1 MHz
+
+    Parameters
+        E: electric field [V/m]
+        mass: mass of the ion [kg]
+        charge: charge of the ion [C]
+        ion (optional): ion species class specifying mass and charge
+
+    Returns
+        shift: position shift [m]
+    """
+    curv = freq_to_curv(1e6, mass, charge, ion)
+    return E / curv
+
+
+def shift_to_field(dx, mass=None, charge=None, ion: Ion = None):
+    """
+    Electric field producing a shift in position dx
+    in a potential well of 1 MHz
+
+    Parameters
+        E: electric field [V/m]
+        mass: mass of the ion [kg]
+        charge: charge of the ion [C]
+        ion (optional): ion species class specifying mass and charge
+
+    Returns
+        shift: position shift [m]
+    """
+    curv = freq_to_curv(1e6, mass, charge, ion)
+    return dx * curv
 
 
 def get_hessian(axial, split, tilt, freq_pseudo, mass, charge):
