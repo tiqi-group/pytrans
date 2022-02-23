@@ -9,7 +9,7 @@ Module docstring
 '''
 from abc import ABC, abstractmethod
 from .abstract_model import AbstractTrap
-from .indexing import parse_indexing, get_derivative, gradient_matrix
+from .indexing import get_derivative, gradient_matrix
 import numpy as np
 import cvxpy as cx
 import operator
@@ -60,12 +60,13 @@ class VoltageObjective(Objective):
     def __init__(self, value, index=None, voltage_weights=None, weight=1., constraint_type=None):
         super().__init__(weight, constraint_type)
         self.value = value
-        self.index = parse_indexing(index) if index is not None else index
+        self.index = index
         self.voltage_weights = voltage_weights
 
     def objective(self, trap, voltages):
         if self.index is not None:
-            voltages = voltages[self.index]
+            index = trap.electrode_to_index(self.index)
+            voltages = voltages[index]
         diff = voltages - self.value
         if self.voltage_weights is not None:
             diff = cx.multiply(np.sqrt(self.voltage_weights), diff)
@@ -74,7 +75,8 @@ class VoltageObjective(Objective):
 
     def constraint(self, trap, voltages):
         if self.index is not None:
-            voltages = voltages[self.index]
+            index = trap.electrode_to_index(self.index)
+            voltages = voltages[index]
         return self._yield_constraint(voltages, self.value)
 
 
@@ -95,16 +97,19 @@ class SlewRateObjective(Objective):
 
 class SymmetryObjective(Objective):
 
-    def __init__(self, lhs_indices, rhs_indices, **kwargs):
-        super().__init__(**kwargs)
-        self.lhs_indices = parse_indexing(lhs_indices)
-        self.rhs_indices = parse_indexing(rhs_indices)
+    def __init__(self, lhs_indices, rhs_indices, sign=1, weight=1., constraint_type=None):
+        super().__init__(weight, constraint_type)
+        self.lhs_indices = lhs_indices
+        self.rhs_indices = rhs_indices
+        self.sign = sign
 
     def objective(self, trap, voltages):
         raise NotImplementedError
 
     def constraint(self, trap, voltages):
-        return self._yield_constraint(voltages[self.lhs_indices], voltages[self.rhs_indices])
+        lhs = trap.electrode_to_index(self.lhs_indices)
+        rhs = trap.electrode_to_index(self.rhs_indices)
+        return self._yield_constraint(voltages[lhs], self.sign * voltages[rhs])
 
 
 class PotentialObjective(Objective):

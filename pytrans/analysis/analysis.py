@@ -56,11 +56,15 @@ def analyse_curvatures(trap: AbstractTrap, voltages: ArrayLike, x, y=None, z=Non
 
 
 def analyse_potential_data(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
-                           roi=None, find_3dmin=True, minimize_options=dict()):
+                           roi=None, pseudo=True, find_3dmin=True, minimize_options=dict()):
     roi = __roi if roi is None else roi
 
-    def fun3(xyz):
-        return trap.potential(voltages, *xyz)
+    if pseudo:
+        def fun3(xyz):
+            return trap.potential(voltages, *xyz)
+    else:
+        def fun3(xyz):
+            return np.tensordot(voltages, trap.dc_potentials(*xyz), axes=1)
 
     print('--------------\n' + Fore.YELLOW + "Analyse potential")
     if find_3dmin:
@@ -83,8 +87,12 @@ def analyse_potential_data(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLik
         x1, y1, z1 = r0
         v = fun3(r0)
 
-    E = trap.gradient(voltages, x1, y1, z1)
-    H = trap.hessian(voltages, x1, y1, z1)
+    if pseudo:
+        E = trap.gradient(voltages, x1, y1, z1)
+        H = trap.hessian(voltages, x1, y1, z1)
+    else:
+        E = np.tensordot(voltages, trap.dc_gradients(x1, y1, z1), axes=1)
+        H = np.tensordot(voltages, trap.dc_hessians(x1, y1, z1), axes=1)
 
     h, vs, angle = _eig_hessian(H)
 
@@ -124,13 +132,14 @@ def analyse_potential_data(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLik
     return results
 
 
-def analyse_potential(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike, plot=True,
-                      axes=None, roi=None, find_3dmin=True, minimize_options=dict()):
+def analyse_potential(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
+                      plot=True, axes=None, roi=None,
+                      pseudo=True, find_3dmin=True, minimize_options=dict()):
     if axes is None:
         fig, axes = plot3d_make_layout(n=1)
     roi = __roi if roi is None else roi
 
-    res = analyse_potential_data(trap, voltages, r0, roi, find_3dmin, minimize_options)
+    res = analyse_potential_data(trap, voltages, r0, roi, pseudo, find_3dmin, minimize_options)
     x1, y1, z1 = res['x'], res['y'], res['z']
     freqs = res['fx'], res['fy'], res['fz']
     f1 = res['fun']
@@ -139,7 +148,7 @@ def analyse_potential(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike, pl
     angle = res['angle']
 
     if plot:
-        plot3d_potential(trap, voltages, r0, roi=roi, axes=axes)
+        plot3d_potential(trap, voltages, r0, roi=roi, axes=axes, pseudo=pseudo)
 
     ax_x, ax_y, ax_z, ax_im, ax0 = axes
     fig = ax_x.figure

@@ -9,7 +9,7 @@ from matplotlib.patches import Rectangle
 
 
 def plot3d_potential(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
-                     roi=(600, 50, 50), axes=None):
+                     roi=(600, 50, 50), axes=None, pseudo=True):
 
     if axes is None:
         fig, axes = plot3d_make_layout(n=1)
@@ -36,8 +36,12 @@ def plot3d_potential(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
 
     x, y, z = _xyz + np.asarray(r0).reshape((-1, 1))
 
-    def _fun(x, y, z):
-        return trap.potential(voltages, x, y, z)
+    if pseudo:
+        def _fun(x, y, z):
+            return trap.potential(voltages, x, y, z)
+    else:
+        def _fun(x, y, z):
+            return np.tensordot(voltages, trap.dc_potentials(x, y, z), axes=1)
 
     ax_x.plot(x * 1e6, _fun(x, y0, z0))
     ax_y.plot(y * 1e6, _fun(x0, y, z0))
