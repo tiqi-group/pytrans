@@ -8,9 +8,8 @@
 Module docstring
 '''
 from abc import ABC, abstractmethod
-from typing import Union
 from .abstract_model import AbstractTrap
-from .indexing import parse_indexing, get_derivative, gradient_matrix
+from .indexing import get_derivative, gradient_matrix
 import numpy as np
 import cvxpy as cx
 import operator
@@ -61,12 +60,13 @@ class VoltageObjective(Objective):
     def __init__(self, value, index=None, voltage_weights=None, weight=1., constraint_type=None):
         super().__init__(weight, constraint_type)
         self.value = value
-        self.index = parse_indexing(index) if index is not None else index
+        self.index = index
         self.voltage_weights = voltage_weights
 
     def objective(self, trap, voltages):
         if self.index is not None:
-            voltages = voltages[self.index]
+            index = trap.electrode_to_index(self.index)
+            voltages = voltages[index]
         diff = voltages - self.value
         if self.voltage_weights is not None:
             diff = cx.multiply(np.sqrt(self.voltage_weights), diff)
@@ -75,7 +75,8 @@ class VoltageObjective(Objective):
 
     def constraint(self, trap, voltages):
         if self.index is not None:
-            voltages = voltages[self.index]
+            index = trap.electrode_to_index(self.index)
+            voltages = voltages[index]
         return self._yield_constraint(voltages, self.value)
 
 
@@ -96,32 +97,39 @@ class SlewRateObjective(Objective):
 
 class SymmetryObjective(Objective):
 
-    def __init__(self, lhs_indices, rhs_indices, **kwargs):
-        super().__init__(**kwargs)
-        self.lhs_indices = parse_indexing(lhs_indices)
-        self.rhs_indices = parse_indexing(rhs_indices)
+    def __init__(self, lhs_indices, rhs_indices, sign=1, weight=1., constraint_type=None):
+        super().__init__(weight, constraint_type)
+        self.lhs_indices = lhs_indices
+        self.rhs_indices = rhs_indices
+        self.sign = sign
 
     def objective(self, trap, voltages):
-        return
-        yield
+        raise NotImplementedError
 
     def constraint(self, trap, voltages):
-        return self._yield_constraint(voltages[self.lhs_indices], voltages[self.rhs_indices])
+        lhs = trap.electrode_to_index(self.lhs_indices)
+        rhs = trap.electrode_to_index(self.rhs_indices)
+        return self._yield_constraint(voltages[lhs], self.sign * voltages[rhs])
 
 
 class PotentialObjective(Objective):
 
-    def __init__(self, value, x, y, z, pseudo=True, weight=1., constraint_type=None):
+    def __init__(self, x, y, z, value, pseudo=True, local_weight=None, norm=1.0, weight=1.0, constraint_type=None):
         super().__init__(weight, constraint_type)
         self.xyz = x, y, z
         self.value = value
         self.pseudo = pseudo
+        self.norm = norm
+        self.local_weight = local_weight
 
     def objective(self, trap, voltages):
         pot = voltages @ trap.dc_potentials(*self.xyz)
         if self.pseudo:
             pot += trap.pseudo_potential(*self.xyz)
-        cost = cx.multiply(self.weight, cx.sum_squares(pot - self.value))
+        diff = (pot - self.value) / self.norm
+        if self.local_weight is not None:
+            diff = cx.multiply(np.sqrt(self.local_weight), diff)
+        cost = cx.multiply(self.weight, cx.sum_squares(diff))
         yield cost
 
     def constraint(self, trap, voltages):
@@ -133,11 +141,12 @@ class PotentialObjective(Objective):
 
 class GradientObjective(Objective):
 
-    def __init__(self, value, x, y, z, entries=None, pseudo=True, weight=1., constraint_type=None):
+    def __init__(self, x, y, z, value, entries=None, pseudo=True, norm=1.0, weight=1.0, constraint_type=None):
         super().__init__(weight, constraint_type)
         self.xyz = x, y, z
         self.value = value
         self.pseudo = pseudo
+        self.norm = norm
         self.entries = slice(None) if entries is None else get_derivative(entries)
 
     def objective(self, trap, voltages):
@@ -145,7 +154,8 @@ class GradientObjective(Objective):
         if self.pseudo:
             pot += trap.pseudo_gradient(*self.xyz)
         pot = pot[self.entries]
-        cost = cx.multiply(self.weight, cx.sum_squares(pot - self.value))
+        diff = (pot - self.value) / self.norm
+        cost = cx.multiply(self.weight, cx.sum_squares(diff))
         yield cost
 
     def constraint(self, trap, voltages):
@@ -158,11 +168,12 @@ class GradientObjective(Objective):
 
 class HessianObjective(Objective):
 
-    def __init__(self, value, x, y, z, entries=None, pseudo=True, weight=1., constraint_type=None):
+    def __init__(self, x, y, z, value, entries=None, pseudo=True, norm=1.0, weight=1.0, constraint_type=None):
         super().__init__(weight, constraint_type)
         self.xyz = x, y, z
         self.value = value
         self.pseudo = pseudo
+        self.norm = norm
         self.entries = slice(None) if entries is None else get_derivative(entries)
 
     def objective(self, trap, voltages):
@@ -171,7 +182,8 @@ class HessianObjective(Objective):
         if self.pseudo:
             pot += trap.pseudo_hessian(*self.xyz).reshape(9)
         pot = pot[self.entries]
-        cost = cx.multiply(self.weight, cx.sum_squares(pot - self.value))
+        diff = (pot - self.value) / self.norm
+        cost = cx.multiply(self.weight, cx.sum_squares(diff))
         yield cost
 
     def constraint(self, trap, voltages):
@@ -181,34 +193,3 @@ class HessianObjective(Objective):
             pot += trap.pseudo_hessian(*self.xyz).reshape(9)
         pot = pot[self.entries]
         return self._yield_constraint(pot, self.value)
-
-
-# class GridPotentialObjective(Objective):
-
-#     def __init__(self, well: Union[PotentialWell, MultiplePotentialWell], optimize_offset=False, **kwargs):
-#         raise DeprecationWarning("This class is now obsolete, as PotentialObjective can be evaluated on an arbtrary grid of points.")
-#         super().__init__(**kwargs)
-#         self.well = well
-#         self.extra_offset = cx.Variable((1,)) if optimize_offset else None
-
-#     def objective(self, trap, voltages):
-#         roi = self.well.roi(trap.x)
-#         x = trap.x[roi]
-#         weight = self.well.weight(x)
-#         value = self.well.potential(x)
-#         if self.extra_offset:
-#             value = value + self.extra_offset
-#         moments = trap.moments[..., roi]
-#         # v = voltages.value
-#         # if v is not None:
-#         #     import matplotlib.pyplot as plt
-#         #     fig, ax = plt.subplots()
-#         #     ax.plot(trap.x * 1e6, v @ trap.moments[electrode_indices])
-#         #     ax.plot(x * 1e6, self.well.potential(x))
-#         #     plt.show()
-#         diff = (voltages @ moments - value)
-#         cost = cx.multiply(self.weight, cx.sum_squares(cx.multiply(np.sqrt(weight), diff)))
-#         yield cost
-
-#     def constraint(self, trap, voltages):
-#         raise NotImplementedError

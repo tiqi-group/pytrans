@@ -10,8 +10,7 @@ Module docstring
 
 import numpy as np
 from numpy.typing import ArrayLike
-
-from pytrans.plotting import plot3d_potential, plot3d_make_layout
+from pytrans.plotting import plot3d_potential, plot3d_make_layout, plot_curvatures
 from pytrans.conversion import curv_to_freq, field_to_shift
 from pytrans.ions import Ca40
 from pytrans.utils.timer import timer
@@ -22,6 +21,7 @@ from matplotlib import patches as mpatches
 from matplotlib import transforms
 
 from colorama import init as colorama_init, Fore
+from tqdm import tqdm
 
 colorama_init(autoreset=True)
 
@@ -31,7 +31,7 @@ __roi = (400, 30, 30)
 minimize = timer(minimize)
 
 
-def analyse_hessian(H):
+def _eig_hessian(H):
     h, vs = np.linalg.eig(H)
     ix = np.argsort(abs(h))
     h = h[ix]
@@ -40,12 +40,31 @@ def analyse_hessian(H):
     return h, vs, angle
 
 
+def analyse_curvatures(trap: AbstractTrap, voltages: ArrayLike, x, y=None, z=None, plot=True, ax=None):
+    y = getattr(trap, 'y0', 0) if y is None else y
+    z = getattr(trap, 'z0', 0) if z is None else z
+    print('--------------\n' + Fore.YELLOW + "Analyse curvatures along trajectory")
+    modes = np.empty(x.shape + (3,))
+    angle = np.empty_like(x)
+    for j, x1 in enumerate(tqdm(x)):
+        H = trap.hessian(voltages[j], x1, y, z)
+        h, _, angle[j] = _eig_hessian(H)
+        modes[j] = curv_to_freq(h, ion=trap.ion)
+    if plot:
+        plot_curvatures(modes, angle, ax)
+    return modes, angle
+
+
 def analyse_potential_data(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
-                           roi=None, find_3dmin=True, minimize_options=dict()):
+                           roi=None, pseudo=True, find_3dmin=True, minimize_options=dict()):
     roi = __roi if roi is None else roi
 
-    def fun3(xyz):
-        return trap.potential(voltages, *xyz)
+    if pseudo:
+        def fun3(xyz):
+            return trap.potential(voltages, *xyz)
+    else:
+        def fun3(xyz):
+            return np.tensordot(voltages, trap.dc_potentials(*xyz), axes=1)
 
     print('--------------\n' + Fore.YELLOW + "Analyse potential")
     if find_3dmin:
@@ -68,10 +87,14 @@ def analyse_potential_data(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLik
         x1, y1, z1 = r0
         v = fun3(r0)
 
-    E = trap.gradient(voltages, x1, y1, z1)
-    H = trap.hessian(voltages, x1, y1, z1)
+    if pseudo:
+        E = trap.gradient(voltages, x1, y1, z1)
+        H = trap.hessian(voltages, x1, y1, z1)
+    else:
+        E = np.tensordot(voltages, trap.dc_gradients(x1, y1, z1), axes=1)
+        H = np.tensordot(voltages, trap.dc_hessians(x1, y1, z1), axes=1)
 
-    h, vs, angle = analyse_hessian(H)
+    h, vs, angle = _eig_hessian(H)
 
     ion = trap.ion if hasattr(trap, 'ion') else Ca40
     freqs = curv_to_freq(h, ion=ion) * 1e-6
@@ -101,6 +124,7 @@ def analyse_potential_data(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLik
         fx=freqs[0],
         fy=freqs[1],
         fz=freqs[2],
+        hessian=H,
         eigenvalues=h,
         eigenvectors=vs,
         angle=angle
@@ -108,13 +132,14 @@ def analyse_potential_data(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLik
     return results
 
 
-def analyse_potential(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike, plot=True,
-                      axes=None, roi=None, find_3dmin=True, minimize_options=dict()):
+def analyse_potential(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
+                      plot=True, axes=None, roi=None,
+                      pseudo=True, find_3dmin=True, minimize_options=dict()):
     if axes is None:
         fig, axes = plot3d_make_layout(n=1)
     roi = __roi if roi is None else roi
 
-    res = analyse_potential_data(trap, voltages, r0, roi, find_3dmin, minimize_options)
+    res = analyse_potential_data(trap, voltages, r0, roi, pseudo, find_3dmin, minimize_options)
     x1, y1, z1 = res['x'], res['y'], res['z']
     freqs = res['fx'], res['fy'], res['fz']
     f1 = res['fun']
@@ -123,7 +148,7 @@ def analyse_potential(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike, pl
     angle = res['angle']
 
     if plot:
-        plot3d_potential(trap, voltages, r0, roi=roi, axes=axes)
+        plot3d_potential(trap, voltages, r0, roi=roi, axes=axes, pseudo=pseudo)
 
     ax_x, ax_y, ax_z, ax_im, ax0 = axes
     fig = ax_x.figure

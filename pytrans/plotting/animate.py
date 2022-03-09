@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 
-def animate_waveform(trap, waveform, x, y, z, **kwargs):
+def animate_waveform(trap, waveform, x, y, z, frames=None, **kwargs):
     fig, (ax, ax1) = plt.subplots(1, 2, figsize=(12, 4))
 
     nt, nv = waveform.shape
@@ -26,20 +26,23 @@ def animate_waveform(trap, waveform, x, y, z, **kwargs):
 
     ln, = ax.plot(x * 1e6, [0] * len(x),)
     lnv, = ax1.plot(np.arange(nv), [0] * nv)
+    tx = ax.text(0.1, 0.9, '', transform=ax.transAxes)
 
     def init():
         ax.set_ylim(find_ylim(potentials))
         ax1.set_ylim(find_ylim(waveform))
-        return ln, lnv
+        return ln, lnv, tx
 
     def update(j):
         ln.set_ydata(potentials[j])
         lnv.set_ydata(waveform[j])
-        return ln, lnv
+        tx.set_text(str(j))
+        return ln, lnv, tx
 
-    kw = dict(blit=True, interval=50)
+    kw = dict(blit=True, interval=20, repeat_delay=2000)
     kw.update(kwargs)
 
-    ani = FuncAnimation(fig, update, frames=range(len(waveform)),
+    frames = range(len(waveform)) if frames is None else frames
+    ani = FuncAnimation(fig, update, frames=frames,
                         init_func=init, **kw)
     return ani

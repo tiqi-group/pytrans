@@ -9,7 +9,7 @@ from matplotlib.patches import Rectangle
 
 
 def plot3d_potential(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
-                     roi=(600, 50, 50), axes=None):
+                     roi=(600, 50, 50), axes=None, pseudo=True):
 
     if axes is None:
         fig, axes = plot3d_make_layout(n=1)
@@ -37,7 +37,7 @@ def plot3d_potential(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
     x, y, z = _xyz + np.asarray(r0).reshape((-1, 1))
 
     def _fun(x, y, z):
-        return trap.potential(voltages, x, y, z)
+        return trap.potential(voltages, x, y, z, pseudo=pseudo)
 
     ax_x.plot(x * 1e6, _fun(x, y0, z0))
     ax_y.plot(y * 1e6, _fun(x0, y, z0))
@@ -131,3 +131,36 @@ def plot_electrodes(ax, electrode_indices=None, y=None, h=None, d=125, L=120, sc
         ax.text(c, y, n - 1)
         ax.add_patch(r)
     ax.autoscale_view()
+
+
+def plot_curvatures(x, modes, angle, ax=None):
+    if ax is None:
+        fig, ax = plt.subplots()
+    lf = ax.plot(x * 1e6, modes * 1e-6, label="x r1 r2".split())
+    ax2 = ax.twinx()
+    ax2.format_coord = _make_format(ax2, ax)
+    la = ax2.plot(x * 1e6, angle, 'k--', label="angle")
+    lines = lf + la
+    labels = [line.get_label() for line in lines]
+    ax.legend(lines, labels)
+
+
+def plot_fields_curvatures(x, fields, modes, angle):
+    fig, (ax_e, ax_c) = plt.subplots(1, 2, figsize=(12, 4))
+    ax_e.plot(x * 1e6, fields, label="Ex Ey Ez".split())
+    ax_e.legend()
+    plot_curvatures(x, modes, angle, ax=ax_c)
+    return fig, (ax_e, ax_c)
+
+
+def _make_format(current, other):
+    # https://stackoverflow.com/a/21585524
+    def format_coord(x, y):
+        # x, y are data coordinates
+        # convert to display coords
+        display_coord = current.transData.transform((x, y))
+        inv = other.transData.inverted()
+        # convert back to data coords with respect to ax
+        x1, y1 = inv.transform(display_coord)
+        return f"x: {x:.2f}    freq: {y1:.2f}    angle: {y:.2f}"
+    return format_coord
