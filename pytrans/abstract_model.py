@@ -111,14 +111,23 @@ class AbstractTrap(ABC):
         """
         raise NotImplementedError
 
-    def potential(self, voltages, x, y, z):
-        return np.tensordot(voltages, self.dc_potentials(x, y, z), axes=1) + self.pseudo_potential(x, y, z)
+    def potential(self, voltages, x, y, z, pseudo=True):
+        u = np.tensordot(voltages, self.dc_potentials(x, y, z), axes=1)
+        if pseudo:
+            u += self.pseudo_potential(x, y, z)
+        return u
 
-    def gradient(self, voltages, x, y, z):
-        return np.tensordot(voltages, self.dc_gradients(x, y, z), axes=1) + self.pseudo_gradient(x, y, z)
+    def gradient(self, voltages, x, y, z, pseudo=True):
+        u = np.tensordot(voltages, self.dc_gradients(x, y, z), axes=1)
+        if pseudo:
+            u += self.pseudo_gradient(x, y, z)
+        return u
 
-    def hessian(self, voltages, x, y, z):
-        return np.tensordot(voltages, self.dc_hessians(x, y, z), axes=1) + self.pseudo_hessian(x, y, z)
+    def hessian(self, voltages, x, y, z, pseudo=True):
+        u = np.tensordot(voltages, self.dc_hessians(x, y, z), axes=1)
+        if pseudo:
+            u += self.pseudo_hessian(x, y, z)
+        return u
 
 
 if __name__ == '__main__':
