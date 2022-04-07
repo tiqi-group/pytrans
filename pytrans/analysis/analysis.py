@@ -66,33 +66,38 @@ def analyse_fields_curvatures(trap: AbstractTrap, voltages: ArrayLike, x, y=None
     return results
 
 
-def analyse_potential_data(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
-                           roi=None, pseudo=True, find_3dmin=True, minimize_options=dict()):
+def find_3dmin_potential(trap, voltages, r0, roi=None, pseudo=True, minimize_options=dict()):
     roi = __roi if roi is None else roi
 
     def fun3(xyz):
         return trap.potential(voltages, *xyz, pseudo=pseudo)
 
+    _roi = []
+    for lim in roi:
+        lim = lim if isinstance(lim, (int, float)) else min(lim)
+        _roi.append(lim)
+
+    bounds = [(-r * 1e-6 + x, r * 1e-6 + x) for r, x in zip(_roi, r0)]
+    opts = dict(accuracy=1e-6)
+    opts.update(minimize_options)
+    res = minimize(fun3, r0, method='TNC', bounds=bounds, options=opts)
+
+    print(Fore.YELLOW + "Potential mimimum [um]")
+    print(res.x * 1e6)
+    # print((res.x - r0) * 1e6)
+    return res.x
+
+
+def analyse_potential_data(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
+                           roi=None, pseudo=True, find_3dmin=True, minimize_options=dict()):
+
     print('--------------\n' + Fore.YELLOW + "Analyse potential")
     if find_3dmin:
-        _roi = []
-        for lim in roi:
-            lim = lim if isinstance(lim, (int, float)) else min(lim)
-            _roi.append(lim)
-
-        bounds = [(-r * 1e-6 + x, r * 1e-6 + x) for r, x in zip(_roi, r0)]
-        opts = dict(accuracy=1e-6)
-        opts.update(minimize_options)
-        res = minimize(fun3, r0, method='TNC', bounds=bounds, options=opts)
-
-        print(Fore.YELLOW + "Offset from r0 [um]")
-        print((res.x - r0) * 1e6)
-        x1, y1, z1 = res.x
-        v = res.fun
+        x1, y1, z1 = find_3dmin_potential(trap, voltages, r0, roi, pseudo, minimize_options)
     else:
         print(Fore.YELLOW + "Set position to r0")
         x1, y1, z1 = r0
-        v = fun3(r0)
+    v = trap.potential(voltages, *r0, pseudo=pseudo)
 
     E = trap.gradient(voltages, x1, y1, z1, pseudo=pseudo)
     H = trap.hessian(voltages, x1, y1, z1, pseudo=pseudo)
