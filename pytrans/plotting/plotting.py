@@ -9,13 +9,14 @@ from matplotlib.patches import Rectangle
 
 
 def plot3d_potential(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
-                     roi=(600, 50, 50), axes=None, pseudo=True):
+                     roi=(600, 50, 50), axes=None, pseudo=True, title=''):
 
     if axes is None:
         fig, axes = plot3d_make_layout(n=1)
 
     ax_x, ax_y, ax_z, ax_im, ax0 = axes
     fig = ax_x.figure
+    fig.suptitle(title)
 
     ax_im.get_shared_x_axes().join(ax_im, ax_y)
     ax_im.get_shared_y_axes().join(ax_im, ax_z)
@@ -133,23 +134,25 @@ def plot_electrodes(ax, electrode_indices=None, y=None, h=None, d=125, L=120, sc
     ax.autoscale_view()
 
 
-def plot_curvatures(x, modes, angle, ax=None):
-    if ax is None:
-        fig, ax = plt.subplots()
-    lf = ax.plot(x * 1e6, modes * 1e-6, label="x r1 r2".split())
-    ax2 = ax.twinx()
-    ax2.format_coord = _make_format(ax2, ax)
-    la = ax2.plot(x * 1e6, angle, 'k--', label="angle")
+def plot_fields_curvatures(x, r0, r1, fields, freqs, angle, title=''):
+    fig, (ax_r, ax_e, ax_c) = plt.subplots(1, 3, figsize=(16, 4))
+    ax_r.plot(x, r1 * 1e6, label="x y z".split())
+    ax_r.legend()
+    ax_r.set_prop_cycle(None)
+    ax_r.plot(x, r0 * 1e6, ls="--")
+    ax_e.plot(x, fields, label="Ex Ey Ez".split())
+    ax_e.legend()
+    lf = ax_c.plot(x, freqs * 1e-6, label="x r1 r2".split())
+    ax2 = ax_c.twinx()
+    ax2.format_coord = _make_format(ax2, ax_c)
+    la = ax2.plot(x, angle, 'k--', label="angle")
     lines = lf + la
     labels = [line.get_label() for line in lines]
-    ax.legend(lines, labels)
-
-
-def plot_fields_curvatures(x, fields, modes, angle):
-    fig, (ax_e, ax_c) = plt.subplots(1, 2, figsize=(12, 4))
-    ax_e.plot(x * 1e6, fields, label="Ex Ey Ez".split())
-    ax_e.legend()
-    plot_curvatures(x, modes, angle, ax=ax_c)
+    ax_c.legend(lines, labels)
+    fig.suptitle(title)
+    ax_r.set_title('Trajectory')
+    ax_e.set_title('Fields')
+    ax_c.set_title('Normal modes')
     return fig, (ax_e, ax_c)
 
 
