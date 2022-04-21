@@ -20,6 +20,7 @@ from scipy.optimize import minimize
 from matplotlib import patches as mpatches
 from matplotlib import transforms
 
+from itertools import permutations
 from colorama import init as colorama_init, Fore
 from tqdm import tqdm
 
@@ -28,14 +29,24 @@ colorama_init(autoreset=True)
 __roi = (400, 30, 30)
 
 
-def _eig_hessian(H):
+def _eig_hessian(H, sort_close_to=None):
     h, vs = np.linalg.eig(H)
-    ix = [np.argmax(abs(vs[0])), np.argmax(abs(vs[1])), np.argmax(abs(vs[2]))]
+    if sort_close_to is not None:
+        ix = _sort_close_to(h, sort_close_to)
+    else:
+        ix = [np.argmax(abs(vs[0])), np.argmax(abs(vs[1])), np.argmax(abs(vs[2]))]
     # ix = np.argsort(abs(h))
     h = h[ix]
     vs = vs[:, ix]
     angle = np.arctan2(1, vs[1, 2] / vs[2, 2]) * 180 / np.pi
     return h, vs, angle
+
+
+def _sort_close_to(x0, x1):
+    perm = list(map(list, permutations(range(len(x1)))))
+    diff = np.asarray([x0 - x1[s] for s in perm])
+    ix = np.argmin((diff**2).sum(1))
+    return perm[ix]
 
 
 def analyse_fields_curvatures(trap: AbstractTrap, voltages: ArrayLike, x, y=None, z=None, pseudo=True,
@@ -53,9 +64,10 @@ def analyse_fields_curvatures(trap: AbstractTrap, voltages: ArrayLike, x, y=None
     if voltages.ndim == 1:
         voltages = np.tile(voltages, (n_samples, 1))
     for j, x1 in enumerate(tqdm(samples)):
-
+        sort_close_to = None if j == 0 else freqs[j - 1]
         res = analyse_potential_data(trap, voltages[j], r0[j],
-                                     pseudo=pseudo, find_3dmin=find_3dmin, minimize_options=minimize_options,
+                                     pseudo=pseudo, sort_close_to=sort_close_to,
+                                     find_3dmin=find_3dmin, minimize_options=minimize_options,
                                      verbose=False)
         r1[j] = res['r1']
         fields[j] = res['fields']
@@ -100,7 +112,8 @@ def find_3dmin_potential(trap, voltages, r0, roi=None, pseudo=True, minimize_opt
 
 
 def analyse_potential_data(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
-                           roi=None, pseudo=True, find_3dmin=True, minimize_options=dict(),
+                           roi=None, pseudo=True, sort_close_to=None,
+                           find_3dmin=True, minimize_options=dict(),
                            verbose=True):
 
     if verbose:
@@ -116,7 +129,7 @@ def analyse_potential_data(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLik
     E = trap.gradient(voltages, x1, y1, z1, pseudo=pseudo)
     H = trap.hessian(voltages, x1, y1, z1, pseudo=pseudo)
 
-    h, vs, angle = _eig_hessian(H)
+    h, vs, angle = _eig_hessian(H, sort_close_to)
 
     ion = trap.ion if hasattr(trap, 'ion') else Ca40
     freqs = curv_to_freq(h, ion=ion)
@@ -165,7 +178,8 @@ def analyse_potential(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
         fig, axes = plot3d_make_layout(n=1)
     roi = __roi if roi is None else roi
 
-    res = analyse_potential_data(trap, voltages, r0, roi, pseudo, find_3dmin, minimize_options)
+    res = analyse_potential_data(trap, voltages, r0, roi, pseudo=pseudo,
+                                 find_3dmin=find_3dmin, minimize_options=minimize_options)
     x1, y1, z1 = res['x'], res['y'], res['z']
     freqs = res['fx'], res['fy'], res['fz']
     f1 = res['fun']
