@@ -60,6 +60,12 @@ class AbstractTrap(ABC):
             return el_list.index(names)
         return [el_list.index(n) for n in names]
 
+    def fill_waveform(self, waveform):
+        waveform = np.atleast_2d(waveform)
+        waveform0 = np.zeros((len(waveform), len(self._all_electrodes)))
+        waveform0[:, self.electrode_all_indices] = waveform
+        return waveform0
+
     @abstractmethod
     def dc_potentials(self, x, y, z):
         """

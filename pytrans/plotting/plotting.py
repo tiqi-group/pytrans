@@ -84,7 +84,7 @@ def plot3d_potential(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
     #         ylabel='z [um]'
     #     )
 
-    plot_electrodes(ax_x)
+    # plot_electrodes(ax_x)
 
     return fig, axes
 
@@ -118,20 +118,20 @@ def plot3d_make_layout(n, figsize=(8, 7), d=0.04, squeeze=True):
     return fig, axes
 
 
-def plot_electrodes(ax, electrode_indices=None, y=None, h=None, d=125, L=120, scale=1):
-    d *= scale
-    L *= scale
-    h = np.ptp(ax.get_ylim()) * 0.06 if h is None else h
-    y = min(ax.get_ylim()) + h if y is None else y
+# def plot_electrodes(ax, electrode_indices=None, y=None, h=None, d=125, L=120, scale=1):
+#     d *= scale
+#     L *= scale
+#     h = np.ptp(ax.get_ylim()) * 0.06 if h is None else h
+#     y = min(ax.get_ylim()) + h if y is None else y
 
-    electrode_indices = range(1, 11) if electrode_indices is None else electrode_indices
+#     electrode_indices = range(1, 11) if electrode_indices is None else electrode_indices
 
-    for n in electrode_indices:
-        c = (n - 6) * d
-        r = Rectangle(((c - L / 2), y - h / 2), L, h, color='gold', zorder=-99)
-        ax.text(c, y, n - 1)
-        ax.add_patch(r)
-    ax.autoscale_view()
+#     for n in electrode_indices:
+#         c = (n - 6) * d
+#         r = Rectangle(((c - L / 2), y - h / 2), L, h, color='gold', zorder=-99)
+#         ax.text(c, y, n - 1)
+#         ax.add_patch(r)
+#     ax.autoscale_view()
 
 
 def plot_fields_curvatures(x, r0, r1, fields, freqs, angle, title=''):
