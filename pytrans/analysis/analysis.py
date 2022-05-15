@@ -138,8 +138,8 @@ def analyse_potential_data(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLik
         with np.printoptions(suppress=True):
             print(Fore.YELLOW + 'Gradient [V/m]')
             print(E)
-            print(Fore.YELLOW + f"Displacement for {ion} [um]")
-            print(field_to_shift(E, ion=ion) * 1e6)
+            # print(Fore.YELLOW + f"Displacement for {ion} [um]")
+            # print(field_to_shift(E, ion=ion) * 1e6)
             print(Fore.YELLOW + 'Hessian [V/m2]')
             print(H)
             # print(curv_to_freq(H, ion=ion) * 1e-6)

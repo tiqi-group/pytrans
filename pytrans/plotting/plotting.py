@@ -16,7 +16,7 @@ def plot3d_potential(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
 
     ax_x, ax_y, ax_z, ax_im, ax0 = axes
     fig = ax_x.figure
-    fig.suptitle(title)
+    ax_im.set_title(title)
 
     ax_im.get_shared_x_axes().join(ax_im, ax_y)
     ax_im.get_shared_y_axes().join(ax_im, ax_z)
@@ -79,12 +79,6 @@ def plot3d_potential(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
     ax_x.set(xlabel='x [um]')
     ax_y.set(xlabel='y [um]')
     ax_z.set(ylabel='z [um]')
-    #     ax_im.set(
-    #         xlabel='y [um]',
-    #         ylabel='z [um]'
-    #     )
-
-    # plot_electrodes(ax_x)
 
     return fig, axes
 
@@ -95,6 +89,7 @@ def plot3d_make_axes(fig, left, right):
                   fig,
                   height_ratios=[3, 1, 1],
                   width_ratios=[1, 3],
+                  wspace=0.1,
                   left=left,
                   right=right)
 
@@ -107,7 +102,7 @@ def plot3d_make_axes(fig, left, right):
     return ax_x, ax_y, ax_z, ax_im, ax0
 
 
-def plot3d_make_layout(n, figsize=(8, 7), d=0.04, squeeze=True):
+def plot3d_make_layout(n, figsize=(8, 7), d=0.08, squeeze=True):
     fig = plt.figure(figsize=(n * figsize[0], figsize[1]))
     axes = [
         plot3d_make_axes(fig, left=k / n + d / 2, right=(k + 1) / n - d / 2)

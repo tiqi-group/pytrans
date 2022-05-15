@@ -193,3 +193,31 @@ class HessianObjective(Objective):
             pot += trap.pseudo_hessian(*self.xyz).reshape(9)
         pot = pot[self.entries]
         return self._yield_constraint(pot, self.value)
+
+
+class QuarticObjective(Objective):
+
+    def __init__(self, x, y, z, value, norm=1.0, weight=1.0, constraint_type=None):
+        super().__init__(weight, constraint_type)
+        self.xyz = x, y, z
+        self.value = value
+        self.norm = norm
+
+    def objective(self, trap, voltages):
+        if not hasattr(trap, 'dc_fourth_order'):
+            raise NotImplementedError("The current trap model does not implement fourth-order moments.")
+        pot = voltages @ trap.dc_fourth_order(*self.xyz)
+        if self.value == 'minimize':
+            cost = cx.sum(pot / self.norm)
+        elif self.value == 'maximize':
+            cost = - cx.sum(pot / self.norm)
+        else:
+            cost = cx.sum_squares(pot - self.value / norm)
+        cost = cx.multiply(self.weight, cost)
+        yield cost
+
+    def constraint(self, trap, voltages):
+        if self.value in ["minimize", "maximize"]:
+            raise NotImplementedError(f"Cannot {self.value} quartic term with a hard constraint.")
+        pot = voltages @ trap.dc_fourth_order(*self.xyz)
+        return self._yield_constraint(pot, self.value)
