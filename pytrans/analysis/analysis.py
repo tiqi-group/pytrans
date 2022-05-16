@@ -11,7 +11,7 @@ Module docstring
 import numpy as np
 from numpy.typing import ArrayLike
 from pytrans.plotting import plot3d_potential, plot3d_make_layout, plot_fields_curvatures
-from pytrans.conversion import curv_to_freq, field_to_shift
+from pytrans.conversion import curv_to_freq
 from pytrans.ions import Ca40
 from pytrans.utils.timer import timer
 from pytrans.abstract_model import AbstractTrap
@@ -124,10 +124,12 @@ def analyse_potential_data(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLik
         if verbose:
             print(Fore.YELLOW + "Set position to r0")
         x1, y1, z1 = r0
-    v = trap.potential(voltages, *r0, pseudo=pseudo)
 
-    E = trap.gradient(voltages, x1, y1, z1, pseudo=pseudo)
-    H = trap.hessian(voltages, x1, y1, z1, pseudo=pseudo)
+    r1 = np.asarray([x1, y1, z1])
+    v = trap.potential(voltages, *r1, pseudo=pseudo)
+
+    E = trap.gradient(voltages, *r1, pseudo=pseudo)
+    H = trap.hessian(voltages, *r1, pseudo=pseudo)
 
     h, vs, angle = _eig_hessian(H, sort_close_to)
 
@@ -162,7 +164,7 @@ def analyse_potential_data(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLik
         fz=freqs[2],
         fields=E,
         hessian=H,
-        r1=(x1, y1, z1),
+        r1=r1,
         freqs=freqs,
         eigenvalues=h,
         eigenvectors=vs,
