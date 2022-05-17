@@ -5,11 +5,12 @@ from pytrans.abstract_model import AbstractTrap
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 from matplotlib.colorbar import make_axes
-from matplotlib.patches import Rectangle
+from matplotlib import patches as mpatches
+from matplotlib import transforms
 
 
 def plot3d_potential(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
-                     roi=(600, 50, 50), axes=None, pseudo=True, title=''):
+                     roi=(600, 50, 50), axes=None, pseudo=True, analyse_results=None, title=''):
 
     if axes is None:
         fig, axes = plot3d_make_layout(n=1)
@@ -80,7 +81,44 @@ def plot3d_potential(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
     ax_y.set(xlabel='y [um]')
     ax_z.set(ylabel='z [um]')
 
+    if analyse_results is not None:
+        plot3d_radial_modes(analyse_results, axes)
+
     return fig, axes
+
+
+def plot3d_radial_modes(res, axes):
+    x1, y1, z1 = res['r1']
+    freqs = res['freqs']
+    f1 = res['fun']
+    vs = res['eigenvectors']
+    angle = res['angle']
+
+    ax_x, ax_y, ax_z, ax_im, ax0 = axes
+    fig = ax_x.figure
+
+    marker_kw = dict(marker='o', mfc='r', mec='r')
+
+    ax_x.plot(x1 * 1e6, f1, **marker_kw)
+    ax_y.plot(y1 * 1e6, f1, **marker_kw)
+    ax_z.plot(f1, z1 * 1e6, **marker_kw)
+    ax_im.plot(y1 * 1e6, z1 * 1e6, **marker_kw)
+
+    v1 = vs[1:, 1]
+    v2 = vs[1:, 2]
+    f1, f2 = freqs[1], freqs[2]
+    f0 = np.sqrt(abs(f1 * f2))
+
+    tr = fig.dpi_scale_trans + transforms.ScaledTranslation(y1 * 1e6, z1 * 1e6, ax_im.transData)
+
+    circle = mpatches.Ellipse((0, 0), f0 / f1, f0 / f2, angle=90 + angle,
+                              fill=None, transform=tr, color='C0')
+    ax_im.add_patch(circle)
+
+    a1 = mpatches.Arrow(0, 0, *v1 * f0 / f1, width=0.2, transform=tr, color='C0')
+    ax_im.add_patch(a1)
+    a2 = mpatches.Arrow(0, 0, *v2 * f0 / f2, width=0.2, transform=tr, color='C1')
+    ax_im.add_patch(a2)
 
 
 def plot3d_make_axes(fig, left, right):
