@@ -112,10 +112,10 @@ def find_3dmin_potential(trap, voltages, r0, roi=None, pseudo=True, minimize_opt
 def analyse_potential_data(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
                            roi=None, pseudo=True, sort_close_to=None,
                            find_3dmin=True, minimize_options=dict(),
-                           verbose=True):
+                           verbose=True, title=''):
 
     if verbose:
-        print('--------------\n' + Fore.YELLOW + "Analyse potential")
+        print('--------------\n' + Fore.YELLOW + f"Analyse potential: {title}")
     if find_3dmin:
         x1, y1, z1 = find_3dmin_potential(trap, voltages, r0, roi, pseudo, minimize_options, verbose)
     else:
@@ -176,7 +176,8 @@ def analyse_potential(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
                       roi=None, pseudo=True, find_3dmin=True, minimize_options=dict(), verbose=True):
 
     res = analyse_potential_data(trap, voltages, r0, roi, pseudo=pseudo, sort_close_to=None,
-                                 find_3dmin=find_3dmin, minimize_options=minimize_options, verbose=verbose)
+                                 find_3dmin=find_3dmin, minimize_options=minimize_options,
+                                 verbose=verbose, title=title)
     if not plot:
         return res
 
