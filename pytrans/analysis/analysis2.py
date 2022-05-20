@@ -52,8 +52,8 @@ def solver1d_two_ions(trap, voltages, r0, x_range, pseudo=True, dx=5e-6, minimiz
 
 
 def analyse_potential_two_ions(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike, roi=(-200, 200),
-                               plot=True, title='',
-                               pseudo=False, minimize_options=dict(), verbose=True):
+                               plot=True, ax=None, title='',
+                               pseudo=True, minimize_options=dict(), verbose=True):
 
     if verbose:
         print('--------------\n' + Fore.YELLOW + f"Analyse two ion modes: {title}")
@@ -63,23 +63,45 @@ def analyse_potential_two_ions(trap: AbstractTrap, voltages: ArrayLike, r0: Arra
     res = solver1d_two_ions(trap, voltages, r0, x_range,
                             pseudo=pseudo, minimize_options=minimize_options)
     h, ei = np.linalg.eig(res.hess)
-
-    if verbose:
-        with np.printoptions(formatter={'float': lambda x: f"{x:.3f}"}):
-            print(f"{Fore.YELLOW}Two ion distance [um]:{Fore.RESET} {abs(np.diff(res.x)[0]) * 1e6: .2f}")
-            print(f"{Fore.YELLOW}Two ion normal modes: {Fore.RESET}{curv_to_freq(h, ion=trap.ion) * 1e-6} MHz")
-            print(Fore.YELLOW + 'Eigenvectors')
-            print(ei)
-        print(Fore.YELLOW + 'Minimize results')
-        print(res)
-
-    x = np.linspace(roi[0], roi[1], 100) * 1e-6 + x1
-    pot = trap.potential(voltages, x, y1, z1, pseudo=pseudo)
-    p1 = trap.potential(voltages, x1, y1, z1, pseudo=pseudo)
+    freqs = curv_to_freq(h, ion=trap.ion)
+    dist = res.x[1] - res.x[0]
     alpha = voltages @ trap.dc_hessians(*r0)[:, 0, 0] / 2
     beta = voltages @ trap.dc_fourth_order(*r0) / 12
 
-    fig, ax = plt.subplots()
+    if verbose:
+        with np.printoptions(formatter={'float': lambda x: f"{x:.3f}"}):
+            print(f"{Fore.YELLOW}Two ion distance [um]:{Fore.RESET} {dist * 1e6: .2f}")
+            print(f"{Fore.YELLOW}Two ion normal modes: {Fore.RESET}{freqs * 1e-6} MHz")
+            print(Fore.YELLOW + 'Eigenvectors')
+            print(ei)
+        # print(Fore.YELLOW + 'Minimize results')
+        # print(res)
+
+    results = dict(
+        x1=res.x[0],
+        x2=res.x[1],
+        dist=dist,
+        f_com=freqs.min(),
+        f_str=freqs.max(),
+        freqs=freqs,
+        alpha=alpha,
+        beta=beta,
+        eigenvalues=h,
+        eigenvectors=ei,
+        res=res
+    )
+
+    if not plot:
+        return results
+
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
+    x = np.linspace(roi[0], roi[1], 100) * 1e-6 + x1
+    pot = trap.potential(voltages, x, y1, z1, pseudo=pseudo)
+    p1 = trap.potential(voltages, x1, y1, z1, pseudo=pseudo)
+
     fig.suptitle(title)
     ax.plot(x * 1e6, pot)
     ax.set_ylim(ax.get_ylim())
@@ -88,4 +110,4 @@ def analyse_potential_two_ions(trap: AbstractTrap, voltages: ArrayLike, r0: Arra
     p2 = trap.potential(voltages, res.x, y1, z1, pseudo=pseudo)
     ax.plot(res.x * 1e6, p2, 'dr')
 
-    return res
+    return results

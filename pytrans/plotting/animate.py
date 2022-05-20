@@ -10,6 +10,13 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 
+def find_ylim(a, r=0.05):
+    _min = np.min(a)
+    _max = np.max(a)
+    ptp = _max - _min
+    return _min - r * ptp, _max + r * ptp
+
+
 def animate_waveform(trap, waveform, x, y, z, frames=None, **kwargs):
     fig, (ax, ax1) = plt.subplots(1, 2, figsize=(12, 4))
 
@@ -17,12 +24,6 @@ def animate_waveform(trap, waveform, x, y, z, frames=None, **kwargs):
     potentials = trap.potential(waveform, x, y, z)
     print(potentials.shape)
     print(x.shape)
-
-    def find_ylim(a, r=0.05):
-        _min = np.min(a)
-        _max = np.max(a)
-        ptp = _max - _min
-        return _min - r * ptp, _max + r * ptp
 
     ln, = ax.plot(x * 1e6, [0] * len(x),)
     lnv, = ax1.plot(np.arange(nv), [0] * nv)
