@@ -54,7 +54,7 @@ def analyse_fields_curvatures(trap: AbstractTrap, voltages: ArrayLike, x, y=None
     n_samples = len(x)
     samples = np.arange(n_samples)
     r0 = np.stack(np.broadcast_arrays(x, y, z), axis=1)
-    print('--------------\n' + Fore.YELLOW + "Analyse curvatures along trajectory")
+    print('--------------\n' + Fore.YELLOW + f"Analyse curvatures along trajectory: {title}")
     r1 = np.empty((n_samples, 3))
     fields = np.empty((n_samples, 3))
     freqs = np.empty((n_samples, 3))

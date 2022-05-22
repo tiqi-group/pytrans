@@ -56,7 +56,8 @@ def solver(trap: AbstractTrap,
         waveform = M @ waveform0
         waveform0 = waveform0[m:]
 
-    for voltages, ci in zip(waveform, tqdm(step_objectives, desc="Compiling step objectives")):
+    step_iter = tqdm(step_objectives, desc="Compiling step objectives") if verbose else step_objectives
+    for voltages, ci in zip(waveform, step_iter):
         for cj in ci:
             if cj.constraint_type is None:
                 costs.extend(cj.objective(trap, voltages))
