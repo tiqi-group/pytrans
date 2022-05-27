@@ -7,12 +7,11 @@
 
 import numpy as np
 from numpy.typing import ArrayLike
-
 import matplotlib.pyplot as plt
 
 from scipy.optimize import minimize
-from scipy.constants import epsilon_0
 
+from pytrans.analysis import coulomb as pcoul
 from pytrans.conversion import curv_to_freq
 from pytrans.abstract_model import AbstractTrap
 
@@ -22,31 +21,22 @@ colorama_init(autoreset=True)
 
 
 def solver1d_two_ions(trap, voltages, r0, x_range, pseudo=True, dx=5e-6, minimize_options=dict()):
-    kappa = trap.ion.charge / 4 / np.pi / epsilon_0
+    q = trap.ion.charge
     x1, y1, z1 = r0
     x0 = np.asarray([x1 - dx, x1 + dx])
     assert x_range[0] < x1 and x1 < x_range[1]
 
-    def coulomb_pot(x1, x2):
-        return kappa / (x2 - x1)
-
-    def coulomb_grad(x1, x2):
-        return kappa / (x2 - x1)**2 * np.asarray([1, -1])
-
-    def coulomb_hess(x1, x2):
-        return 2 * kappa / (x2 - x1)**3 * np.asarray([[1, -1], [-1, 1]])
-
     def fun(x0):
-        return trap.potential(voltages, x0, y1, z1, pseudo).sum() + coulomb_pot(*x0)
+        return trap.potential(voltages, x0, y1, z1, pseudo).sum() + q * pcoul.coulomb_pot(*x0)
 
     def jac(x0):
-        return trap.gradient(voltages, x0, y1, z1, pseudo)[0] + coulomb_grad(*x0)
+        return trap.gradient(voltages, x0, y1, z1, pseudo)[0] + q * pcoul.coulomb_grad(*x0)
 
     def hess(x0):
-        return np.diag(trap.hessian(voltages, x0, y1, z1, pseudo)[0, 0]) + coulomb_hess(*x0)
+        return np.diag(trap.hessian(voltages, x0, y1, z1, pseudo)[0, 0]) + q * pcoul.coulomb_hess(*x0)
 
-    bounds = [(x_range[0], x1), (x1, x_range[1])]
-    res = minimize(fun, x0, method='TNC', jac=jac, bounds=bounds, tol=kappa, options=minimize_options)
+    bounds = [(x_range[0], x_range[1])] * 2
+    res = minimize(fun, x0, method='TNC', jac=jac, bounds=bounds, tol=q * pcoul.kappa, options=minimize_options)
     res.hess = hess(res.x)
     return res
 
