@@ -16,9 +16,19 @@ matplotlib = "^3.5.1"
 PyQt5 = "^5.15.6"
 colorama = "^0.4.4"
 
-[tool.poetry.dev-dependencies]
-pytest = "^7.0.1"
-pytest-cov = "^3.0.0"
+pytest = { version = "*", optional = true }
+pytest-cov = { version = "*", optional = true }
+autopep8 = { version = "*", optional = true }
+flake8 = { version = "*", optional = true }
+mypy = { version = "*", optional = true }
+
+mkdocs = { version = "*", optional = true }
+mkdocs-include-markdown-plugin = { version = "*", optional = true }
+mkdocstrings = {version = ">=0.18", extras = ["python"], optional = true}
+
+[tool.poetry.extras]
+dev = ["pytest", "pytest-cov", "autopep8", "flake8", "mypy"]
+docs = ["mkdocs", "mkdocs-include-markdown-plugin", "mkdocstrings"]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
