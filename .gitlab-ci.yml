@@ -8,6 +8,6 @@ build-docs:
   script:
     - poetry install --extras "dev docs"
     - poetry run mkdocs build
-    - cp -r site /home/wwwtiqidocs/public/tiqi-plugin
+    - cp -r site /home/wwwtiqidocs/public/pytrans
 #   rules:
 #     - if: $CI_COMMIT_BRANCH == "master"
