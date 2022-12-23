@@ -4,7 +4,7 @@
 # Created: 08/2021
 # Author: Carmelo Mordini <cmordini@phys.ethz.ch>
 
-"""
+r"""
 Objectives module
 
 probably worth defining the symbols here, or in another MD file
@@ -42,44 +42,45 @@ class Objective(ABC):
     CLasses inheriting from `Objective` can be used to generate specific terms of the
     cost function to be optimized, or to implement constraints on the optimization
     variables.
-
-    Attributes:
-        weight (float): weight of the cost term.
-        constraint_type (str or None): a string defining the wether a constraint is
-          implemented, and its type. If `None`, no constraint is implemented and the
-          Objective is used to generate a term of the cost function. Otherwise,
-          it must be one of ['<', '<=', '==', '>=', '>', 'lt','le', 'eq', 'ge', 'gt']
-          and will implement the corresponding constraint on the optimization variables.
-
-    Methods:
-        objective
-          override this method to implement a cost objective
-        constraint
-          override this method to implement a constraint
     """
     weight = 1.0
     constraint_type = None
 
     def __init__(self, weight: float = 1.0, constraint_type: str = None):
-        """Initialize abstract Objective class
+        """Initialize abstract Objective class.
+            The `constraint_type` attribute defines wether the class will be used
+            as cost term or a constraint. If `None`, no constraint is implemented
+            and the Objective is used to generate a term of the cost function.
+            Otherwise, it must be one of
+            `['<', '<=', '==', '>=', '>', 'lt','le', 'eq', 'ge', 'gt']`
+            and will implement the corresponding constraint on the optimization variables.
 
         Args:
-            weight (float, optional): global weight of the cost term. Defaults to 1.0.
-            constraint_type (str, optional): String defining the type of
-              constraint. Defaults to None.
+            weight (float, optional): global weight of the cost term.
+            constraint_type (str, optional): a string defining the constraint type.
         """
         self.weight = weight
         self.constraint_type = constraint_type
 
     @abstractmethod
     def objective(self, trap: AbstractTrap, voltages: cx.Variable):
-        """objective"""
+        """override this method to implement a cost objective
+
+        Args:
+            trap (AbstractTrap): trap model
+            voltages (cx.Variable): optimization variables
+        """
         return
         yield
 
     @abstractmethod
     def constraint(self, trap: AbstractTrap, voltages: cx.Variable):
-        """constraint"""
+        """override this method to implement a constraint
+
+        Args:
+            trap (AbstractTrap): trap model
+            voltages (cx.Variable): optimization variables
+        """
         return
         yield
 
@@ -92,28 +93,29 @@ class Objective(ABC):
 
 
 class VoltageObjective(Objective):
-    """VoltageObjective
-
-    """
 
     def __init__(self, value: ArrayLike, electrodes: Union[str, List[str]] = None,
                  local_weights: ArrayLike = None,
                  weight: float = 1.0, constraint_type: str = None):
         r"""Implements an Objective for the voltages applied to the trap electrodes
 
-        Args:
-            value (ArrayLike): $x_i$ target voltage for the selected set of electrodes
-            electrodes (string, or list of strings, optional):
-              specify a subset of the trap electrodes. Defaults to None (all electrodes).
-            local_weights (ArrayLike, optional): per-electrode weight. Defaults to None.
-            weight (float, optional): global weight of the cost term. Defaults to 1.0.
-            constraint_type (str, optional): constraint string. Defaults to None.
+        Cost
+            $$ \mathcal{C} = w\, \sum_{i \in \mathcal{E}} w_i\left( v_i - x_i \right)^2. $$
 
-        Methods:
-            objective: implements the term
-              $$
-              \mathcal{C} = w \sum_i \left( v_i - x_i \right)^2
-              $$
+        Constraint
+            $$ v_i \leq x_i \quad \forall i \in \mathcal{E}. $$
+
+        Args:
+            value (ArrayLike): $x_i$
+                target voltage for the selected set of electrodes
+            electrodes (string, or list of strings, optional): $\mathcal{E}$
+                specify a subset of the trap electrodes. If `None`, uses all electrodes.
+            local_weights (ArrayLike, optional): $w_i$
+                per-electrode weight. If `None`, all weights are set to 1.
+            weight (float, optional): $w$
+                global weight of the cost term.
+            constraint_type (str, optional):
+                constraint string.
 
         """
         super().__init__(weight, constraint_type)
@@ -122,6 +124,7 @@ class VoltageObjective(Objective):
         self.local_weights = local_weights
 
     def objective(self, trap: AbstractTrap, voltages: cx.Variable):
+        """objective"""
         if self.electrodes is not None:
             electrodes = trap.electrode_to_index(self.electrodes, in_all=False)
             voltages = voltages[electrodes]
@@ -132,6 +135,7 @@ class VoltageObjective(Objective):
         yield cost
 
     def constraint(self, trap, voltages):
+        """constraint"""
         if self.electrodes is not None:
             electrodes = trap.electrode_to_index(self.electrodes)
             voltages = voltages[electrodes]
@@ -140,13 +144,32 @@ class VoltageObjective(Objective):
 
 class SlewRateObjective(Objective):
 
-    # def __init__(self, weight: float = 1.0, constraint_type: str = None):
-    #     super().__init__(weight, constraint_type)
+    def __init__(self, weight: float = 1.0):
+        r"""Implements a cost penalizing the time derivative of the waveform.
+            As such, it must be used as a global objective.
+
+        Cost
+            $$ \mathcal{C} = w\, \sum_{ji}\left( M_{jt} v_{ti} \right)^2, $$
+
+        where $M_{ij}$ implements the second-order accurate finite difference
+            $$ M_{ij}v_j = \frac{ v\_{i + 1} - v\_{i - 1} }{ 2 } $$
+
+        (see e.g. `np.gradient`).
+
+        No constraint is implemented.
+
+        Args:
+            weight (float, optional): $w$
+                global weight of the cost term.
+        """
+        super().__init__(weight, constraint_type=None)
 
     def objective(self, trap, voltages):
+        """objective"""
+        if len(voltages.shape) < 2:
+            raise ValueError(f"Not a global objective: wrong waveform shape ({voltages.shape})")
         n_samples = voltages.shape[0]
         M = gradient_matrix(n_samples)
-        # print("--- grad")
         yield cx.multiply(self.weight, cx.sum_squares(M @ voltages))
 
     def constraint(self, trap, voltages):
@@ -178,6 +201,31 @@ class PotentialObjective(Objective):
     def __init__(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, value: ArrayLike,
                  pseudo: bool = True, local_weights: ArrayLike = None, norm: float = 1.0,
                  weight: float = 1.0, constraint_type: str = None):
+        r"""Implements an Objective for the potential generated by the trap electrodes
+
+        Cost
+            $$ \mathcal{C} = w\, \sum_{x} w(x)\left(v_i \frac{\phi_i (x) - U(x)}{\mu} \right)^2. $$
+
+        Constraint
+            $$ v_i \leq x_i \quad \forall i \in \mathcal{E}. $$
+
+        Args:
+            x, y, z (ArrayLike): $x$
+                coordinates where to evaluate the potential. Must be broadcastable.
+            value (ArrayLike): $U(x)$
+                target potential
+            pseudo (bool, optional)
+                select if to add the pseudopotential
+            local_weights (ArrayLike, optional): $w(x)$
+                position-dependent weight. If `None`, all weights are set to 1.
+            norm (float, optional): $\mu$
+                Charachteristic magnitude of the objective used to normalize the cost.
+            weight (float, optional): $w$
+                global weight of the cost term.
+            constraint_type (str, optional):
+                constraint string.
+
+        """
         super().__init__(weight, constraint_type)
         self.xyz = x, y, z
         self.value = value
@@ -186,6 +234,7 @@ class PotentialObjective(Objective):
         self.local_weights = local_weights
 
     def objective(self, trap, voltages):
+        """objective"""
         pot = voltages @ trap.dc_potentials(*self.xyz)
         if self.pseudo:
             pot += trap.pseudo_potential(*self.xyz)
@@ -196,6 +245,7 @@ class PotentialObjective(Objective):
         yield cost
 
     def constraint(self, trap, voltages):
+        """constraint"""
         pot = voltages @ trap.dc_potentials(*self.xyz)
         if self.pseudo:
             pot += trap.pseudo_potential(*self.xyz)
@@ -208,6 +258,34 @@ class GradientObjective(Objective):
                  entries: Union[int, str, List[Union[int, str]]] = None,
                  pseudo: bool = True, norm: float = 1.0,
                  weight: float = 1.0, constraint_type: str = None):
+        r"""Implements an Objective for the potential gradient generated by the trap electrodes
+
+        Cost
+            $$ \mathcal{C} = w\, \sum_{x} w(x)\left(v_i \frac{\partial_L \phi_i (x) - U(x)}{\mu} \right)^2. $$
+
+        Constraint
+            $$ v_i \leq x_i \quad \forall i \in \mathcal{E}. $$
+
+        Args:
+            x,y,z (ArrayLike): $x$
+                coordinates where to evaluate the potential. Must be broadcastable.
+            value (ArrayLike): $U(x)$
+                target potential
+            entries (str, optional) $L$
+                index or string selecting the derivative of interest.\
+                This needs to be explained better.
+            pseudo (bool, optional)
+                select if to add the pseudopotential
+            local_weights (ArrayLike, optional): $w(x)$
+                position-dependent weight. If `None`, all weights are set to 1.
+            norm (float, optional): $\mu$
+                Charachteristic magnitude of the objective used to normalize the cost.
+            weight (float, optional): $w$
+                global weight of the cost term.
+            constraint_type (str, optional):
+                constraint string.
+
+        """
         super().__init__(weight, constraint_type)
         self.xyz = x, y, z
         self.value = value
@@ -239,6 +317,34 @@ class HessianObjective(Objective):
                  entries: Union[int, str, List[Union[int, str]]] = None,
                  pseudo: bool = True, norm: float = 1.0,
                  weight: float = 1.0, constraint_type: str = None):
+        r"""Implements an Objective for the potential gradient generated by the trap electrodes
+
+        Cost
+            $$ \mathcal{C} = w\, \sum_{x} w(x)\left(v_i \frac{\partial^2_L \phi_i (x) - U(x)}{\mu} \right)^2. $$
+
+        Constraint
+            $$ v_i \leq x_i \quad \forall i \in \mathcal{E}. $$
+
+        Args:
+            x,y,z (ArrayLike): $x$
+                coordinates where to evaluate the potential. Must be broadcastable.
+            value (ArrayLike): $U(x)$
+                target potential
+            entries (str, optional) $L$
+                index or string selecting the derivative of interest.\
+                This needs to be explained better.
+            pseudo (bool, optional)
+                select if to add the pseudopotential
+            local_weights (ArrayLike, optional): $w(x)$
+                position-dependent weight. If `None`, all weights are set to 1.
+            norm (float, optional): $\mu$
+                Charachteristic magnitude of the objective used to normalize the cost.
+            weight (float, optional): $w$
+                global weight of the cost term.
+            constraint_type (str, optional):
+                constraint string.
+
+        """
         super().__init__(weight, constraint_type)
         self.xyz = x, y, z
         self.value = value
