@@ -18,6 +18,7 @@ from scipy import signal as sg
 from scipy.linalg import convolution_matrix
 
 from tqdm import tqdm
+import multiprocessing
 
 
 def solver(trap: AbstractTrap,
@@ -25,7 +26,7 @@ def solver(trap: AbstractTrap,
            global_objectives: List[Objective],
            extra_constraints: List[Any] = None,
            trap_filter=None,
-           solver="MOSEK", start_value=None, verbose=False):
+           solver="MOSEK", start_value=None, verbose=True):
     """Static solver
 
         Args:
@@ -49,13 +50,23 @@ def solver(trap: AbstractTrap,
         _t, h = sg.dimpulse((b, a, dt))
         h = np.squeeze(h)
         m = len(h) - 1
-        waveform0 = cx.Variable(shape=(n_steps + m, trap.n_electrodes), name="waveform")
+        n_eval_after = 75
+        waveform0 = cx.Variable(shape=(n_steps + m + n_eval_after, trap.n_electrodes), name="waveform")
         for j in range(m):
             cstr.append(waveform0[j] == waveform0[m])
+        for j in range(n_eval_after):
+            cstr.append(waveform0[m+n_steps+j] == waveform0[m+n_steps-1])
         M = convolution_matrix(h, waveform0.shape[0], mode='valid')
         waveform = M @ waveform0
         waveform0 = waveform0[m:]
-
+        waveform0 = waveform0[:-n_eval_after]
+        for _ in range(n_eval_after):
+            step_objectives.append(step_objectives[-1])
+        step_objectives[-1][0].weight*=10
+        
+        
+    print("waveform.shape[0]",waveform.shape[0])
+    print("len(step_objective)",len(step_objectives))
     step_iter = tqdm(step_objectives, desc="Compiling step objectives") if verbose else step_objectives
     for voltages, ci in zip(waveform, step_iter):
         for cj in ci:
@@ -80,7 +91,12 @@ def solver(trap: AbstractTrap,
     problem = cx.Problem(objective, cstr)
     if start_value is not None:
         waveform.value = start_value
-    problem.solve(solver=solver, warm_start=True, verbose=verbose)
+
+    if solver=="MOSEK":
+        # mosek_params = {}
+        mosek_params = {"MSK_IPAR_NUM_THREADS":multiprocessing.cpu_count()}
+        
+    problem.solve(solver=solver, warm_start=True, verbose=verbose, mosek_params=mosek_params)
 
     final_costs = []
     # for voltages, ci in zip(waveform, step_objectives):
