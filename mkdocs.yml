@@ -1,0 +1,69 @@
+site_name: Pytrans
+site_url:
+repo_url: https://gitlab.phys.ethz.ch/tiqi-projects/pytrans2
+edit_uri: tree/docs/docs
+repo_name: pytrans
+
+nav:
+  - Home: index.md
+  - User Guide:
+      - Installation: installation.md
+  # - Features:
+  #     - Metadata: features/metadata.md
+  #     - Decorators: features/decorators.md
+  - API Reference:
+      - api/objectives.md
+
+theme:
+  #   logo: img/atom.svg
+  #   favicon: img/atom.svg
+  name: readthedocs
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - navigation.top
+    - navigation.expand
+    - navigation.sections
+    - search.highlight
+    - search.suggest
+  # palette:
+  #   - scheme: default
+  icon:
+    repo: fontawesome/brands/gitlab
+
+extra_javascript:
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+  - js/mathjax.js
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.arithmatex:
+      generic: true
+  # - pymdownx.emoji:
+  #     emoji_index: !!python/name:materialx.emoji.twemoji
+  #     emoji_generator: !!python/name:materialx.emoji.to_svg
+  - toc:
+      permalink: true
+
+extra_css:
+  - css/custom.css
+
+plugins:
+  - search
+  - include-markdown
+  - mkdocstrings:
+      watch:
+        - pytrans
+      handlers:
+        python:
+          paths: [pytrans] # search packages in the src folder
+  # - gen-files:
+  #     scripts:
+  #       - docs/scripts/gen_metadata_docs.py # or any other name or path

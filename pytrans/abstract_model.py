@@ -29,7 +29,8 @@ class AbstractTrap(ABC):
     def __new__(cls, *args, **kwargs):
         for name in cls.__required_attributes:
             if not hasattr(cls, name):
-                raise TypeError(f"Can't instantiate abstract class {cls.__name__} with abstract attributes {','.join(cls.__required_attributes)}")
+                raise TypeError(
+                    f"Can't instantiate abstract class {cls.__name__} with abstract attributes {','.join(cls.__required_attributes)}")
         cls._all_electrodes = cls._electrodes
         return super().__new__(cls)
 
@@ -37,7 +38,8 @@ class AbstractTrap(ABC):
         if electrodes is not None:
             for name in electrodes:
                 if name not in self._all_electrodes:
-                    raise AttributeError(f"Trap {self.__class__.__name__} has no electrode {name}")
+                    raise AttributeError(
+                        f"Trap {self.__class__.__name__} has no electrode {name}")
             self._electrodes = electrodes
 
     @property

@@ -14,6 +14,8 @@ Inspired by:
 import re
 import numpy as np
 
+from typing import Union, List, Tuple, no_type_check
+
 re_ix = r"(\[[\s\d,]+\]|[-\d:]+)"
 
 
@@ -46,7 +48,8 @@ d_names = [[""]] + [s.split() for s in [
 d_map = populate_map(d_names)
 
 
-def get_derivative(d, d_map=d_map):
+def get_derivative(d: Union[int, str, List[Union[int, str]]],
+                   d_map=d_map) -> Union[str, List[str]]:
     if isinstance(d, int):
         return d_map[d]
     elif isinstance(d, str):
@@ -57,7 +60,8 @@ def get_derivative(d, d_map=d_map):
         raise TypeError(f"Undefined derivative: {d}")
 
 
-def parse_indexing_string(indexing: str):
+@no_type_check
+def parse_indexing_string(indexing: str) -> Tuple[slice, int, list]:
     """Parse a numpy-style indexing string to a tuple of slices
     freely inspired from https://stackoverflow.com/a/43090200
 
@@ -70,7 +74,7 @@ def parse_indexing_string(indexing: str):
     Examples:
       '[0, 1], 10, ::-1' -> ([0, 1], 10, slice(None, None, -1))
       ':, :, 1' -> (slice(None, None, None), slice(None, None, None), 1)
-      '0:-4:10,::-1,112,[0,10,18]' -> (slice(0, -4, 10), slice(None, None, -1), 112, [0, 10, 18])
+      '0:-4:10,::-1,112,[0,10,18]' -> (slice(0, -4, 10), slice(None, None, -1), 112, [0, 10, 18])  # noqa
       ':, 3,...,10' -> invalid string
       ':, a, 11' -> invalid string
       '[:,1], ::' -> invalid string
