@@ -10,7 +10,7 @@ import numpy as np
 from scipy.interpolate import interp1d
 from scipy.integrate import solve_ivp
 from tqdm import tqdm
-from pytrans.utils.timer import timer
+from pytrans.timer import timer
 
 
 # length and time scales

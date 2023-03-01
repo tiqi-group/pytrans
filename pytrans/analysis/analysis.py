@@ -13,7 +13,7 @@ from numpy.typing import ArrayLike
 from pytrans.plotting import plot3d_potential, plot3d_make_layout, plot_fields_curvatures
 from pytrans.conversion import curv_to_freq
 from pytrans.ions import Ca40
-from pytrans.utils.timer import timer
+from pytrans.timer import timer
 from pytrans.abstract_model import AbstractTrap
 
 from scipy.optimize import minimize
