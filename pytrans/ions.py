@@ -11,14 +11,16 @@ from scipy.constants import atomic_mass, elementary_charge
 
 
 class Ion:
-    def __init__(self, name, mass, charge):
-        self.mass = mass
-        self.charge = charge
+    def __init__(self, name, mass_amu, unit_charge=1):
+        self.mass_amu = mass_amu
+        self.mass = mass_amu * atomic_mass
+        self.unit_charge = unit_charge
+        self.charge = unit_charge * elementary_charge
         self.__name = name
 
     def __repr__(self):
         return self.__name
 
 
-Ca40 = Ion("Ca40", 39.962591 * atomic_mass, elementary_charge)
-Be9 = Ion("Be9", 9.012 * atomic_mass, elementary_charge)
+Ca40 = Ion("Ca40", mass_amu=39.962591, unit_charge=1)
+Be9 = Ion("Be9", mass_amu=9.012, unit_charge=1)

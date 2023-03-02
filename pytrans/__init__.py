@@ -7,5 +7,9 @@
 pytrans
 ~~~~~~
 """
-# import logging
-# logging.basicConfig(level=logging.INFO)
+# flake8: noqa
+
+from .electrode import DCElectrode, RFElectrode
+from .abstract_model import AbstractTrap
+import logging
+logging.basicConfig(level=logging.INFO)
