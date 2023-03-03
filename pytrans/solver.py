@@ -9,7 +9,7 @@ Module docstring
 '''
 
 import cvxpy as cx
-from .abstract_model import AbstractTrap
+from .abstract_model import AbstractTrapModel
 from .objectives import Objective
 from typing import List, Any
 
@@ -20,7 +20,7 @@ from scipy.linalg import convolution_matrix
 from tqdm import tqdm
 
 
-def solver(trap: AbstractTrap,
+def solver(trap: AbstractTrapModel,
            step_objectives: List[List[Objective]],
            global_objectives: List[Objective],
            extra_constraints: List[Any] = None,

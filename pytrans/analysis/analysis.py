@@ -14,7 +14,7 @@ from pytrans.plotting import plot3d_potential, plot3d_make_layout, plot_fields_c
 from pytrans.conversion import curv_to_freq
 from pytrans.ions import Ca40
 from pytrans.timer import timer
-from pytrans.abstract_model import AbstractTrap
+from pytrans.abstract_model import AbstractTrapModel
 
 from scipy.optimize import minimize
 
@@ -47,7 +47,7 @@ def _sort_close_to(x0, x1):
     return perm[ix]
 
 
-def analyse_fields_curvatures(trap: AbstractTrap, voltages: ArrayLike, x, y=None, z=None, pseudo=True,
+def analyse_fields_curvatures(trap: AbstractTrapModel, voltages: ArrayLike, x, y=None, z=None, pseudo=True,
                               find_3dmin=False, minimize_options=dict(), plot=True, title=''):
     y = getattr(trap, 'y0', 0) if y is None else y
     z = getattr(trap, 'z0', 0) if z is None else z
@@ -109,7 +109,7 @@ def find_3dmin_potential(trap, voltages, r0, roi=None, pseudo=True, minimize_opt
     return res.x
 
 
-def analyse_potential_data(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
+def analyse_potential_data(trap: AbstractTrapModel, voltages: ArrayLike, r0: ArrayLike,
                            roi=None, pseudo=True, sort_close_to=None,
                            find_3dmin=True, minimize_options=dict(),
                            verbose=True, title=''):
@@ -171,7 +171,7 @@ def analyse_potential_data(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLik
     return results
 
 
-def analyse_potential(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
+def analyse_potential(trap: AbstractTrapModel, voltages: ArrayLike, r0: ArrayLike,
                       plot=True, axes=None, title='',
                       roi=None, pseudo=True, find_3dmin=True, minimize_options=dict(), verbose=True):
 
