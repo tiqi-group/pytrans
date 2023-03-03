@@ -1,6 +1,8 @@
 import numpy as np
-from numpy.typing import ArrayLike
+from typing import Any
+from nptyping import NDArray, Shape
 from pytrans.abstract_model import AbstractTrapModel
+from pytrans.ions import Ion
 
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
@@ -9,7 +11,7 @@ from matplotlib import patches as mpatches
 from matplotlib import transforms
 
 
-def plot3d_potential(trap: AbstractTrapModel, voltages: ArrayLike, r0: ArrayLike,
+def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: NDArray[Shape["3"], Any],
                      roi=(600, 50, 50), axes=None, pseudo=True, analyse_results=None, title=''):
 
     if axes is None:
@@ -30,16 +32,16 @@ def plot3d_potential(trap: AbstractTrapModel, voltages: ArrayLike, r0: ArrayLike
         _roi.append(lim)
 
     lx, ly, lz = _roi
-    _x = np.linspace(*lx, 100) * 1e-6
-    _y = np.linspace(*ly, 100) * 1e-6
-    _z = np.linspace(*lz, 100) * 1e-6
+    _x = np.linspace(lx[0], lx[1], 100) * 1e-6
+    _y = np.linspace(ly[0], ly[1], 100) * 1e-6
+    _z = np.linspace(lz[0], lz[1], 100) * 1e-6
 
     _xyz = np.stack([_x, _y, _z], axis=0)
 
     x, y, z = _xyz + np.asarray(r0).reshape((-1, 1))
 
     def _fun(x, y, z):
-        return trap.potential(voltages, x, y, z, pseudo=pseudo)
+        return trap.potential(voltages, x, y, z, ion.mass_amu, pseudo=pseudo)
 
     ax_x.plot(x * 1e6, _fun(x, y0, z0))
     ax_y.plot(y * 1e6, _fun(x0, y, z0))

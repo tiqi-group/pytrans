@@ -9,10 +9,11 @@ Module docstring
 '''
 
 import numpy as np
-from numpy.typing import ArrayLike
+from typing import Any
+from nptyping import NDArray, Shape
 from pytrans.plotting import plot3d_potential, plot3d_make_layout, plot_fields_curvatures
 from pytrans.conversion import curv_to_freq
-from pytrans.ions import Ca40
+from pytrans.ions import Ion
 from pytrans.timer import timer
 from pytrans.abstract_model import AbstractTrapModel
 
@@ -47,7 +48,9 @@ def _sort_close_to(x0, x1):
     return perm[ix]
 
 
-def analyse_fields_curvatures(trap: AbstractTrapModel, voltages: ArrayLike, x, y=None, z=None, pseudo=True,
+def analyse_fields_curvatures(trap: AbstractTrapModel, voltages: NDArray, ion: Ion,
+                              x: NDArray, y=None, z=None,
+                              pseudo=True,
                               find_3dmin=False, minimize_options=dict(), plot=True, title=''):
     y = getattr(trap, 'y0', 0) if y is None else y
     z = getattr(trap, 'z0', 0) if z is None else z
@@ -63,7 +66,7 @@ def analyse_fields_curvatures(trap: AbstractTrapModel, voltages: ArrayLike, x, y
         voltages = np.tile(voltages, (n_samples, 1))
     for j, x1 in enumerate(tqdm(samples)):
         sort_close_to = None if j == 0 else freqs[j - 1]
-        res = analyse_potential_data(trap, voltages[j], r0[j],
+        res = analyse_potential_data(trap, voltages[j], ion, r0[j],
                                      pseudo=pseudo, sort_close_to=sort_close_to,
                                      find_3dmin=find_3dmin, minimize_options=minimize_options,
                                      verbose=False)
@@ -83,11 +86,13 @@ def analyse_fields_curvatures(trap: AbstractTrapModel, voltages: ArrayLike, x, y
     return results
 
 
-def find_3dmin_potential(trap, voltages, r0, roi=None, pseudo=True, minimize_options=dict(), verbose=True):
+def find_3dmin_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion,
+                         r0: NDArray[Shape["3"], Any], roi=None, pseudo=True,
+                         minimize_options=dict(), verbose=True):
     roi = __roi if roi is None else roi
 
     def fun3(xyz):
-        return trap.potential(voltages, *xyz, pseudo=pseudo)
+        return trap.potential(voltages, *xyz, ion.mass_amu, pseudo=pseudo)
 
     _roi = []
     for lim in roi:
@@ -109,29 +114,27 @@ def find_3dmin_potential(trap, voltages, r0, roi=None, pseudo=True, minimize_opt
     return res.x
 
 
-def analyse_potential_data(trap: AbstractTrapModel, voltages: ArrayLike, r0: ArrayLike,
-                           roi=None, pseudo=True, sort_close_to=None,
+def analyse_potential_data(trap: AbstractTrapModel, voltages: NDArray, ion: Ion,
+                           r0: NDArray[Shape["3"], Any], roi=None, pseudo=True,
+                           sort_close_to=None,
                            find_3dmin=True, minimize_options=dict(),
                            verbose=True, title=''):
 
     if verbose:
         print('--------------\n' + Fore.YELLOW + f"Analyse potential: {title}")
     if find_3dmin:
-        x1, y1, z1 = find_3dmin_potential(trap, voltages, r0, roi, pseudo, minimize_options, verbose)
+        x1, y1, z1 = find_3dmin_potential(trap, voltages, ion, r0,
+                                          roi, pseudo, minimize_options, verbose)
     else:
         if verbose:
             print(Fore.YELLOW + "Set position to r0")
         x1, y1, z1 = r0
 
-    r1 = np.asarray([x1, y1, z1])
-    v = trap.potential(voltages, *r1, pseudo=pseudo)
-
-    E = trap.gradient(voltages, *r1, pseudo=pseudo)
-    H = trap.hessian(voltages, *r1, pseudo=pseudo)
+    v = trap.potential(voltages, x1, y1, z1, ion.mass_amu, pseudo=pseudo)
+    E = trap.gradient(voltages, x1, y1, z1, ion.mass_amu, pseudo=pseudo)
+    H = trap.hessian(voltages, x1, y1, z1, ion.mass_amu, pseudo=pseudo)
 
     h, vs, angle = _eig_hessian(H, sort_close_to)
-
-    ion = trap.ion if hasattr(trap, 'ion') else Ca40
     freqs = curv_to_freq(h, ion=ion)
 
     if verbose:
@@ -162,7 +165,7 @@ def analyse_potential_data(trap: AbstractTrapModel, voltages: ArrayLike, r0: Arr
         fz=freqs[2],
         fields=E,
         hessian=H,
-        r1=r1,
+        r1=np.asarray([x1, y1, z1]),
         freqs=freqs,
         eigenvalues=h,
         eigenvectors=vs,
@@ -171,11 +174,12 @@ def analyse_potential_data(trap: AbstractTrapModel, voltages: ArrayLike, r0: Arr
     return results
 
 
-def analyse_potential(trap: AbstractTrapModel, voltages: ArrayLike, r0: ArrayLike,
+def analyse_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion,
+                      r0: NDArray[Shape["3"], Any],
                       plot=True, axes=None, title='',
                       roi=None, pseudo=True, find_3dmin=True, minimize_options=dict(), verbose=True):
 
-    res = analyse_potential_data(trap, voltages, r0, roi, pseudo=pseudo, sort_close_to=None,
+    res = analyse_potential_data(trap, voltages, ion, r0, roi, pseudo=pseudo, sort_close_to=None,
                                  find_3dmin=find_3dmin, minimize_options=minimize_options,
                                  verbose=verbose, title=title)
     if not plot:
@@ -185,7 +189,7 @@ def analyse_potential(trap: AbstractTrapModel, voltages: ArrayLike, r0: ArrayLik
         fig, axes = plot3d_make_layout(n=1)
     roi = __roi if roi is None else roi
 
-    fig, axes = plot3d_potential(trap, voltages, r0, analyse_results=res, roi=roi, axes=axes, pseudo=pseudo, title=title)
+    fig, axes = plot3d_potential(trap, voltages, ion, r0, analyse_results=res, roi=roi, axes=axes, pseudo=pseudo, title=title)
 
     res['fig'] = fig
     res['axes'] = axes
