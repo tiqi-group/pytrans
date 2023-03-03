@@ -1,6 +1,6 @@
 import numpy as np
 from numpy.typing import ArrayLike
-from pytrans.abstract_model import AbstractTrap
+from pytrans.abstract_model import AbstractTrapModel
 
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
@@ -9,7 +9,7 @@ from matplotlib import patches as mpatches
 from matplotlib import transforms
 
 
-def plot3d_potential(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike,
+def plot3d_potential(trap: AbstractTrapModel, voltages: ArrayLike, r0: ArrayLike,
                      roi=(600, 50, 50), axes=None, pseudo=True, analyse_results=None, title=''):
 
     if axes is None:

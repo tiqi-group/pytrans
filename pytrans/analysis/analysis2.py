@@ -13,7 +13,7 @@ from scipy.optimize import minimize
 
 from pytrans.analysis import coulomb as pcoul
 from pytrans.conversion import curv_to_freq
-from pytrans.abstract_model import AbstractTrap
+from pytrans.abstract_model import AbstractTrapModel
 
 from colorama import init as colorama_init, Fore
 
@@ -41,7 +41,7 @@ def solver1d_two_ions(trap, voltages, r0, x_range, pseudo=True, dx=5e-6, minimiz
     return res
 
 
-def analyse_potential_two_ions(trap: AbstractTrap, voltages: ArrayLike, r0: ArrayLike, roi=(-200, 200),
+def analyse_potential_two_ions(trap: AbstractTrapModel, voltages: ArrayLike, r0: ArrayLike, roi=(-200, 200),
                                plot=True, ax=None, title='',
                                pseudo=True, minimize_options=dict(), verbose=True):
 

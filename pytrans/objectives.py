@@ -19,7 +19,7 @@ from typing import Union, List
 import numpy as np
 import cvxpy as cx
 from numpy.typing import ArrayLike
-from .abstract_model import AbstractTrap
+from .abstract_model import AbstractTrapModel
 from .indexing import get_derivative, gradient_matrix
 
 _constraint_operator_map = {
@@ -63,22 +63,22 @@ class Objective(ABC):
         self.constraint_type = constraint_type
 
     @abstractmethod
-    def objective(self, trap: AbstractTrap, voltages: cx.Variable):
+    def objective(self, trap: AbstractTrapModel, voltages: cx.Variable):
         """override this method to implement a cost objective
 
         Args:
-            trap (AbstractTrap): trap model
+            trap (AbstractTrapModel): trap model
             voltages (cx.Variable): optimization variables
         """
         return
         yield
 
     @abstractmethod
-    def constraint(self, trap: AbstractTrap, voltages: cx.Variable):
+    def constraint(self, trap: AbstractTrapModel, voltages: cx.Variable):
         """override this method to implement a constraint
 
         Args:
-            trap (AbstractTrap): trap model
+            trap (AbstractTrapModel): trap model
             voltages (cx.Variable): optimization variables
         """
         return
@@ -123,7 +123,7 @@ class VoltageObjective(Objective):
         self.electrodes = electrodes
         self.local_weights = local_weights
 
-    def objective(self, trap: AbstractTrap, voltages: cx.Variable):
+    def objective(self, trap: AbstractTrapModel, voltages: cx.Variable):
         """objective"""
         if self.electrodes is not None:
             electrodes = trap.electrode_to_index(self.electrodes, in_all=False)
