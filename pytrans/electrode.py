@@ -4,7 +4,7 @@
 # Created: 03/2023
 # Author: Carmelo Mordini <cmordini@phys.ethz.ch>
 
-
+import numpy as np
 from typing import Any
 from abc import ABC, abstractmethod
 from nptyping import NDArray, Float
@@ -71,10 +71,17 @@ class RFElectrode(Electrode):
         return rf_voltage**2 / ion_mass_amu / rf_freq_mhz**2
 
     def potential(self, x, y, z, ion_mass_amu, rf_voltage, rf_freq_mhz):
-        return self.kappa(ion_mass_amu, rf_voltage, rf_freq_mhz) * self._unit_potential(x, y, z)
+        kk = self.kappa(ion_mass_amu, rf_voltage, rf_freq_mhz)
+        return kk * self._unit_potential(x, y, z)
 
     def gradient(self, x, y, z, ion_mass_amu, rf_voltage, rf_freq_mhz):
-        return self.kappa(ion_mass_amu, rf_voltage, rf_freq_mhz) * self._unit_gradient(x, y, z)
+        kk = self.kappa(ion_mass_amu, rf_voltage, rf_freq_mhz)
+        if isinstance(kk, np.ndarray):
+            kk = kk[:, np.newaxis]
+        return kk * self._unit_gradient(x, y, z)
 
     def hessian(self, x, y, z, ion_mass_amu, rf_voltage, rf_freq_mhz):
-        return self.kappa(ion_mass_amu, rf_voltage, rf_freq_mhz) * self._unit_hessian(x, y, z)
+        kk = self.kappa(ion_mass_amu, rf_voltage, rf_freq_mhz)
+        if isinstance(kk, np.ndarray):
+            kk = kk[:, np.newaxis, np.newaxis]
+        return kk * self._unit_hessian(x, y, z)
