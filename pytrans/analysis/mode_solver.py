@@ -132,11 +132,12 @@ def mode_solver(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Ion, Lis
 
     options = dict(
         # maxCGit=0,
+        accuracy=1e-8,
         xtol=1e-8,
         ftol=kappa,
         # gtol=kappa / 1e-5,
         # scale=1e-6 * np.ones((N * d,)),
-        maxfun=300 * N * d
+        # maxfun=300 * N * d
     )
     options.update(minimize_options)
 

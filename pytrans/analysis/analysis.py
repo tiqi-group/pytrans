@@ -12,7 +12,7 @@ import numpy as np
 from typing import Any
 from nptyping import NDArray, Shape
 from pytrans.plotting import plot3d_potential, plot3d_make_layout, plot_fields_curvatures
-from pytrans.conversion import curv_to_freq
+from pytrans.conversion import curv_to_freq, field_to_shift
 from pytrans.ions import Ion
 from pytrans.timer import timer
 from pytrans.abstract_model import AbstractTrapModel
@@ -26,6 +26,10 @@ from tqdm import tqdm
 colorama_init(autoreset=True)
 
 __roi = (400, 30, 30)
+
+
+def _color_str(color, str):
+    return f"{color}{str:s}{Fore.RESET}"
 
 
 def _eig_hessian(H, sort_close_to=None):
@@ -57,7 +61,7 @@ def analyse_fields_curvatures(trap: AbstractTrapModel, voltages: NDArray, ion: I
     n_samples = len(x)
     samples = np.arange(n_samples)
     r0 = np.stack(np.broadcast_arrays(x, y, z), axis=1)
-    print('--------------\n' + Fore.YELLOW + f"Analyse curvatures along trajectory: {title}")
+    print(_color_str(Fore.YELLOW, f"--------------\nAnalyse curvatures along trajectory: {title}"))
     r1 = np.empty((n_samples, 3))
     fields = np.empty((n_samples, 3))
     freqs = np.empty((n_samples, 3))
@@ -94,21 +98,22 @@ def find_3dmin_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion,
     def fun3(xyz):
         return trap.potential(voltages, *xyz, ion.mass_amu, pseudo=pseudo)
 
+    def jac3(xyz):
+        return trap.gradient(voltages, *xyz, ion.mass_amu, pseudo=pseudo)
+
     _roi = []
     for lim in roi:
         lim = lim if isinstance(lim, (int, float)) else min(lim)
         _roi.append(lim)
 
     bounds = [(-r * 1e-6 + x, r * 1e-6 + x) for r, x in zip(_roi, r0)]
-    opts = dict(accuracy=1e-6)
+    opts = dict(accuracy=1e-8)
     opts.update(minimize_options)
-    if verbose:
-        res = timer(minimize)(fun3, r0, method='TNC', bounds=bounds, options=opts)
-    else:
-        res = minimize(fun3, r0, method='TNC', bounds=bounds, options=opts)
+    _minimize = timer(minimize) if verbose else minimize
+    res = _minimize(fun3, r0, method='TNC', jac=jac3, bounds=bounds, options=opts)
 
     if verbose:
-        print(Fore.YELLOW + "Potential mimimum [um]")
+        print(_color_str(Fore.YELLOW, "Potential mimimum [um]"))
         print(res.x * 1e6)
         # print((res.x - r0) * 1e6)
     return res.x
@@ -121,13 +126,13 @@ def analyse_potential_data(trap: AbstractTrapModel, voltages: NDArray, ion: Ion,
                            verbose=True, title=''):
 
     if verbose:
-        print('--------------\n' + Fore.YELLOW + f"Analyse potential: {title}")
+        print(_color_str(Fore.YELLOW, f"--------------\nAnalyse potential for ion {ion}: {title}"))
     if find_3dmin:
         x1, y1, z1 = find_3dmin_potential(trap, voltages, ion, r0,
                                           roi, pseudo, minimize_options, verbose)
     else:
         if verbose:
-            print(Fore.YELLOW + "Set position to r0")
+            print(_color_str(Fore.YELLOW, "Set position to r0"))
         x1, y1, z1 = r0
 
     v = trap.potential(voltages, x1, y1, z1, ion.mass_amu, pseudo=pseudo)
@@ -136,23 +141,24 @@ def analyse_potential_data(trap: AbstractTrapModel, voltages: NDArray, ion: Ion,
 
     h, vs, angle = _eig_hessian(H, sort_close_to)
     freqs = curv_to_freq(h, ion=ion)
+    shift = field_to_shift(E, ion=ion)
 
     if verbose:
         with np.printoptions(suppress=True):
-            print(Fore.YELLOW + 'Gradient [V/m]')
+            print(_color_str(Fore.YELLOW, 'Gradient [V/m]'))
             print(E)
-            # print(Fore.YELLOW + f"Displacement for {ion} [um]")
-            # print(field_to_shift(E, ion=ion) * 1e6)
-            print(Fore.YELLOW + 'Hessian [V/m2]')
+            print(_color_str(Fore.YELLOW, "Displacement at 1 MHz [um]"))
+            print(shift * 1e6)
+            print(_color_str(Fore.YELLOW, 'Hessian [V/m2]'))
             print(H)
             # print(curv_to_freq(H, ion=ion) * 1e-6)
-            print(Fore.YELLOW + f"Normal mode frequencies for {ion} [MHz]")
-            with np.printoptions(formatter={'float': lambda x: f"{x * 1e-6:g}" if x > 0 else Fore.RED + f"{x * 1e-6:g}" + Fore.RESET}):
+            print(_color_str(Fore.YELLOW, "Normal mode frequencies [MHz]"))
+            with np.printoptions(formatter={'float': lambda x: f"{x * 1e-6:g}" if x > 0 else _color_str(Fore.RED, f"{x * 1e-6:g}")}):
                 print(freqs)
-            print(Fore.YELLOW + 'Eigenvectors')
-            with np.printoptions(formatter={'float': lambda x: Fore.GREEN + f"{x:.3g}" + Fore.RESET if abs(x) > 0.9 else f"{x:.3g}"}):
+            print(_color_str(Fore.YELLOW, 'Eigenvectors'))
+            with np.printoptions(formatter={'float': lambda x: _color_str(Fore.GREEN, f"{x:.3g}") if abs(x) > 0.9 else f"{x:.3g}"}):
                 print(vs)
-            print(f"{Fore.YELLOW}Tilt angle of mode 2 ({freqs[2] * 1e-6:.2f}): {Fore.RESET}{angle:.2f}°")
+            print(_color_str(Fore.YELLOW, f"Tilt angle of mode 2 ({freqs[2] * 1e-6:.2f}):") + f" {angle:.2f}°")
         print()
 
     results = dict(
@@ -164,6 +170,7 @@ def analyse_potential_data(trap: AbstractTrapModel, voltages: NDArray, ion: Ion,
         fy=freqs[1],
         fz=freqs[2],
         fields=E,
+        shift=shift,
         hessian=H,
         r1=np.asarray([x1, y1, z1]),
         freqs=freqs,
