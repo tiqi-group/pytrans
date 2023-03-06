@@ -13,6 +13,7 @@ from scipy.optimize import minimize
 
 from pytrans.abstract_model import AbstractTrapModel
 from pytrans.ions import Ion, atomic_mass
+from pytrans.conversion import curv_to_freq
 
 kappa = elementary_charge / 4 / pi / epsilon_0
 Coords = NDArray[Shape["*, 3"], Float]
@@ -91,6 +92,54 @@ def coulomb_hessian(X: Coords):
     H = kappa * (d_ij / r**3 - 3 * r_ab[:, :, :, None] * r_ab[:, :, None, :] / r**5)
     H[np.diag_indices(N)] = - H.sum(axis=1)
     return H
+
+
+class HarmonicTrap:
+
+    def __init__(self, fx, fy, fz, ion: Ion, stray_field=[0, 0, 0]):
+        wx2, wy2, wz2 = (2 * pi * fx)**2, (2 * pi * fy)**2, (2 * pi * fz)**2
+        c_x = ion.mass / ion.charge * wx2
+        c_dc = ion.mass / ion.charge * (wy2 - wz2) / 2
+        m_c_rf = ion.mass**2 / ion.charge * (wx2 + wy2 + wz2) / 2
+
+        self._H_dc = np.asarray([
+            [c_x, 0, 0],
+            [0, c_dc - c_x / 2, 0],
+            [0, 0, -c_dc - c_x / 2]
+        ])
+
+        self._m_H_rf = np.asarray([
+            [0, 0, 0],
+            [0, m_c_rf, 0],
+            [0, 0, m_c_rf]
+        ])
+
+        self._E = np.asarray(stray_field)
+
+    def _H(self, mass_amu):
+        mass = atomic_mass * np.atleast_1d(mass_amu).reshape(-1, 1, 1)
+        return self._H_dc.reshape(1, 3, 3) + self._m_H_rf / mass
+
+    def _X(self, x, y, z):
+        return np.stack([x, y, z], axis=-1)
+
+    def potential(self, voltages, x, y, z, mass_amu):
+        X = self._X(x, y, z)
+        H = self._H(mass_amu)
+        return 0.5 * np.einsum('...i,...ij,...j', X, H, X).sum() + np.einsum('j,...j', self._E, X).sum()
+
+    def gradient(self, voltages, x, y, z, mass_amu):
+        X = self._X(x, y, z)
+        H = self._H(mass_amu)
+        grad = np.einsum('...ij,...j', H, X) + self._E.reshape(1, -1)
+        return grad
+
+    def hessian(self, voltages, x, y, z, mass_amu):
+        return self._H(mass_amu)
+
+    def trap_frequencies(self, ion: Ion):
+        curv = np.diag(self._H(ion.mass_amu))
+        return curv_to_freq(curv, ion=ion)
 
 
 def mode_solver(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Ion, List[Ion]],
