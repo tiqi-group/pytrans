@@ -4,12 +4,14 @@
 # Created: 01-2021 - Carmelo Mordini <carmelo> <cmordini@phys.ethz.ch>
 
 import numpy as np
-from typing import List, Dict, Optional
+from typing import Union, List, Dict, Optional
 
 from .electrode import DCElectrode, RFElectrode
 
 import logging
 logger = logging.getLogger(__name__)
+
+ElectrodeNames = Union[str, List[str]]
 
 
 class AbstractTrapModel:
@@ -153,7 +155,7 @@ class AbstractTrapModel:
     def electrode_all_indices(self):
         return self.electrode_to_index(self.electrodes, in_all=True)
 
-    def electrode_to_index(self, names, in_all=False):
+    def electrode_to_index(self, names: ElectrodeNames, in_all=False):
         el_list = list(self._all_electrodes.keys()) if in_all else self.electrodes
         if isinstance(names, str):
             return el_list.index(names)
