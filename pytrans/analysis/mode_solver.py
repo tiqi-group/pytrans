@@ -6,6 +6,7 @@
 
 
 import numpy as np
+from tabulate import tabulate
 from nptyping import NDArray, Shape, Float
 from typing import Union, List
 from scipy.constants import pi, elementary_charge, epsilon_0
@@ -142,13 +143,57 @@ class HarmonicTrap:
         return curv_to_freq(curv, ion=ion)
 
 
-def mode_solver(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Ion, List[Ion]],
-                x0: Coords, bounding_box=None, minimize_options=dict()):
-    N, d = x0.shape
-    if isinstance(ions, list):
+class ModeSolverResults:
+    """ Mode solver results
+
+    Attributes:
+        x0 (array, shape (N, 3)) initial positions
+        ions (list of Ions, len N): Ion objects
+        x_eq (array, shape (N, 3)): equilibrium positions
+        hess (array, shape (3N, 3N)): mass-dependent hessian at minimum
+        mode_freqs (array, shape (3N,)): normal modes frequencies in Hertz
+        mode_vectors (array, shape (3N, N, 3)): normal modes eigenvectors
+            mode_vectors[n, k, :] are the (x, y, z) components of
+            mode n on ion k
+        minimize_result: minimization result returned by scipy.minimize
+    """
+
+    def __init__(self, x0, ions, minimize_result):
+        N, d = x0.shape
+        x_eq = minimize_result.x.reshape(N, d)  # equilibrium position
+        H = minimize_result.hess
         masses_amu = np.asarray([ion.mass_amu for ion in ions])
-    else:
-        masses_amu = np.asarray([ions.mass_amu for _ in range(N)])
+        masses = np.repeat(masses_amu, 3)
+        H_w = 1 / np.sqrt(np.outer(masses, masses)) * H  # mass-weighted hessian
+        h, v = np.linalg.eig(H_w)
+
+        sort = np.abs(h).argsort()
+        h = h[sort]  # shape: (3N,)
+        freqs = np.sign(h) * np.sqrt(elementary_charge / atomic_mass * np.abs(h)) / 2 / pi
+        v = v[:, sort].T.reshape(N * d, N, d)  # shape: (3N, N, d)
+
+        self.x0 = x0
+        self.ions = ions
+        self.x_eq = x_eq
+        self.hess = H
+        self.mode_freqs = freqs
+        self.mode_vectors = v
+        self.minimize_result = minimize_result
+
+    def __repr__(self):
+        headers = ['Freq']
+        for ion in self.ions:
+            headers += ['', f"{ion}", '']
+        L = len(self.mode_freqs)
+        data = np.concatenate([self.mode_freqs.reshape(-1, 1) * 1e-6, self.mode_vectors.reshape((L, L))], axis=1)
+        return "ModeSolverResults\n" + tabulate(data, headers=headers, floatfmt=".4g")
+
+
+def mode_solver(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Ion, List[Ion]],
+                x0: Coords, bounding_box=None, minimize_options=dict()) -> ModeSolverResults:
+    N, d = x0.shape
+    ions = [ions] * N if isinstance(ions, Ion) else ions
+    masses_amu = np.asarray([ion.mass_amu for ion in ions])
 
     def fun(X):
         _X = X.reshape(N, d)
@@ -172,7 +217,7 @@ def mode_solver(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Ion, Lis
         _X = X.reshape(N, d)
         hess = coulomb_hessian(_X)  # shape (N, N, d, d)
         trap_hess = trap.hessian(voltages, *_X.T, masses_amu)  # shape (N, d, d)
-        hess[np.diag_indices(N, ndim=2)] += trap_hess  # add it in blocks_type_
+        hess[np.diag_indices(N, ndim=2)] += trap_hess  # add it in blocks
         hess = np.swapaxes(hess, 1, 2).reshape((N * d, N * d))
         return hess
 
@@ -191,25 +236,9 @@ def mode_solver(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Ion, Lis
     options.update(minimize_options)
 
     res = minimize(fun, x0.ravel(), method='TNC', jac=jac, bounds=bounds, options=options)
+    res.hess = hess(res.x)  # mass-dependent hessian, (3N, 3N)
 
-    x1 = res.x.reshape(N, d)  # equilibrium position
-    H = hess(res.x)  # mass-dependent hessian, (3N, 3N)
-    masses = np.repeat(masses_amu, 3) * atomic_mass
-    H_w = 1 / np.sqrt(np.outer(masses, masses)) * H  # mass-weighted hessian
-    h, v = np.linalg.eig(H_w)
-
-    sort = np.abs(h).argsort()
-    h = h[sort]  # shape: (3N,)
-    freqs = np.sign(h) * (np.abs(h) * elementary_charge)**(1 / 2) / 2 / pi
-    v = v[:, sort].T.reshape(N * d, N, d)  # shape: (3N, N, d)
-
-    result = {
-        'x_eq': x1,
-        'mode_freqs': freqs,
-        'mode_vectors': v,
-        'res': res
-    }
-    return result
+    return ModeSolverResults(x0, ions, res)
 
 
 def _ravel_coords(*args):
