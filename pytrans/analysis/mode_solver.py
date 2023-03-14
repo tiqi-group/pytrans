@@ -7,17 +7,18 @@
 
 import numpy as np
 from tabulate import tabulate
-from nptyping import NDArray, Shape, Float
-from typing import Union, List
 from scipy.constants import pi, elementary_charge, epsilon_0
 from scipy.optimize import minimize
+
+from typing import Union, List
+from nptyping import NDArray, Shape, Float
+from pytrans.typing import Coords
 
 from pytrans.abstract_model import AbstractTrapModel
 from pytrans.ions import Ion, atomic_mass
 from pytrans.conversion import curv_to_freq
 
 kappa = elementary_charge / 4 / pi / epsilon_0
-Coords = NDArray[Shape["*, 3"], Float]
 
 
 def distances(X: Coords):

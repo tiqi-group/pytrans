@@ -4,14 +4,12 @@
 # Created: 01-2021 - Carmelo Mordini <carmelo> <cmordini@phys.ethz.ch>
 
 import numpy as np
-from typing import Union, List, Dict, Optional
-
+from typing import List, Dict, Optional
+from .typing import ElectrodeNames
 from .electrode import DCElectrode, RFElectrode
 
 import logging
 logger = logging.getLogger(__name__)
-
-ElectrodeNames = Union[str, List[str]]
 
 
 class AbstractTrapModel:

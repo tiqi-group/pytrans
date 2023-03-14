@@ -52,6 +52,44 @@ def _sort_close_to(x0, x1):
     return perm[ix]
 
 
+def analyse_fields_curvatures(trap: AbstractTrapModel, voltages: NDArray, ion: Ion,
+                              x: NDArray, y=None, z=None,
+                              pseudo=True,
+                              find_3dmin=False, minimize_options=dict(), plot=True, title=''):
+    y = getattr(trap, 'y0', 0) if y is None else y
+    z = getattr(trap, 'z0', 0) if z is None else z
+    n_samples = len(x)
+    samples = np.arange(n_samples)
+    r0 = np.stack(np.broadcast_arrays(x, y, z), axis=1)
+    print(_color_str(Fore.YELLOW, f"--------------\nAnalyse curvatures along trajectory: {title}"))
+    r1 = np.empty((n_samples, 3))
+    fields = np.empty((n_samples, 3))
+    freqs = np.empty((n_samples, 3))
+    angle = np.empty_like(x)
+    if voltages.ndim == 1:
+        voltages = np.tile(voltages, (n_samples, 1))
+    for j, x1 in enumerate(tqdm(samples)):
+        sort_close_to = None if j == 0 else freqs[j - 1]
+        res = analyse_potential_data(trap, voltages[j], ion, r0[j],
+                                     pseudo=pseudo, sort_close_to=sort_close_to,
+                                     find_3dmin=find_3dmin, minimize_options=minimize_options,
+                                     verbose=False)
+        r1[j] = res['r1']
+        fields[j] = res['fields']
+        freqs[j] = res['freqs']
+        angle[j] = res['angle']
+    results = dict(
+        r0=r0,
+        r1=r1,
+        fields=fields,
+        freqs=freqs,
+        angle=angle
+    )
+    if plot:
+        results['fig'], results['axes'] = plot_fields_curvatures(samples, r0, r1, fields, freqs, angle, title)
+    return results
+
+
 def find_3dmin_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion,
                          r0: NDArray[Shape["3"], Any], roi=None, pseudo=True,
                          minimize_options=dict(), verbose=True):
@@ -69,8 +107,6 @@ def find_3dmin_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion,
         _roi.append(lim)
 
     bounds = [(-r * 1e-6 + x, r * 1e-6 + x) for r, x in zip(_roi, r0)]
-
-    # res = mode_solver(trap, voltages, ions=ion, x0=np.asarray(r0).reshape(1, -1), bounding_box=bounds)
     opts = dict(accuracy=1e-8)
     opts.update(minimize_options)
     _minimize = timer(minimize) if verbose else minimize
@@ -80,7 +116,6 @@ def find_3dmin_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion,
         print(_color_str(Fore.YELLOW, "Potential mimimum [um]"))
         print(res.x * 1e6)
         # print((res.x - r0) * 1e6)
-    # return res.x_eq.ravel()
     return res.x
 
 
@@ -146,12 +181,14 @@ def analyse_potential_data(trap: AbstractTrapModel, voltages: NDArray, ion: Ion,
     return results
 
 
-def analyse_potential(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Ion, List[Ion]],
+def analyse_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion,
                       r0: NDArray[Shape["3"], Any],
                       plot=True, axes=None, title='',
-                      roi=(400, 30, 30), pseudo=True, find_3dmin=True, minimize_options=dict(), verbose=True):
+                      roi=None, pseudo=True, find_3dmin=True, minimize_options=dict(), verbose=True):
 
-    res = mode_solver(trap, voltages, ions, x0, bounding_box=None, minimize_options=dict())
+    res = analyse_potential_data(trap, voltages, ion, r0, roi, pseudo=pseudo, sort_close_to=None,
+                                 find_3dmin=find_3dmin, minimize_options=minimize_options,
+                                 verbose=verbose, title=title)
     if not plot:
         return res
 
