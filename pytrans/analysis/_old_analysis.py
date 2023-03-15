@@ -11,7 +11,7 @@ Module docstring
 import numpy as np
 from typing import Any
 from nptyping import NDArray, Shape
-from pytrans.plotting import plot3d_potential, plot3d_make_layout, plot_fields_curvatures
+from pytrans.plotting._old_plotting import plot3d_potential, plot3d_make_layout, plot_fields_curvatures
 from pytrans.conversion import curv_to_freq, field_to_shift
 from pytrans.ions import Ion
 from pytrans.timer import timer
