@@ -17,7 +17,7 @@ from pytrans.abstract_model import AbstractTrapModel
 from pytrans.ions import Ion, atomic_mass
 from pytrans.conversion import curv_to_freq
 
-from pytrans.analysis.analysis_results import AnalysisResults
+from pytrans.analysis.results import ModeSolverResults
 
 kappa = elementary_charge / 4 / pi / epsilon_0
 
@@ -146,7 +146,7 @@ class HarmonicTrap:
 
 
 def mode_solver(trap: AbstractTrapModel, voltages: NDArray, ions: List[Ion],
-                x0: Coords, bounding_box=None, minimize_options=dict()) -> AnalysisResults:
+                x0: Coords, bounds=None, minimize_options=dict()) -> ModeSolverResults:
     N, d = x0.shape
     # ions = [ions] * N if isinstance(ions, Ion) else ions
     masses_amu = np.asarray([ion.mass_amu for ion in ions])
@@ -178,7 +178,7 @@ def mode_solver(trap: AbstractTrapModel, voltages: NDArray, ions: List[Ion],
         return hess
 
     # eta = 1e-9
-    bounds = list(bounding_box) * N if bounding_box else None
+    bounds = list(bounds) * N if bounds is not None else None
 
     options = dict(
         # maxCGit=0,
@@ -193,10 +193,13 @@ def mode_solver(trap: AbstractTrapModel, voltages: NDArray, ions: List[Ion],
 
     res = minimize(fun, x0.ravel(), method='TNC', jac=jac, bounds=bounds, options=options)
     x_eq = res.x.reshape((N, d))
+    trap_pot = trap.potential(voltages, *x_eq.T, masses_amu)
     hess = hess(res.x)
 
-    result = AnalysisResults(ions=ions, x0=x0, x_eq=x_eq,
-                             fun=res.fun, jac=res.jac, hess=hess, minimize_result=res)
+    result = ModeSolverResults(ions=ions, x0=x0, x_eq=x_eq,
+                               fun=res.fun, jac=res.jac, hess=hess,
+                               trap_pot=trap_pot,
+                               minimize_results=res)
 
     return result
 

@@ -37,8 +37,8 @@ def _eig_hessian(H, sort_close_to=None):
     if sort_close_to is not None:
         ix = _sort_close_to(h, sort_close_to)
     else:
-        ix = [np.argmax(abs(vs[0])), np.argmax(abs(vs[1])), np.argmax(abs(vs[2]))]
-    # ix = np.argsort(abs(h))
+        # ix = [np.argmax(abs(vs[0])), np.argmax(abs(vs[1])), np.argmax(abs(vs[2]))]
+        ix = np.argsort(abs(h))
     h = h[ix]
     vs = vs[:, ix]
     angle = np.arctan2(1, vs[1, 2] / vs[2, 2]) * 180 / np.pi

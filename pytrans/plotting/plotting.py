@@ -1,6 +1,16 @@
+#!/usr/bin/env python
+# -*- coding:utf-8 -*-
+#
+# Created: 03/2023
+# Author: Carmelo Mordini <cmordini@phys.ethz.ch>
+
 import numpy as np
-from typing import Any
-from nptyping import NDArray, Shape
+from typing import Optional
+from nptyping import NDArray
+from pytrans.typing import Coords1, Roi
+
+from pytrans.analysis.results import AnalysisResults
+
 from pytrans.abstract_model import AbstractTrapModel
 from pytrans.ions import Ion
 
@@ -11,8 +21,8 @@ from matplotlib import patches as mpatches
 from matplotlib import transforms
 
 
-def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: NDArray[Shape["3"], Any],
-                     roi=(600, 50, 50), axes=None, pseudo=True, analyse_results=None, title=''):
+def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: Coords1,
+                     roi: Roi, axes=None, pseudo=True, analyse_results: Optional[AnalysisResults] = None, title=''):
 
     if axes is None:
         fig, axes = plot3d_make_layout(n=1)
@@ -32,9 +42,9 @@ def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: N
         _roi.append(lim)
 
     lx, ly, lz = _roi
-    _x = np.linspace(lx[0], lx[1], 100) * 1e-6
-    _y = np.linspace(ly[0], ly[1], 100) * 1e-6
-    _z = np.linspace(lz[0], lz[1], 100) * 1e-6
+    _x = np.linspace(lx[0], lx[1], 100)
+    _y = np.linspace(ly[0], ly[1], 100)
+    _z = np.linspace(lz[0], lz[1], 100)
 
     _xyz = np.stack([_x, _y, _z], axis=0)
 
@@ -60,13 +70,13 @@ def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: N
     except Exception:
         pass
 
-    # mark the center of the roi (r0)
-    marker_kw = dict(marker='o', color='none', mfc='none', mec='r')
-    v0 = _fun(*r0)
-    ax_x.plot(x0 * 1e6, v0, **marker_kw)
-    ax_y.plot(y0 * 1e6, v0, **marker_kw)
-    ax_z.plot(v0, z0 * 1e6, **marker_kw)
-    ax_im.plot(y0 * 1e6, z0 * 1e6, **marker_kw)
+    # # mark the center of the roi (r0)
+    # marker_kw = dict(marker='o', color='none', mfc='none', mec='r')
+    # v0 = _fun(*r0)
+    # ax_x.plot(x0 * 1e6, v0, **marker_kw)
+    # ax_y.plot(y0 * 1e6, v0, **marker_kw)
+    # ax_z.plot(v0, z0 * 1e6, **marker_kw)
+    # ax_im.plot(y0 * 1e6, z0 * 1e6, **marker_kw)
 
     # mark RF null
     marker_rf = dict(marker='x', color='none', mec='r', mew=2)
@@ -89,29 +99,37 @@ def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: N
     return fig, axes
 
 
-def plot3d_radial_modes(res, axes):
-    x1, y1, z1 = res['r1']
-    freqs = res['freqs']
-    f1 = res['fun']
-    vs = res['eigenvectors']
-    angle = res['angle']
+def plot3d_radial_modes(res: AnalysisResults, axes):
+    if res.mode_solver_results is None:
+        x1, y1, z1 = res.x_eq
+        yc, zc = y1, z1
+        f1 = res.fun
+    else:
+        x1, y1, z1 = res.mode_solver_results.x_eq.T
+        _, yc, zc = res.x_eq
+        f1 = res.mode_solver_results.trap_pot
+
+    freqs = res.mode_freqs
+    vs = res.mode_vectors
+    angle = res.mode_angle
 
     ax_x, ax_y, ax_z, ax_im, ax0 = axes
     fig = ax_x.figure
 
-    marker_kw = dict(marker='o', mfc='r', mec='r')
+    # mark ion(s) positions
+    marker_kw = dict(marker='o', mfc='r', mec='r', ls='')
 
     ax_x.plot(x1 * 1e6, f1, **marker_kw)
     ax_y.plot(y1 * 1e6, f1, **marker_kw)
     ax_z.plot(f1, z1 * 1e6, **marker_kw)
     ax_im.plot(y1 * 1e6, z1 * 1e6, **marker_kw)
 
-    v1 = vs[1:, 1]
-    v2 = vs[1:, 2]
+    v1 = vs[1, 1:]
+    v2 = vs[2, 1:]
     f1, f2 = freqs[1], freqs[2]
     f0 = np.sqrt(abs(f1 * f2))
 
-    tr = fig.dpi_scale_trans + transforms.ScaledTranslation(y1 * 1e6, z1 * 1e6, ax_im.transData)
+    tr = fig.dpi_scale_trans + transforms.ScaledTranslation(yc * 1e6, zc * 1e6, ax_im.transData)
 
     circle = mpatches.Ellipse((0, 0), f0 / f1, f0 / f2, angle=90 + angle,
                               fill=None, transform=tr, color='C0')
