@@ -9,7 +9,7 @@ Module docstring
 '''
 
 import numpy as np
-from typing import Union, List, Dict
+from typing import Union, List, Dict, Optional
 from nptyping import NDArray
 
 from pytrans.typing import Coords, Coords1, Roi, Bounds
@@ -19,7 +19,7 @@ from pytrans.timer import timer
 from pytrans.abstract_model import AbstractTrapModel
 
 from pytrans.plotting.plotting import plot3d_make_layout, plot3d_potential
-from .mode_solver import mode_solver
+from .mode_solver import mode_solver, init_crystal
 from .results import AnalysisResults
 
 from scipy.optimize import minimize
@@ -96,7 +96,7 @@ def _analyse_potential_single_ion(trap: AbstractTrapModel, voltages: NDArray, io
 
 
 def analyse_potential(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Ion, List[Ion]],
-                      r0: Union[Coords1, Coords], find_3dmin=True, pseudo=True,
+                      r0: Union[Coords1, Coords], ion1: Optional[Ion] = None, find_3dmin=True, pseudo=True,
                       plot=True, axes=None, title='',
                       roi=None, minimize_options=dict(), verbose=True):
 
@@ -106,9 +106,11 @@ def analyse_potential(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Io
         r_cm = r0
         _run_mode_solver = False  # is there a better way to do this?
     else:
-        assert r0.ndim == 2 and r0.shape[0] == len(ions)
-        avg_mass_amu = np.asarray([_ion.mass_amu for _ion in ions]).mean()
-        ion1 = Ion(f"Average{ions}", mass_amu=avg_mass_amu, unit_charge=1)  # TODO fix this to charge > 1
+        if r0.ndim == 1:
+            r0 = init_crystal(r0, dx=5e-6, n_ions=len(ions))
+        if ion1 is None:
+            avg_mass_amu = np.asarray([_ion.mass_amu for _ion in ions]).mean()
+            ion1 = Ion(f"Average{ions}", mass_amu=avg_mass_amu, unit_charge=1)  # TODO fix this to charge > 1
         r_cm = r0.mean(axis=0)
         _run_mode_solver = True
 
@@ -134,7 +136,7 @@ def analyse_potential(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Io
     if axes is None:
         fig, axes = plot3d_make_layout(n=1)
 
-    fig, axes = plot3d_potential(trap, voltages, ion1, r_cm, roi, axes=axes, pseudo=pseudo, analyse_results=results, title=title)
+    fig, axes = plot3d_potential(trap, voltages, ion1, results.x_eq, roi, axes=axes, pseudo=pseudo, analyse_results=results, title=title)
 
     # res['fig'] = fig
     # res['axes'] = axes
