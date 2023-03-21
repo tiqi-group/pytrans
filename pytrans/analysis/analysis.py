@@ -9,185 +9,134 @@ Module docstring
 '''
 
 import numpy as np
-from numpy.typing import ArrayLike
-from pytrans.plotting import plot3d_potential, plot3d_make_layout, plot_fields_curvatures
-from pytrans.conversion import curv_to_freq
-from pytrans.ions import Ca40
+from typing import Union, List, Dict
+from nptyping import NDArray
+
+from pytrans.typing import Coords, Coords1, Roi, Bounds
+
+from pytrans.ions import Ion
 from pytrans.timer import timer
 from pytrans.abstract_model import AbstractTrapModel
 
+from pytrans.plotting.plotting import plot3d_make_layout, plot3d_potential
+from .mode_solver import mode_solver
+from .results import AnalysisResults
+
 from scipy.optimize import minimize
 
-from itertools import permutations
-from colorama import init as colorama_init, Fore
-from tqdm import tqdm
-
-colorama_init(autoreset=True)
-
-__roi = (400, 30, 30)
+# from itertools import permutations
 
 
-def _eig_hessian(H, sort_close_to=None):
-    h, vs = np.linalg.eig(H)
-    if sort_close_to is not None:
-        ix = _sort_close_to(h, sort_close_to)
-    else:
-        ix = [np.argmax(abs(vs[0])), np.argmax(abs(vs[1])), np.argmax(abs(vs[2]))]
-    # ix = np.argsort(abs(h))
-    h = h[ix]
-    vs = vs[:, ix]
-    angle = np.arctan2(1, vs[1, 2] / vs[2, 2]) * 180 / np.pi
-    return h, vs, angle
+__roi: Roi = np.asarray((400e-6, 30e-6, 30e-6))
+__default_minimize_options = dict(accuracy=1e-8)
 
 
-def _sort_close_to(x0, x1):
-    perm = list(map(list, permutations(range(len(x1)))))
-    diff = np.asarray([x0 - x1[s] for s in perm])
-    ix = np.argmin((diff**2).sum(1))
-    return perm[ix]
+# def _eig_hessian(H, sort_close_to=None):
+#     h, vs = np.linalg.eig(H)
+#     if sort_close_to is not None:
+#         ix = _sort_close_to(h, sort_close_to)
+#     else:
+#         ix = [np.argmax(abs(vs[0])), np.argmax(abs(vs[1])), np.argmax(abs(vs[2]))]
+#     # ix = np.argsort(abs(h))
+#     h = h[ix]
+#     vs = vs[:, ix]
+#     angle = np.arctan2(1, vs[1, 2] / vs[2, 2]) * 180 / np.pi
+#     return h, vs, angle
 
 
-def analyse_fields_curvatures(trap: AbstractTrapModel, voltages: ArrayLike, x, y=None, z=None, pseudo=True,
-                              find_3dmin=False, minimize_options=dict(), plot=True, title=''):
-    y = getattr(trap, 'y0', 0) if y is None else y
-    z = getattr(trap, 'z0', 0) if z is None else z
-    n_samples = len(x)
-    samples = np.arange(n_samples)
-    r0 = np.stack(np.broadcast_arrays(x, y, z), axis=1)
-    print('--------------\n' + Fore.YELLOW + f"Analyse curvatures along trajectory: {title}")
-    r1 = np.empty((n_samples, 3))
-    fields = np.empty((n_samples, 3))
-    freqs = np.empty((n_samples, 3))
-    angle = np.empty_like(x)
-    if voltages.ndim == 1:
-        voltages = np.tile(voltages, (n_samples, 1))
-    for j, x1 in enumerate(tqdm(samples)):
-        sort_close_to = None if j == 0 else freqs[j - 1]
-        res = analyse_potential_data(trap, voltages[j], r0[j],
-                                     pseudo=pseudo, sort_close_to=sort_close_to,
-                                     find_3dmin=find_3dmin, minimize_options=minimize_options,
-                                     verbose=False)
-        r1[j] = res['r1']
-        fields[j] = res['fields']
-        freqs[j] = res['freqs']
-        angle[j] = res['angle']
-    results = dict(
-        r0=r0,
-        r1=r1,
-        fields=fields,
-        freqs=freqs,
-        angle=angle
-    )
-    if plot:
-        results['fig'], results['axes'] = plot_fields_curvatures(samples, r0, r1, fields, freqs, angle, title)
-    return results
+# def _sort_close_to(x0, x1):
+#     perm = list(map(list, permutations(range(len(x1)))))
+#     diff = np.asarray([x0 - x1[s] for s in perm])
+#     ix = np.argmin((diff**2).sum(1))
+#     return perm[ix]
 
 
-def find_3dmin_potential(trap, voltages, r0, roi=None, pseudo=True, minimize_options=dict(), verbose=True):
-    roi = __roi if roi is None else roi
+def _bounds_from_roi(r0: Coords1, roi: Roi) -> Bounds:
+    return [(-r + x, r + x) for x, r in zip(r0, roi)]
+
+
+def _minimize_potential_single_ion(trap: AbstractTrapModel, voltages: NDArray, ion: Ion,
+                                   r0: Coords1, bounds: Bounds, pseudo: bool,
+                                   minimize_options: Dict, verbose: bool):
 
     def fun3(xyz):
-        return trap.potential(voltages, *xyz, pseudo=pseudo)
+        return trap.potential(voltages, *xyz, ion.mass_amu, pseudo=pseudo)
 
-    _roi = []
-    for lim in roi:
-        lim = lim if isinstance(lim, (int, float)) else min(lim)
-        _roi.append(lim)
+    def jac3(xyz):
+        return trap.gradient(voltages, *xyz, ion.mass_amu, pseudo=pseudo)
 
-    bounds = [(-r * 1e-6 + x, r * 1e-6 + x) for r, x in zip(_roi, r0)]
-    opts = dict(accuracy=1e-6)
-    opts.update(minimize_options)
-    if verbose:
-        res = timer(minimize)(fun3, r0, method='TNC', bounds=bounds, options=opts)
-    else:
-        res = minimize(fun3, r0, method='TNC', bounds=bounds, options=opts)
+    _minimize = timer(minimize) if verbose else minimize
+    res = _minimize(fun3, r0, method='TNC', jac=jac3, bounds=bounds, options=minimize_options)
 
-    if verbose:
-        print(Fore.YELLOW + "Potential mimimum [um]")
-        print(res.x * 1e6)
-        # print((res.x - r0) * 1e6)
-    return res.x
+    return res
 
 
-def analyse_potential_data(trap: AbstractTrapModel, voltages: ArrayLike, r0: ArrayLike,
-                           roi=None, pseudo=True, sort_close_to=None,
-                           find_3dmin=True, minimize_options=dict(),
-                           verbose=True, title=''):
+def _analyse_potential_single_ion(trap: AbstractTrapModel, voltages: NDArray, ion: Ion,
+                                  r0: Coords1, bounds: Bounds, pseudo: bool,
+                                  find_3dmin: bool, minimize_options: Dict,
+                                  verbose: bool, title: str):
 
-    if verbose:
-        print('--------------\n' + Fore.YELLOW + f"Analyse potential: {title}")
     if find_3dmin:
-        x1, y1, z1 = find_3dmin_potential(trap, voltages, r0, roi, pseudo, minimize_options, verbose)
+        # TODO should use the mode solver directly here? Something like
+        # res = mode_solver(trap, voltages, ions=ion, x0=np.asarray(r0).reshape(1, -1), bounding_box=bounds)
+        minimize_results = _minimize_potential_single_ion(trap, voltages, ion, r0, bounds, pseudo,
+                                                          minimize_options, verbose)
+        x_eq = minimize_results.x
     else:
-        if verbose:
-            print(Fore.YELLOW + "Set position to r0")
-        x1, y1, z1 = r0
+        minimize_results = None
+        x_eq = r0
 
-    r1 = np.asarray([x1, y1, z1])
-    v = trap.potential(voltages, *r1, pseudo=pseudo)
+    fun = trap.potential(voltages, x_eq[0], x_eq[1], x_eq[2], ion.mass_amu, pseudo=pseudo)
+    jac = trap.gradient(voltages, x_eq[0], x_eq[1], x_eq[2], ion.mass_amu, pseudo=pseudo)
+    hess = trap.hessian(voltages, x_eq[0], x_eq[1], x_eq[2], ion.mass_amu, pseudo=pseudo)
 
-    E = trap.gradient(voltages, *r1, pseudo=pseudo)
-    H = trap.hessian(voltages, *r1, pseudo=pseudo)
+    results = AnalysisResults(ion, x_eq, fun, jac, hess, minimize_results, title=title, mode_solver_results=None)
 
-    h, vs, angle = _eig_hessian(H, sort_close_to)
-
-    ion = trap.ion if hasattr(trap, 'ion') else Ca40
-    freqs = curv_to_freq(h, ion=ion)
-
-    if verbose:
-        with np.printoptions(suppress=True):
-            print(Fore.YELLOW + 'Gradient [V/m]')
-            print(E)
-            # print(Fore.YELLOW + f"Displacement for {ion} [um]")
-            # print(field_to_shift(E, ion=ion) * 1e6)
-            print(Fore.YELLOW + 'Hessian [V/m2]')
-            print(H)
-            # print(curv_to_freq(H, ion=ion) * 1e-6)
-            print(Fore.YELLOW + f"Normal mode frequencies for {ion} [MHz]")
-            with np.printoptions(formatter={'float': lambda x: f"{x * 1e-6:g}" if x > 0 else Fore.RED + f"{x * 1e-6:g}" + Fore.RESET}):
-                print(freqs)
-            print(Fore.YELLOW + 'Eigenvectors')
-            with np.printoptions(formatter={'float': lambda x: Fore.GREEN + f"{x:.3g}" + Fore.RESET if abs(x) > 0.9 else f"{x:.3g}"}):
-                print(vs)
-            print(f"{Fore.YELLOW}Tilt angle of mode 2 ({freqs[2] * 1e-6:.2f}): {Fore.RESET}{angle:.2f}°")
-        print()
-
-    results = dict(
-        fun=v,
-        x=x1,
-        y=y1,
-        z=z1,
-        fx=freqs[0],
-        fy=freqs[1],
-        fz=freqs[2],
-        fields=E,
-        hessian=H,
-        r1=r1,
-        freqs=freqs,
-        eigenvalues=h,
-        eigenvectors=vs,
-        angle=angle
-    )
     return results
 
 
-def analyse_potential(trap: AbstractTrapModel, voltages: ArrayLike, r0: ArrayLike,
+def analyse_potential(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Ion, List[Ion]],
+                      r0: Union[Coords1, Coords], find_3dmin=True, pseudo=True,
                       plot=True, axes=None, title='',
-                      roi=None, pseudo=True, find_3dmin=True, minimize_options=dict(), verbose=True):
+                      roi=None, minimize_options=dict(), verbose=True):
 
-    res = analyse_potential_data(trap, voltages, r0, roi, pseudo=pseudo, sort_close_to=None,
-                                 find_3dmin=find_3dmin, minimize_options=minimize_options,
-                                 verbose=verbose, title=title)
+    r0 = np.asarray(r0)
+    if isinstance(ions, Ion):
+        ion1 = ions
+        r_cm = r0
+        _run_mode_solver = False  # is there a better way to do this?
+    else:
+        assert r0.ndim == 2 and r0.shape[0] == len(ions)
+        avg_mass_amu = np.asarray([_ion.mass_amu for _ion in ions]).mean()
+        ion1 = Ion(f"Average{ions}", mass_amu=avg_mass_amu, unit_charge=1)  # TODO fix this to charge > 1
+        r_cm = r0.mean(axis=0)
+        _run_mode_solver = True
+
+    roi = __roi if roi is None else roi
+    bounds = _bounds_from_roi(r_cm, roi)
+    _minimize_options = __default_minimize_options.copy()
+    _minimize_options.update(minimize_options)
+    results = _analyse_potential_single_ion(trap, voltages, ion1, r_cm, bounds, pseudo,
+                                            find_3dmin, _minimize_options, verbose, title)
+
+    if _run_mode_solver:
+        res = mode_solver(trap, voltages, ions, r0, bounds, _minimize_options)
+        results.mode_solver_results = res
+    else:
+        results.mode_solver_results = None
+
+    if verbose:
+        print(results)
+
     if not plot:
-        return res
+        return results
 
     if axes is None:
         fig, axes = plot3d_make_layout(n=1)
-    roi = __roi if roi is None else roi
 
-    fig, axes = plot3d_potential(trap, voltages, r0, analyse_results=res, roi=roi, axes=axes, pseudo=pseudo, title=title)
+    fig, axes = plot3d_potential(trap, voltages, ion1, r_cm, roi, axes=axes, pseudo=pseudo, analyse_results=results, title=title)
 
-    res['fig'] = fig
-    res['axes'] = axes
+    # res['fig'] = fig
+    # res['axes'] = axes
 
-    return res
+    return results

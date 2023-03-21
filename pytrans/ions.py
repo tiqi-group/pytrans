@@ -24,3 +24,4 @@ class Ion:
 
 Ca40 = Ion("Ca40", mass_amu=39.962591, unit_charge=1)
 Be9 = Ion("Be9", mass_amu=9.012, unit_charge=1)
+Mg24 = Ion("Mg24", mass_amu=23.985041, unit_charge=1)

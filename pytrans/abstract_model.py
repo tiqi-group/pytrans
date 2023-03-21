@@ -5,9 +5,8 @@
 
 import numpy as np
 from typing import List, Dict, Optional
-
+from .typing import ElectrodeNames
 from .electrode import DCElectrode, RFElectrode
-from .ions import Ion
 
 import logging
 logger = logging.getLogger(__name__)
@@ -27,20 +26,20 @@ class AbstractTrapModel:
     - electrode_constrains(min, max, slew rate)
     - filters?
     """
-    __required_attributes = ['_dc_electrodes', '_rf_electrodes', '_rf_voltage', '_rf_freq_mhz', '_default_ion']
+    __required_attributes = ['_dc_electrodes', '_rf_electrodes', '_rf_voltage', '_rf_freq_mhz']
 
     _dc_electrodes: Dict[str, DCElectrode]
     _rf_electrodes: Dict[str, RFElectrode]
+    _all_electrodes: Dict[str, DCElectrode]
     _rf_voltage: float
     _rf_freq_mhz: float
-    _default_ion: Ion
 
     def __new__(cls, *args, **kwargs):
         for name in cls.__required_attributes:
             if not hasattr(cls, name):
                 raise TypeError(f"Can't instantiate class {cls.__name__} without attribute {name}. Required attributes: {', '.join(cls.__required_attributes)}")
 
-        cls._all_electrodes: Dict[str, DCElectrode] = cls._dc_electrodes
+        cls._all_electrodes = cls._dc_electrodes
         return super().__new__(cls)
 
     def __init__(self, use_electrodes: Optional[List[str]] = None):
@@ -100,7 +99,7 @@ class AbstractTrapModel:
         """
         return np.stack([self.get_electrode(name).hessian(x, y, z) for name in self.electrodes], axis=0)
 
-    def pseudo_potential(self, x, y, z, ion_mass_amu=None):
+    def pseudo_potential(self, x, y, z, ion_mass_amu):
         """Pseudopotential from RF
 
         This assumes all RF electrodes in phase and at the same RF voltage and frequency
@@ -111,43 +110,40 @@ class AbstractTrapModel:
         TODO In these conditions, it probably doesn't make sense to have
         more than one RFElectrode object in the model. Think about simplifying this.
         """
-        _mass_amu = self._default_ion.mass_amu if ion_mass_amu is None else ion_mass_amu
-        return np.sum([rf_el.potential(x, y, z, _mass_amu, self._rf_voltage, self._rf_freq_mhz)
+        return np.sum([rf_el.potential(x, y, z, ion_mass_amu, self._rf_voltage, self._rf_freq_mhz)
                        for rf_el in self._rf_electrodes.values()], axis=0)
 
-    def pseudo_gradient(self, x, y, z, ion_mass_amu=None):
+    def pseudo_gradient(self, x, y, z, ion_mass_amu):
         """Pseudopotential gradient
 
         Returns:
             out: ndarray, shape: x.shape + (3,)
         """
-        _mass_amu = self._default_ion.mass_amu if ion_mass_amu is None else ion_mass_amu
-        return np.sum([rf_el.gradient(x, y, z, _mass_amu, self._rf_voltage, self._rf_freq_mhz)
+        return np.sum([rf_el.gradient(x, y, z, ion_mass_amu, self._rf_voltage, self._rf_freq_mhz)
                        for rf_el in self._rf_electrodes.values()], axis=0)
 
-    def pseudo_hessian(self, x, y, z, ion_mass_amu=None):
+    def pseudo_hessian(self, x, y, z, ion_mass_amu):
         """Pseudopotential curvatures
 
         Returns:
             out: ndarray, shape: x.shape + (3, 3)
         """
-        _mass_amu = self._default_ion.mass_amu if ion_mass_amu is None else ion_mass_amu
-        return np.sum([rf_el.hessian(x, y, z, _mass_amu, self._rf_voltage, self._rf_freq_mhz)
+        return np.sum([rf_el.hessian(x, y, z, ion_mass_amu, self._rf_voltage, self._rf_freq_mhz)
                        for rf_el in self._rf_electrodes.values()], axis=0)
 
-    def potential(self, voltages, x, y, z, pseudo=True, ion_mass_amu=None):
+    def potential(self, voltages, x, y, z, ion_mass_amu, pseudo=True):
         u = np.tensordot(voltages, self.dc_potentials(x, y, z), axes=1)
         if len(self._rf_electrodes) > 0 and pseudo:
             u += self.pseudo_potential(x, y, z, ion_mass_amu)
         return u
 
-    def gradient(self, voltages, x, y, z, pseudo=True, ion_mass_amu=None):
+    def gradient(self, voltages, x, y, z, ion_mass_amu, pseudo=True):
         u = np.tensordot(voltages, self.dc_gradients(x, y, z), axes=1)
         if len(self._rf_electrodes) > 0 and pseudo:
             u += self.pseudo_gradient(x, y, z, ion_mass_amu)
         return u
 
-    def hessian(self, voltages, x, y, z, pseudo=True, ion_mass_amu=None):
+    def hessian(self, voltages, x, y, z, ion_mass_amu, pseudo=True):
         u = np.tensordot(voltages, self.dc_hessians(x, y, z), axes=1)
         if len(self._rf_electrodes) > 0 and pseudo:
             u += self.pseudo_hessian(x, y, z, ion_mass_amu)
@@ -157,7 +153,7 @@ class AbstractTrapModel:
     def electrode_all_indices(self):
         return self.electrode_to_index(self.electrodes, in_all=True)
 
-    def electrode_to_index(self, names, in_all=False):
+    def electrode_to_index(self, names: ElectrodeNames, in_all=False):
         el_list = list(self._all_electrodes.keys()) if in_all else self.electrodes
         if isinstance(names, str):
             return el_list.index(names)
