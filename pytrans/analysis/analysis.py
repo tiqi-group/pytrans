@@ -89,6 +89,9 @@ def find_3dmin_potential(trap, voltages, r0, roi=None, pseudo=True, minimize_opt
     def fun3(xyz):
         return trap.potential(voltages, *xyz, pseudo=pseudo)
 
+    def jac3(xyz):
+        return trap.gradient(voltages, *xyz, pseudo=pseudo)
+    
     _roi = []
     for lim in roi:
         lim = lim if isinstance(lim, (int, float)) else min(lim)
@@ -98,9 +101,9 @@ def find_3dmin_potential(trap, voltages, r0, roi=None, pseudo=True, minimize_opt
     opts = dict(accuracy=1e-6)
     opts.update(minimize_options)
     if verbose:
-        res = timer(minimize)(fun3, r0, method='TNC', bounds=bounds, options=opts)
+        res = timer(minimize)(fun3, r0, method='TNC', jac=jac3, bounds=bounds, options=opts)
     else:
-        res = minimize(fun3, r0, method='TNC', bounds=bounds, options=opts)
+        res = minimize(fun3, r0, method='TNC', jac=jac3, bounds=bounds, options=opts)
 
     if verbose:
         print(Fore.YELLOW + "Potential mimimum [um]")
