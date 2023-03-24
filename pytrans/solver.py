@@ -50,7 +50,7 @@ def solver(trap: AbstractTrap,
         _t, h = sg.dimpulse((b, a, dt))
         h = np.squeeze(h)
         m = len(h) - 1
-        n_eval_after = 75
+        n_eval_after = 0
         waveform0 = cx.Variable(shape=(n_steps + m + n_eval_after, trap.n_electrodes), name="waveform")
         for j in range(m):
             cstr.append(waveform0[j] == waveform0[m])
