@@ -46,11 +46,14 @@ def solver(trap: AbstractTrap,
         waveform0 = waveform
     else:
         # this might be moved in the .trap_filter module
-        b, a, dt = trap_filter
+        print('watch out, filter in this modele is overriden here-----------------------------')
+        from tools.cryo_filters import cryo_filter
+
+        b, a, dt = cryo_filter
         _t, h = sg.dimpulse((b, a, dt))
         h = np.squeeze(h)
         m = len(h) - 1
-        n_eval_after = 0
+        n_eval_after = 75
         waveform0 = cx.Variable(shape=(n_steps + m + n_eval_after, trap.n_electrodes), name="waveform")
         for j in range(m):
             cstr.append(waveform0[j] == waveform0[m])
@@ -64,7 +67,7 @@ def solver(trap: AbstractTrap,
             step_objectives.append(step_objectives[-1])
         step_objectives[-1][0].weight*=10
         
-        
+
     print("waveform.shape[0]",waveform.shape[0])
     print("len(step_objective)",len(step_objectives))
     step_iter = tqdm(step_objectives, desc="Compiling step objectives") if verbose else step_objectives

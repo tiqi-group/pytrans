@@ -82,17 +82,24 @@ class VoltageObjective(Objective):
 
 class SlewRateObjective(Objective):
 
-    def __init__(self, weight=1., constraint_type=None):
+    def __init__(self, value=0, weight=1., constraint_type=None,norm=1e6):
         super().__init__(weight, constraint_type)
+        self.value = value
+        self.norm = norm
 
     def objective(self, trap, voltages):
         n_samples = voltages.shape[0]
         M = gradient_matrix(n_samples)
-        # print("--- grad")
-        yield cx.multiply(self.weight, cx.sum_squares(M @ voltages))
+        norm_inf = cx.multiply(cx.norm(M @ voltages, "inf"), 1/trap.dt)
+        diff = cx.multiply(norm_inf, 1/self.norm)
+        cost = cx.multiply(self.weight, diff)
+        yield cost
 
     def constraint(self, trap, voltages):
-        raise NotImplementedError
+        n_samples = voltages.shape[0]
+        M = gradient_matrix(n_samples)
+        norm_inf = cx.multiply(cx.norm(M @ voltages, "inf"), 1/trap.dt)
+        return self._yield_constraint(norm_inf, self.value)
 
 
 class SymmetryObjective(Objective):
