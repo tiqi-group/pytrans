@@ -9,7 +9,7 @@ Module docstring
 '''
 from abc import ABC, abstractmethod
 from .abstract_model import AbstractTrap
-from .indexing import get_derivative, gradient_matrix
+from .indexing import get_derivative, gradient_matrix, diff_matrix
 import numpy as np
 import cvxpy as cx
 import operator
@@ -89,7 +89,7 @@ class SlewRateObjective(Objective):
 
     def objective(self, trap, voltages):
         n_samples = voltages.shape[0]
-        M = gradient_matrix(n_samples)
+        M = diff_matrix(n_samples)
         norm_inf = cx.multiply(cx.norm(M @ voltages, "inf"), 1/trap.dt)
         diff = cx.multiply(norm_inf, 1/self.norm)
         cost = cx.multiply(self.weight, diff)
@@ -97,7 +97,7 @@ class SlewRateObjective(Objective):
 
     def constraint(self, trap, voltages):
         n_samples = voltages.shape[0]
-        M = gradient_matrix(n_samples)
+        M = diff_matrix(n_samples)
         norm_inf = cx.multiply(cx.norm(M @ voltages, "inf"), 1/trap.dt)
         return self._yield_constraint(norm_inf, self.value)
 

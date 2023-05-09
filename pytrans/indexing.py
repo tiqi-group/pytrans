@@ -25,6 +25,11 @@ def gradient_matrix(n):
     M[-1, [-2, -1]] = -1, 1
     return M
 
+def diff_matrix(n):
+    M = np.zeros((n-1,n))
+    M+= np.concatenate([np.diag([-1.] * (n-1)),np.zeros((n-1,1)).reshape([-1,1])],axis=1)
+    M+= np.concatenate([np.zeros((n-1,1)).reshape([-1,1]),np.diag([+1.] * (n-1))],axis=1)
+    return M
 
 def populate_map(names):
     d_map = {}
