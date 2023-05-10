@@ -97,7 +97,10 @@ def solver(trap: AbstractTrap,
 
     if solver=="MOSEK":
         # mosek_params = {}
-        mosek_params = {"MSK_IPAR_NUM_THREADS":multiprocessing.cpu_count()}
+        mosek_params = {
+            "MSK_IPAR_NUM_THREADS":multiprocessing.cpu_count(),
+            "MSK_IPAR_INFEAS_REPORT_AUTO":"MSK_ON"
+        }
         
     problem.solve(solver=solver, warm_start=True, verbose=verbose, mosek_params=mosek_params)
 
