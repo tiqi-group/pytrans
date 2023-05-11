@@ -98,7 +98,7 @@ def find_3dmin_potential(trap, voltages, r0, roi=None, pseudo=True, minimize_opt
         _roi.append(lim)
 
     bounds = [(-r * 1e-6 + x, r * 1e-6 + x) for r, x in zip(_roi, r0)]
-    opts = dict(accuracy=1e-6)
+    opts = dict(accuracy=1e-8)
     opts.update(minimize_options)
     if verbose:
         res = timer(minimize)(fun3, r0, method='TNC', jac=jac3, bounds=bounds, options=opts)
