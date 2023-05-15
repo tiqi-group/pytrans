@@ -30,10 +30,10 @@ def solver1d_two_ions(trap, voltages, r0, x_range, pseudo=True, dx=5e-6, minimiz
         return trap.potential(voltages, x0, y1, z1, pseudo).sum() + q * pcoul.coulomb_pot(*x0)
 
     def jac(x0):
-        return trap.gradient(voltages, x0, y1, z1, pseudo)[0] + q * pcoul.coulomb_grad(*x0)
+        return trap.gradient(voltages, x0, y1, z1, pseudo)[:,0] + q * pcoul.coulomb_grad(*x0)
 
     def hess(x0):
-        return np.diag(trap.hessian(voltages, x0, y1, z1, pseudo)[0, 0]) + q * pcoul.coulomb_hess(*x0)
+        return np.diag(trap.hessian(voltages, x0, y1, z1, pseudo)[:,0, 0]) + q * pcoul.coulomb_hess(*x0)
 
     bounds = [(x_range[0], x_range[1])] * 2
     res = minimize(fun, x0, method='TNC', jac=jac, bounds=bounds, tol=q * pcoul.kappa, options=minimize_options)
