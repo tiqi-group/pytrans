@@ -66,7 +66,12 @@ class VoltageObjective(Objective):
     def objective(self, trap, voltages):
         if self.index is not None:
             index = trap.electrode_to_index(self.index)
-            voltages = voltages[index]
+            if voltages.ndim == 1:
+                voltages = voltages[electrodes]
+            elif voltages.ndim == 2:
+                voltages = voltages[:,electrodes]
+            else:
+                raise ValueError(f"the dimention of voltages is {voltages.ndim}, not 1 or 2.")
         diff = voltages - self.value
         if self.voltage_weights is not None:
             diff = cx.multiply(np.sqrt(self.voltage_weights), diff)
@@ -76,7 +81,12 @@ class VoltageObjective(Objective):
     def constraint(self, trap, voltages):
         if self.index is not None:
             index = trap.electrode_to_index(self.index)
-            voltages = voltages[index]
+            if voltages.ndim == 1:
+                voltages = voltages[electrodes]
+            elif voltages.ndim == 2:
+                voltages = voltages[:,electrodes]
+            else:
+                raise ValueError(f"the dimention of voltages is {voltages.ndim}, not 1 or 2.")
         return self._yield_constraint(voltages, self.value)
 
 
