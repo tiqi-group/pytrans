@@ -104,15 +104,20 @@ class SlewRateObjective(Objective):
 
 class SymmetryObjective(Objective):
 
-    def __init__(self, lhs_indices, rhs_indices, sign=1, weight=1., constraint_type=None):
+    def __init__(self, lhs_indices, rhs_indices, sign=1, weight=1., norm=1, constraint_type=None):
         super().__init__(weight, constraint_type)
         self.lhs_indices = lhs_indices
         self.rhs_indices = rhs_indices
         self.sign = sign
+        self.norm = norm
 
     def objective(self, trap, voltages):
-        raise NotImplementedError
-
+        lhs = trap.electrode_to_index(self.lhs_indices)
+        rhs = trap.electrode_to_index(self.rhs_indices)
+        diff = voltages[lhs] - self.sign * voltages[rhs]
+        diff = diff / self.norm
+        cost = cx.multiply(self.weight, cx.sum_squares(diff))
+        yield cost
     def constraint(self, trap, voltages):
         lhs = trap.electrode_to_index(self.lhs_indices)
         rhs = trap.electrode_to_index(self.rhs_indices)
@@ -219,7 +224,7 @@ class QuarticObjective(Objective):
         elif self.value == 'maximize':
             cost = - cx.sum(pot / self.norm)
         else:
-            cost = cx.sum_squares(pot - self.value / self.norm)
+            cost = cx.sum_squares((pot - self.value) / self.norm)
         cost = cx.multiply(self.weight, cost)
         yield cost
 
@@ -247,7 +252,7 @@ class CubicObjective(Objective):
         elif self.value == 'maximize':
             cost = - cx.sum(pot / self.norm)
         else:
-            cost = cx.sum_squares(pot - self.value / self.norm)
+            cost = cx.sum_squares((pot - self.value) / self.norm)
         cost = cx.multiply(self.weight, cost)
         yield cost
 
