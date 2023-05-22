@@ -181,14 +181,20 @@ class SymmetryObjective(Objective):
     def __init__(self, lhs_indices: Union[str, List[str]],
                  rhs_indices: Union[str, List[str]],
                  sign: float = 1.0,
-                 weight: float = 1.0, constraint_type: str = None):
+                 weight: float = 1.0, norm: float = 1.0, constraint_type: str = None):
         super().__init__(weight, constraint_type)
         self.lhs_indices = lhs_indices
         self.rhs_indices = rhs_indices
         self.sign = sign
+        self.norm = norm
 
     def objective(self, trap, voltages):
-        raise NotImplementedError
+        lhs = trap.electrode_to_index(self.lhs_indices)
+        rhs = trap.electrode_to_index(self.rhs_indices)
+        diff = voltages[lhs] - self.sign * voltages[rhs]
+        diff = diff / self.norm
+        cost = cx.multiply(self.weight, cx.sum_squares(diff))
+        yield cost
 
     def constraint(self, trap, voltages):
         lhs = trap.electrode_to_index(self.lhs_indices)
