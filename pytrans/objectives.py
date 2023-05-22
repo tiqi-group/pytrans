@@ -127,7 +127,7 @@ class VoltageObjective(Objective):
         """objective"""
         if self.electrodes is not None:
             electrodes = trap.electrode_to_index(self.electrodes, in_all=False)
-            voltages = voltages[electrodes]
+            voltages = voltages[:,electrodes]
         diff = voltages - self.value
         if self.local_weights is not None:
             diff = cx.multiply(np.sqrt(self.local_weights), diff)
@@ -138,7 +138,7 @@ class VoltageObjective(Objective):
         """constraint"""
         if self.electrodes is not None:
             electrodes = trap.electrode_to_index(self.electrodes)
-            voltages = voltages[electrodes]
+            voltages = voltages[:,electrodes]
         return self._yield_constraint(voltages, self.value)
 
 
