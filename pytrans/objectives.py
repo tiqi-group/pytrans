@@ -132,7 +132,7 @@ class VoltageObjective(Objective):
             elif voltages.ndim == 2:
                 voltages = voltages[:,electrodes]
             else:
-                raise NotImplementedError
+                raise ValueError(f"the dimention of voltages is {voltages.ndim}, not 1 or 2.")
         diff = voltages - self.value
         if self.local_weights is not None:
             diff = cx.multiply(np.sqrt(self.local_weights), diff)
@@ -148,7 +148,7 @@ class VoltageObjective(Objective):
             elif voltages.ndim == 2:
                 voltages = voltages[:,electrodes]
             else:
-                raise NotImplementedError
+                raise ValueError(f"the dimention of voltages is {voltages.ndim}, not 1 or 2.")
         return self._yield_constraint(voltages, self.value)
 
 
