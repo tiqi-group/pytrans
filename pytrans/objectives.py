@@ -67,9 +67,9 @@ class VoltageObjective(Objective):
         if self.index is not None:
             index = trap.electrode_to_index(self.index)
             if voltages.ndim == 1:
-                voltages = voltages[electrodes]
+                voltages = voltages[index]
             elif voltages.ndim == 2:
-                voltages = voltages[:,electrodes]
+                voltages = voltages[:, index]
             else:
                 raise ValueError(f"the dimention of voltages is {voltages.ndim}, not 1 or 2.")
         diff = voltages - self.value
@@ -82,9 +82,9 @@ class VoltageObjective(Objective):
         if self.index is not None:
             index = trap.electrode_to_index(self.index)
             if voltages.ndim == 1:
-                voltages = voltages[electrodes]
+                voltages = voltages[index]
             elif voltages.ndim == 2:
-                voltages = voltages[:,electrodes]
+                voltages = voltages[:, index]
             else:
                 raise ValueError(f"the dimention of voltages is {voltages.ndim}, not 1 or 2.")
         return self._yield_constraint(voltages, self.value)
