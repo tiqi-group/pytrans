@@ -22,45 +22,59 @@ from matplotlib import transforms
 
 
 def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: Coords1,
-                     roi: Roi, axes=None, pseudo=True, analyse_results: Optional[AnalysisResults] = None, title=''):
+                     roi: Roi, axes=None, trapAxis='x', radialAxes=['y', 'z'], pseudo=True, analyse_results: Optional[AnalysisResults] = None, title=''):
 
     if axes is None:
         fig, axes = plot3d_make_layout(n=1)
-
-    ax_x, ax_y, ax_z, ax_im, ax0 = axes
-    fig = ax_x.figure
+    
+    ax_tAxis, ax_rAxis0, ax_rAxis1, ax_im, ax0 = axes
+    fig = ax_tAxis.figure
     ax_im.set_title(title)
 
-    ax_im.get_shared_x_axes().join(ax_im, ax_y)
-    ax_im.get_shared_y_axes().join(ax_im, ax_z)
+    ax_im.get_shared_x_axes().join(ax_im, ax_rAxis0)
+    ax_im.get_shared_y_axes().join(ax_im, ax_rAxis1)
 
-    x0, y0, z0 = r0
+    # x0, y0, z0 = r0
+    mapper = {
+        'tAxis':(trapAxis=='x')*0 + (trapAxis=='y')*1 + (trapAxis=='z')*2,
+        'rAxis0':(radialAxes[0]=='x')*0 + (radialAxes[0]=='y')*1 + (radialAxes[0]=='z')*2,
+        'rAxis1':(radialAxes[1]=='x')*0 + (radialAxes[1]=='y')*1 + (radialAxes[1]=='z')*2
+    }
+    x0 = r0[mapper['tAxis']]
+    y0 = r0[mapper['rAxis0']]
+    z0 = r0[mapper['rAxis1']]
 
     _roi = []
-    for lim in roi:
+    for key in ['tAxis', 'rAxis0', 'rAxis1']:
+        lim = roi[mapper[key]]
         lim = (-lim, lim) if isinstance(lim, (int, float)) else lim
         _roi.append(lim)
 
     lx, ly, lz = _roi
-    _x = np.linspace(lx[0], lx[1], 100)
-    _y = np.linspace(ly[0], ly[1], 100)
-    _z = np.linspace(lz[0], lz[1], 100)
+    _tAxis = np.linspace(lx[0], lx[1], 100)
+    _rAxis0 = np.linspace(ly[0], ly[1], 100)
+    _rAxis1 = np.linspace(lz[0], lz[1], 100)
 
-    _xyz = np.stack([_x, _y, _z], axis=0)
+    _xyz = np.stack([_tAxis, _rAxis0, _rAxis1], axis=0)
 
-    x, y, z = _xyz + np.asarray(r0).reshape((-1, 1))
+    tAxis, rAxis0, rAxis1 = _xyz + np.asarray(r0).reshape((-1, 1))
 
     def _fun(x, y, z):
         return trap.potential(voltages, x, y, z, ion.mass_amu, pseudo=pseudo)
 
-    ax_x.plot(x * 1e6, _fun(x, y0, z0))
-    ax_y.plot(y * 1e6, _fun(x0, y, z0))
-    ax_z.plot(_fun(x0, y0, z), z * 1e6)
+    fun_args = (0, 0, 0)
+    fun_args[mapper['tAxis']], fun_args[mapper['rAxis0']], fun_args[mapper['rAxis1']] = tAxis, y0, z0
+    ax_tAxis.plot(tAxis * 1e6, _fun(*fun_args))
+    fun_args[mapper['tAxis']], fun_args[mapper['rAxis0']], fun_args[mapper['rAxis1']] = x0, rAxis0, z0
+    ax_rAxis0.plot(rAxis0 * 1e6, _fun(*fun_args))
+    fun_args[mapper['tAxis']], fun_args[mapper['rAxis0']], fun_args[mapper['rAxis1']] = x0, y0, rAxis1
+    ax_rAxis1.plot(_fun(*fun_args), rAxis1 * 1e6)
 
-    Y, Z = np.meshgrid(y, z)
-    ps = _fun(x0, Y, Z)
+    RAXIS0, RAXIS1 = np.meshgrid(rAxis0, rAxis1)
+    fun_args[mapper['tAxis']], fun_args[mapper['rAxis0']], fun_args[mapper['rAxis1']] = x0, RAXIS0, RAXIS1
+    ps = _fun(*fun_args)
 
-    c0 = ax_im.contour(Y * 1e6, Z * 1e6, ps, 50)
+    c0 = ax_im.contour(RAXIS0 * 1e6, RAXIS1 * 1e6, ps, 50)
     try:
         # plt.colorbar(c0, ax=ax_im)
         ax_cb, kk = make_axes(ax0, fraction=0.25, aspect=10)
@@ -84,14 +98,14 @@ def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: C
     z_rf = getattr(trap, 'z0', 0)
     r_rf = r0[0], y_rf, z_rf
     v_rf = _fun(*r_rf)
-    ax_x.plot(x0 * 1e6, v_rf, **marker_rf)
-    ax_y.plot(y_rf * 1e6, v_rf, **marker_rf)
-    ax_z.plot(v_rf, z_rf * 1e6, **marker_rf)
+    ax_tAxis.plot(x0 * 1e6, v_rf, **marker_rf)
+    ax_rAxis0.plot(y_rf * 1e6, v_rf, **marker_rf)
+    ax_rAxis1.plot(v_rf, z_rf * 1e6, **marker_rf)
     ax_im.plot(y_rf * 1e6, z_rf * 1e6, **marker_rf)
 
-    ax_x.set(xlabel='x [um]')
-    ax_y.set(xlabel='y [um]')
-    ax_z.set(ylabel='z [um]')
+    ax_tAxis.set(xlabel=trapAxis+' [um]')
+    ax_rAxis0.set(xlabel=radialAxes[0]+' [um]')
+    ax_rAxis1.set(ylabel=radialAxes[1]+' [um]')
 
     if analyse_results is not None:
         plot3d_radial_modes(analyse_results, axes)
