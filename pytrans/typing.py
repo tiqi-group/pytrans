@@ -14,3 +14,5 @@ Coords = NDArray[Shape["*, 3"], Float]
 Coords1 = NDArray[Shape["3"], Float]
 Roi = NDArray[Shape["3"], Float]
 Bounds = List[Tuple[float, float]]
+
+Waveform = NDArray[Shape["*, *"], Float]

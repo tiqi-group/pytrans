@@ -13,6 +13,7 @@ from tabulate import tabulate
 from pytrans.ions import Ion, atomic_mass, elementary_charge
 from pytrans.conversion import field_to_shift
 from colorama import init as colorama_init, Fore
+from scipy.optimize import OptimizeResult
 
 colorama_init(autoreset=True)
 
@@ -45,6 +46,26 @@ class Results:
         _locals = locals().copy()
         _locals.pop('self')
         self._printoptions.update(_locals)
+
+    @staticmethod
+    def _to_json_filter(value):
+        if isinstance(value, np.ndarray):
+            return value.tolist()
+        if isinstance(value, Ion):
+            return str(value)
+        elif isinstance(value, list) and isinstance(value[0], Ion):
+            return [str(ion) for ion in value]
+        elif isinstance(value, Results):
+            return value.to_json()
+        elif isinstance(value, OptimizeResult):
+            return {key: Results._to_json_filter(value) for key, value in value.items()}
+        else:
+            return value
+
+    def to_json(self):
+        _json = {key: self._to_json_filter(value) for key, value in self.__dict__.items()}
+        _json['repr'] = str(self)
+        return _json
 
 
 class ModeSolverResults(Results):

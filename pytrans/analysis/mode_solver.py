@@ -135,7 +135,8 @@ class HarmonicTrap:
     def potential(self, voltages, x, y, z, mass_amu, pseudo=True):
         shape, X = self._ravel_coords(x, y, z)
         H = self._H(mass_amu)
-        pot = 0.5 * np.einsum('...i,...ij,...j', X, H, X) + np.einsum('j,...j', self._E, X)
+        pot = 0.5 * np.einsum('...i,...ij,...j', X, H, X) + \
+            np.einsum('j,...j', self._E, X)
         return pot.reshape(shape)
 
     def gradient(self, voltages, x, y, z, mass_amu, pseudo=True):
@@ -166,7 +167,8 @@ def mode_solver(trap: AbstractTrapModel, voltages: NDArray, ions: List[Ion],
 
     def jac(X):
         _X = X.reshape(N, d)
-        grad = trap.gradient(voltages, *_X.T, masses_amu) + coulomb_gradient(_X)
+        grad = trap.gradient(voltages, *_X.T, masses_amu) + \
+            coulomb_gradient(_X)
         grad = grad.ravel()
         return grad
 
@@ -181,7 +183,8 @@ def mode_solver(trap: AbstractTrapModel, voltages: NDArray, ions: List[Ion],
         """
         _X = X.reshape(N, d)
         hess = coulomb_hessian(_X)  # shape (N, N, d, d)
-        trap_hess = trap.hessian(voltages, *_X.T, masses_amu)  # shape (N, d, d)
+        trap_hess = trap.hessian(
+            voltages, *_X.T, masses_amu)  # shape (N, d, d)
         hess[np.diag_indices(N, ndim=2)] += trap_hess  # add it in blocks
         hess = np.swapaxes(hess, 1, 2).reshape((N * d, N * d))
         return hess
@@ -200,7 +203,8 @@ def mode_solver(trap: AbstractTrapModel, voltages: NDArray, ions: List[Ion],
     )
     options.update(minimize_options)
 
-    res = minimize(fun, x0.ravel(), method='TNC', jac=jac, bounds=bounds, options=options)
+    res = minimize(fun, x0.ravel(), method='TNC', jac=jac,
+                   bounds=bounds, options=options)
     x_eq = res.x.reshape((N, d))
     trap_pot = trap.potential(voltages, *x_eq.T, masses_amu)
     hess = hess(res.x)
@@ -221,7 +225,7 @@ def _ravel_coords(*args):
     return shape, X
 
 
-def init_crystal(r0: NDArray[Shape["3"], Float], dx: float, n_ions: int) -> Coords:
+def init_crystal(r0: NDArray[Shape["3"], Float], dx: float, n_ions: int, randomize=True) -> Coords:
     """initialize positions of particles in a 1D crystal
     equally spaced by dx along the x axis
 
@@ -238,4 +242,6 @@ def init_crystal(r0: NDArray[Shape["3"], Float], dx: float, n_ions: int) -> Coor
     X[:, 0] = np.linspace(-n_ions / 2 * dx, n_ions / 2 * dx, n_ions) + x0
     X[:, 1] = y0
     X[:, 2] = z0
+    if randomize:
+        X += np.random.rand(n_ions, 3) * 1e-8
     return X

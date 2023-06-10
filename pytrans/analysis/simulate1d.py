@@ -28,7 +28,8 @@ solve_ivp = timer(solve_ivp)
 
 
 def coulomb_force_a(x1, x2):
-    return _K0 / (x2 - x1)**2 * np.asarray([1, -1])
+    s = np.sign(x2 - x1)
+    return _K0 / (x2 - x1)**2 * np.asarray([s, -s])
 
 
 def simulate_waveform(trap, waveform, t, x0, bounds=None, slowdown=1, pseudo=False, solve_kw=dict()):
@@ -56,7 +57,9 @@ def simulate_waveform(trap, waveform, t, x0, bounds=None, slowdown=1, pseudo=Fal
     y0 = np.r_[x0 / _x0, [0] * n_ions]
 
     def trap_force(t, x0):
-        return - charge * trap.gradient(waveform_t(t), x0 * _x0, 0, trap.z0, pseudo=pseudo)[0] / _E0
+        vv = waveform_t((t))
+        force = - charge * trap.gradient(vv, x0 * _x0, 0, trap.z0, trap.ion.mass_amu, pseudo=pseudo)[:, 0] / _E0
+        return force
 
     if n_ions > 1:
         def force(t, x0):
@@ -104,6 +107,7 @@ def simulate_waveform(trap, waveform, t, x0, bounds=None, slowdown=1, pseudo=Fal
         return k.sum(0)
 
     def pot(t, x0, pseudo):
+        # TODO: Coulomb potential energy missing
         www = waveform_t(t / _t0)
         ww_index = 'tv' if n_samples > 1 else 'v'
         u = np.einsum(f'{ww_index},vnt->nt', www, trap.dc_potentials(x0, 0, trap.z0))

@@ -9,10 +9,11 @@ Module docstring
 '''
 
 import numpy as np
+from tqdm import tqdm
 from typing import Union, List, Dict, Optional
 from nptyping import NDArray
 
-from pytrans.typing import Coords, Coords1, Roi, Bounds
+from pytrans.typing import Coords, Coords1, Roi, Bounds, Waveform
 
 from pytrans.ions import Ion
 from pytrans.timer import timer
@@ -23,6 +24,8 @@ from .mode_solver import mode_solver, init_crystal
 from .results import AnalysisResults
 
 from scipy.optimize import minimize
+
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 # from itertools import permutations
 
@@ -136,9 +139,40 @@ def analyse_potential(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Io
     if axes is None:
         fig, axes = plot3d_make_layout(n=1)
 
-    fig, axes = plot3d_potential(trap, voltages, ion1, results.x_eq, roi, axes=axes, pseudo=pseudo, analyse_results=results, title=title)
+    fig, axes = plot3d_potential(trap, voltages, ion1, results.x_eq, roi,
+                                 axes=axes, pseudo=pseudo, analyse_results=results, title=title)
 
     # res['fig'] = fig
     # res['axes'] = axes
 
     return results
+
+
+def analyse_waveform(trap: AbstractTrapModel, waveform: Waveform, ions: Union[Ion, List[Ion]],
+                     r0: Union[Coords1, Coords, List[Union[Coords1, Coords]]],
+                     ion1: Optional[Ion] = None, find_3dmin=True, pseudo=True,
+                     title='',
+                     roi=None, minimize_options=dict(), max_workers=None):
+
+    results = []
+    _kwargs = dict(trap=trap, ions=ions, ion1=ion1, find_3dmin=find_3dmin, pseudo=pseudo, title=title,
+                   roi=roi, minimize_options=minimize_options,
+                   plot=False, verbose=False)
+    L = len(waveform)
+    r0s = r0 if isinstance(r0, (list, tuple)) else [r0] * L
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        future_to_result = {
+            executor.submit(
+                analyse_potential, voltages=waveform[j], r0=r0s[j], **_kwargs
+            ): j for j in range(L)
+        }
+        for future in tqdm(as_completed(future_to_result), total=len(waveform), desc=f"Waveform analysis: {title}"):
+            j = future_to_result[future]
+            try:
+                result = future.result()
+                results.append((result, j))
+            except Exception as exc:
+                print(type(exc), exc)
+                raise exc
+    results.sort(key=lambda x: x[1])
+    return [x[0] for x in results]
