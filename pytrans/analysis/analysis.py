@@ -96,7 +96,7 @@ def _analyse_potential_single_ion(trap: AbstractTrapModel, voltages: NDArray, io
 
 
 def analyse_potential(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Ion, List[Ion]],
-                      r0: Union[Coords1, Coords], ion1: Optional[Ion] = None, find_3dmin=True, pseudo=True,
+                      r0: Union[Coords1, Coords], trapAxis='x', radialAxes=['y','z'], ion1: Optional[Ion] = None, find_3dmin=True, pseudo=True,
                       plot=True, axes=None, title='',
                       roi=None, minimize_options=dict(), verbose=True):
 
@@ -136,7 +136,7 @@ def analyse_potential(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Io
     if axes is None:
         fig, axes = plot3d_make_layout(n=1)
 
-    fig, axes = plot3d_potential(trap, voltages, ion1, results.x_eq, roi, axes=axes, pseudo=pseudo, analyse_results=results, title=title)
+    fig, axes = plot3d_potential(trap, voltages, ion1, results.x_eq, roi, trapAxis=trapAxis, radialAxes=radialAxes, axes=axes, pseudo=pseudo, analyse_results=results, title=title)
 
     # res['fig'] = fig
     # res['axes'] = axes

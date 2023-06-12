@@ -62,7 +62,7 @@ def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: C
     def _fun(x, y, z):
         return trap.potential(voltages, x, y, z, ion.mass_amu, pseudo=pseudo)
 
-    fun_args = (0, 0, 0)
+    fun_args = [0, 0, 0]
     fun_args[mapper['tAxis']], fun_args[mapper['rAxis0']], fun_args[mapper['rAxis1']] = tAxis, y0, z0
     ax_tAxis.plot(tAxis * 1e6, _fun(*fun_args))
     fun_args[mapper['tAxis']], fun_args[mapper['rAxis0']], fun_args[mapper['rAxis1']] = x0, rAxis0, z0
@@ -108,42 +108,42 @@ def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: C
     ax_rAxis1.set(ylabel=radialAxes[1]+' [um]')
 
     if analyse_results is not None:
-        plot3d_radial_modes(analyse_results, axes)
+        plot3d_radial_modes(analyse_results, axes, mapper=mapper)
 
     return fig, axes
 
 
-def plot3d_radial_modes(res: AnalysisResults, axes):
+def plot3d_radial_modes(res: AnalysisResults, axes, mapper):
     if res.mode_solver_results is None:
-        x1, y1, z1 = res.x_eq
-        yc, zc = y1, z1
+        tAx1, rAx01, rAx11 = res.x_eq[list(mapper.values())]
+        rAx0c, rAx1c = rAx01, rAx11
         f1 = res.fun
     else:
-        x1, y1, z1 = res.mode_solver_results.x_eq.T
-        _, yc, zc = res.x_eq
+        tAx1, rAx01, rAx11 = res.mode_solver_results.x_eq[0, list(mapper.values())].T
+        _, rAx0c, rAx1c = res.x_eq[list(mapper.values())]
         f1 = res.mode_solver_results.trap_pot
 
     freqs = res.mode_freqs
     vs = res.mode_vectors
     angle = res.mode_angle
 
-    ax_x, ax_y, ax_z, ax_im, ax0 = axes
-    fig = ax_x.figure
+    ax_tAxis, ax_rAxis0, ax_rAxis1, ax_im, ax0 = axes
+    fig = ax_tAxis.figure
 
     # mark ion(s) positions
     marker_kw = dict(marker='o', mfc='r', mec='r', ls='')
 
-    ax_x.plot(x1 * 1e6, f1, **marker_kw)
-    ax_y.plot(y1 * 1e6, f1, **marker_kw)
-    ax_z.plot(f1, z1 * 1e6, **marker_kw)
-    ax_im.plot(y1 * 1e6, z1 * 1e6, **marker_kw)
+    ax_tAxis.plot(tAx1 * 1e6, f1, **marker_kw)
+    ax_rAxis0.plot(rAx01 * 1e6, f1, **marker_kw)
+    ax_rAxis1.plot(f1, rAx11 * 1e6, **marker_kw)
+    ax_im.plot(rAx01 * 1e6, rAx11 * 1e6, **marker_kw)
 
-    v1 = vs[1, 1:]
-    v2 = vs[2, 1:]
-    f1, f2 = freqs[1], freqs[2]
+    v1 = vs[1, [mapper['rAxis0'], mapper['rAxis1']]]
+    v2 = vs[2, [mapper['rAxis0'], mapper['rAxis1']]]
+    f1, f2 = freqs[[1,2]]
     f0 = np.sqrt(abs(f1 * f2))
 
-    tr = fig.dpi_scale_trans + transforms.ScaledTranslation(yc * 1e6, zc * 1e6, ax_im.transData)
+    tr = fig.dpi_scale_trans + transforms.ScaledTranslation(rAx0c * 1e6, rAx1c * 1e6, ax_im.transData)
 
     circle = mpatches.Ellipse((0, 0), f0 / f1, f0 / f2, angle=90 + angle,
                               fill=None, transform=tr, color='C0')
