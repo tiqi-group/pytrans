@@ -1,5 +1,5 @@
 # flake8: noqa
 
 from .analysis import *
-# from .analysis2 import *
-# from .simulate import *
+from .mode_solver import mode_solver
+from .simulate import simulate_waveform

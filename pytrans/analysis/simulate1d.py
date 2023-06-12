@@ -32,7 +32,7 @@ def coulomb_force_a(x1, x2):
     return _K0 / (x2 - x1)**2 * np.asarray([s, -s])
 
 
-def simulate_waveform(trap, waveform, t, x0, bounds=None, slowdown=1, pseudo=False, solve_kw=dict()):
+def simulate_waveform(trap, waveform, t, x0, bounds=None, slowdown=1, pseudo=False, time_interp_kind='linear', solve_kw=dict()):
 
     mass = trap.ion.mass / _m0
     charge = trap.ion.charge / _q0
@@ -44,7 +44,7 @@ def simulate_waveform(trap, waveform, t, x0, bounds=None, slowdown=1, pseudo=Fal
             return waveform[0]
     else:
         s = np.linspace(0, 1, n_samples)
-        waveform_s = interp1d(s, waveform, axis=0,
+        waveform_s = interp1d(s, waveform, axis=0, kind=time_interp_kind,
                               bounds_error=False, fill_value=(waveform[0], waveform[-1]))
 
         def waveform_t(t):
