@@ -67,16 +67,18 @@ def simulate_waveform(trap: AbstractTrapModel, waveform: Waveform, ions: List[Io
         return hess
 
     if bounds is not None:
-        raise ValueError("Bounds termination not implemented")
-    #     assert isinstance(bounds, (list, tuple)) and len(bounds) == 2
-    #     events = []
-    #     for j in range(N):
-    #         def exit_event(t, y, *args):
-    #             return (y[j] - bounds[0] / _x0) * (y[j] - bounds[1] / _x0)
-    #         exit_event.terminal = True
-    #         events.append(exit_event)
-    # else:
-    #     events = None
+        b0 = np.tile([b[0] / _x0 for b in bounds], N)
+        b1 = np.tile([b[1] / _x0 for b in bounds], N)
+
+        def exit_event(t, y, *args):
+            x = y[:N * d]
+            return 1 if np.all(np.bitwise_and(x >= b0, x <= b1)) else -1
+
+        exit_event.terminal = True
+        exit_event.direction = -1
+        events = [exit_event]
+    else:
+        events = None
 
     def fun(t, y):
         # y = x1, x2, p1, p2
@@ -102,7 +104,7 @@ def simulate_waveform(trap: AbstractTrapModel, waveform: Waveform, ions: List[Io
     t0, t1 = t[[0, -1]] / _t0
     state = [t0, (t1 - t0) / 1000]
 
-    kw = dict(t_eval=t / _t0, dense_output=True, events=None,
+    kw = dict(t_eval=t / _t0, dense_output=True, events=events,
               jac=jac, method='LSODA')
     kw.update(solve_kw)
 
@@ -117,8 +119,8 @@ def simulate_waveform(trap: AbstractTrapModel, waveform: Waveform, ions: List[Io
     print(f"- simulate_waveform elapsed time: {elapsed * 1e3:.3f} ms")
 
     sol.t = sol.t * _t0
-    sol.x = (sol.y[:N * d] * _x0).T.reshape(len(t), N, d)
-    sol.p = (sol.y[N * d:] * _p0).T.reshape(len(t), N, d)
+    sol.x = (sol.y[:N * d] * _x0).T.reshape(len(sol.t), N, d)
+    sol.p = (sol.y[N * d:] * _p0).T.reshape(len(sol.t), N, d)
 
     # def kin(p):
     #     k = p**2 / 2 / mass / _m0

@@ -10,8 +10,7 @@ import numpy as np
 from scipy.interpolate import interp1d
 from scipy.integrate import solve_ivp
 from tqdm import tqdm
-from pytrans.timer import timer
-
+import time
 
 # length and time scales
 from scipy.constants import atomic_mass as _m0
@@ -24,15 +23,13 @@ _p0 = _m0 * _x0 / _t0
 _E0 = _m0 * _x0 / _q0 / _t0**2
 _K0 = 1 / 4 / np.pi / epsilon_0 * _q0**2 * _t0**2 / _m0 / _x0**3
 
-solve_ivp = timer(solve_ivp)
-
 
 def coulomb_force_a(x1, x2):
     s = np.sign(x2 - x1)
     return _K0 / (x2 - x1)**2 * np.asarray([s, -s])
 
 
-def simulate_waveform(trap, waveform, t, x0, bounds=None, slowdown=1, pseudo=False, time_interp_kind='linear', solve_kw=dict()):
+def simulate_waveform_1d(trap, waveform, t, x0, bounds=None, slowdown=1, pseudo=False, time_interp_kind='linear', solve_kw=dict()):
 
     mass = trap.ion.mass / _m0
     charge = trap.ion.charge / _q0
@@ -96,8 +93,14 @@ def simulate_waveform(trap, waveform, t, x0, bounds=None, slowdown=1, pseudo=Fal
     kw = dict(t_eval=t / _t0, dense_output=True, events=events, method='LSODA')
     kw.update(solve_kw)
 
+    print("Exec simulate_waveform_1d")
+    ts = time.time()
     with tqdm(total=1000, unit="%") as pbar:
         sol = solve_ivp(fun_pbar, (t0, t1), y0, args=(pbar, state), **kw)
+
+    te = time.time()
+    elapsed = te - ts
+    print(f"- simulate_waveform_1d elapsed time: {elapsed * 1e3:.3f} ms")
 
     sol.t = sol.t * _t0
     sol.y = sol.y * np.r_[[_x0] * n_ions, [_p0] * n_ions].reshape(-1, 1)
