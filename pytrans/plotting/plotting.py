@@ -26,19 +26,18 @@ def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: C
 
     if axes is None:
         fig, axes = plot3d_make_layout(n=1)
-    
+
     ax_tAxis, ax_rAxis0, ax_rAxis1, ax_im, ax0 = axes
     fig = ax_tAxis.figure
-    ax_im.set_title(title)
 
     ax_im.get_shared_x_axes().join(ax_im, ax_rAxis0)
     ax_im.get_shared_y_axes().join(ax_im, ax_rAxis1)
 
     # x0, y0, z0 = r0
     mapper = {
-        'tAxis':(trapAxis=='x')*0 + (trapAxis=='y')*1 + (trapAxis=='z')*2,
-        'rAxis0':(radialAxes[0]=='x')*0 + (radialAxes[0]=='y')*1 + (radialAxes[0]=='z')*2,
-        'rAxis1':(radialAxes[1]=='x')*0 + (radialAxes[1]=='y')*1 + (radialAxes[1]=='z')*2
+        'tAxis': (trapAxis == 'x') * 0 + (trapAxis == 'y') * 1 + (trapAxis == 'z') * 2,
+        'rAxis0': (radialAxes[0] == 'x') * 0 + (radialAxes[0] == 'y') * 1 + (radialAxes[0] == 'z') * 2,
+        'rAxis1': (radialAxes[1] == 'x') * 0 + (radialAxes[1] == 'y') * 1 + (radialAxes[1] == 'z') * 2
     }
     x0 = r0[mapper['tAxis']]
     y0 = r0[mapper['rAxis0']]
@@ -103,9 +102,10 @@ def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: C
     ax_rAxis1.plot(v_rf, z_rf * 1e6, **marker_rf)
     ax_im.plot(y_rf * 1e6, z_rf * 1e6, **marker_rf)
 
-    ax_tAxis.set(xlabel=trapAxis+' [um]')
-    ax_rAxis0.set(xlabel=radialAxes[0]+' [um]')
-    ax_rAxis1.set(ylabel=radialAxes[1]+' [um]')
+    ax_tAxis.set(xlabel=trapAxis + ' [um]')
+    ax_rAxis0.set(xlabel=radialAxes[0] + ' [um]')
+    ax_rAxis1.set(ylabel=radialAxes[1] + ' [um]')
+    ax_im.set(title=title, aspect=1)
 
     if analyse_results is not None:
         plot3d_radial_modes(analyse_results, axes, mapper=mapper)
@@ -140,7 +140,7 @@ def plot3d_radial_modes(res: AnalysisResults, axes, mapper):
 
     v1 = vs[1, [mapper['rAxis0'], mapper['rAxis1']]]
     v2 = vs[2, [mapper['rAxis0'], mapper['rAxis1']]]
-    f1, f2 = freqs[[1,2]]
+    f1, f2 = freqs[[1, 2]]
     f0 = np.sqrt(abs(f1 * f2))
 
     tr = fig.dpi_scale_trans + transforms.ScaledTranslation(rAx0c * 1e6, rAx1c * 1e6, ax_im.transData)
@@ -155,15 +155,13 @@ def plot3d_radial_modes(res: AnalysisResults, axes, mapper):
     ax_im.add_patch(a2)
 
 
-def plot3d_make_axes(fig, left, right):
-    gs = GridSpec(3,
-                  2,
-                  fig,
-                  height_ratios=[3, 1, 1],
-                  width_ratios=[1, 3],
-                  wspace=0.1,
-                  left=left,
-                  right=right)
+def plot3d_make_axes(fig, left, right, ratio):
+    gs = GridSpec(3, 2, fig,
+                  height_ratios=[ratio, 1, 1],
+                  width_ratios=[1, ratio],
+                  wspace=0.1, hspace=0.15,
+                  left=left, right=right,
+                  top=0.95, bottom=0.1)
 
     ax_z = fig.add_subplot(gs[0, 0])
     ax_im = fig.add_subplot(gs[0, 1])
@@ -174,10 +172,12 @@ def plot3d_make_axes(fig, left, right):
     return ax_x, ax_y, ax_z, ax_im, ax0
 
 
-def plot3d_make_layout(n, figsize=(8, 7), d=0.08, squeeze=True):
+def plot3d_make_layout(n, figsize=(5, 6), d=0.08, squeeze=True):
+    k = figsize[0] / figsize[1]
+    ratio = (2 * k - 1) / (1 - k)
     fig = plt.figure(figsize=(n * figsize[0], figsize[1]))
     axes = [
-        plot3d_make_axes(fig, left=k / n + d / 2, right=(k + 1) / n - d / 2)
+        plot3d_make_axes(fig, left=k / n + d / 2, right=(k + 1) / n - d / 2, ratio=ratio)
         for k in range(n)
     ]
     if squeeze:
