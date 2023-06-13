@@ -22,7 +22,7 @@ from matplotlib import transforms
 
 
 def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: Coords1,
-                     roi: Roi, axes=None, trapAxis='x', radialAxes=['y', 'z'], pseudo=True, analyse_results: Optional[AnalysisResults] = None, title=''):
+                     roi: Roi, axes=None, trap_axis='x', pseudo=True, analyse_results: Optional[AnalysisResults] = None, title=''):
 
     if axes is None:
         fig, axes = plot3d_make_layout(n=1)
@@ -34,11 +34,11 @@ def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: C
     ax_im.get_shared_y_axes().join(ax_im, ax_rAxis1)
 
     # x0, y0, z0 = r0
-    mapper = {
-        'tAxis': (trapAxis == 'x') * 0 + (trapAxis == 'y') * 1 + (trapAxis == 'z') * 2,
-        'rAxis0': (radialAxes[0] == 'x') * 0 + (radialAxes[0] == 'y') * 1 + (radialAxes[0] == 'z') * 2,
-        'rAxis1': (radialAxes[1] == 'x') * 0 + (radialAxes[1] == 'y') * 1 + (radialAxes[1] == 'z') * 2
-    }
+    _axes = 'xyz'
+    ix = _axes.index(trap_axis)
+    mapper = {'tAxis': ix, 'rAxis0': (ix + 1) % 3, 'rAxis1': (ix + 2) % 3}
+    print(mapper)
+
     x0 = r0[mapper['tAxis']]
     y0 = r0[mapper['rAxis0']]
     z0 = r0[mapper['rAxis1']]
@@ -102,9 +102,9 @@ def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: C
     ax_rAxis1.plot(v_rf, z_rf * 1e6, **marker_rf)
     ax_im.plot(y_rf * 1e6, z_rf * 1e6, **marker_rf)
 
-    ax_tAxis.set(xlabel=trapAxis + ' [um]')
-    ax_rAxis0.set(xlabel=radialAxes[0] + ' [um]')
-    ax_rAxis1.set(ylabel=radialAxes[1] + ' [um]')
+    ax_tAxis.set(xlabel=_axes[mapper['tAxis']] + ' [um]')
+    ax_rAxis0.set(xlabel=_axes[mapper['rAxis0']] + ' [um]')
+    ax_rAxis1.set(ylabel=_axes[mapper['rAxis1']] + ' [um]')
     ax_im.set(title=title, aspect=1)
 
     if analyse_results is not None:
