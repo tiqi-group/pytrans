@@ -119,7 +119,7 @@ def plot3d_radial_modes(res: AnalysisResults, axes, mapper):
         rAx0c, rAx1c = rAx01, rAx11
         f1 = res.fun
     else:
-        tAx1, rAx01, rAx11 = res.mode_solver_results.x_eq[0, list(mapper.values())].T
+        tAx1, rAx01, rAx11 = res.mode_solver_results.x_eq[:, list(mapper.values())].T
         _, rAx0c, rAx1c = res.x_eq[list(mapper.values())]
         f1 = res.mode_solver_results.trap_pot
 
