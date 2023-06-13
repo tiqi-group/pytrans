@@ -19,7 +19,19 @@ from scipy.linalg import convolution_matrix
 
 from tqdm import tqdm
 import multiprocessing
+import concurrent.futures
 
+
+
+def process_obj_cstr(voltages, ci, trap):
+    costs = []
+    cstr = []
+    for cj in ci:
+        if cj.constraint_type is None:
+            costs.extend(cj.objective(trap, voltages))
+        else:
+            cstr.extend(cj.constraint(trap, voltages))
+    return costs, cstr
 
 def solver(trap: AbstractTrap,
            step_objectives: List[List[Objective]],
@@ -70,13 +82,30 @@ def solver(trap: AbstractTrap,
 
     print("waveform.shape[0]",waveform.shape[0])
     print("len(step_objective)",len(step_objectives))
-    step_iter = tqdm(step_objectives, desc="Compiling step objectives") if verbose else step_objectives
-    for voltages, ci in zip(waveform, step_iter):
-        for cj in ci:
-            if cj.constraint_type is None:
-                costs.extend(cj.objective(trap, voltages))
-            else:
-                cstr.extend(cj.constraint(trap, voltages))
+
+    try:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+            future_to_result = {
+                executor.submit(
+                    process_obj_cstr,
+                    voltage,
+                    ci,
+                    trap
+                ) for (voltage, ci) in zip(waveform, step_objectives)}
+            for future in tqdm(concurrent.futures.as_completed(future_to_result), total=waveform.shape[0], desc="Compiling step objectives"):
+                cost, cstr_res = future.result()
+                costs.extend(cost)
+                cstr.extend(cstr_res)
+    except Exception as e:
+        print(e)
+        print("Error in parallel processing. Switching to sequential")
+        step_iter = tqdm(step_objectives, desc="Compiling step objectives") if verbose else step_objectives
+        for voltages, ci in zip(waveform, step_iter):
+            for cj in ci:
+                if cj.constraint_type is None:
+                    costs.extend(cj.objective(trap, voltages))
+                else:
+                    cstr.extend(cj.constraint(trap, voltages))
 
     for c in global_objectives:
         # if c.__class__.__name__ == "SlewRateObjective":
