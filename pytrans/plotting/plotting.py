@@ -68,7 +68,7 @@ def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: C
     ax_r1.plot(_fun(*fun_args), trap_r1 * 1e6)
 
     trap_r0, trap_r1 = np.meshgrid(trap_r0, trap_r1)
-    fun_args[mapper['trap_x']], fun_args[mapper['trap_r0']], fun_args[mapper['trap_r1']] = x0, trap_r0, trap_r1
+    fun_args[mapper_slice] = x0, trap_r0, trap_r1
     ps = _fun(*fun_args)
 
     c0 = ax_im.contour(trap_r0 * 1e6, trap_r1 * 1e6, ps, 50)
@@ -226,3 +226,65 @@ def _make_format(current, other):
         x1, y1 = inv.transform(display_coord)
         return f"x: {x:.2f}    freq: {y1:.2f}    angle: {y:.2f}"
     return format_coord
+
+
+def plot3d_contours(trap, voltages, ion, r0, roi, pseudo=True):
+
+    x0, y0, z0 = r0
+
+    _roi = []
+    for lim in roi:
+        lim = (-lim, lim) if isinstance(lim, (int, float)) else lim
+        _roi.append(lim)
+
+    lx, ly, lz = _roi
+    x = np.linspace(lx[0], lx[1], 51) + x0
+    y = np.linspace(ly[0], ly[1], 51) + y0
+    z = np.linspace(lz[0], lz[1], 51) + z0
+
+    # Create the figure and subplots
+    fig = plt.figure(figsize=(8, 6))
+    ax = fig.add_subplot(111, projection='3d')
+
+    def _fun(x, y, z):
+        return trap.potential(voltages, x, y, z, ion.mass_amu, pseudo=pseudo)
+
+    # Plot the equipotential surface
+    # TODO: this actualy needs a good 3D contour algorithm, which I couldn't find
+    # X, Y = np.meshgrid(x, y)
+    # c = _fun(x0, y0 + 5e-6, z0)
+    # Z = np.zeros_like(X)
+    # for i in range(len(x)):
+    #     for j in range(len(y)):
+    #         def f(z):
+    #             return _fun(X[i, j], Y[i, j], z) - c
+    #         try:
+    #             Z[i, j] = brentq(f, 0, z.max())
+    #         except ValueError:
+    #             Z[i, j] = np.nan
+    # ax.plot_surface(X, Y, Z, cmap='viridis')
+
+    # Plot the contour slices along the principal axes on the walls
+    _kwargs = dict(levels=30, cmap='coolwarm', alpha=0.65)
+
+    X, Y = np.meshgrid(x, y)
+    xy_slice = _fun(X, Y, z0)
+    ax.contour(x * 1e6, y * 1e6, xy_slice, zdir='z', offset=z.min() * 1e6, **_kwargs)
+
+    Y, Z = np.meshgrid(y, z)
+    yz_slice = _fun(x0, Y, Z)
+    ax.contour(yz_slice, y * 1e6, z * 1e6, zdir='x', offset=x.min() * 1e6, **_kwargs)
+
+    Z, X = np.meshgrid(z, x)
+    xz_slice = _fun(X, y0, Z)
+    ax.contour(x * 1e6, xz_slice, z * 1e6, zdir='y', offset=y.max() * 1e6, **_kwargs)
+
+    ax.set(
+        xlabel='x [um]',
+        ylabel='y [um]',
+        zlabel='z [um]',
+        xlim=(x.min() * 1e6, x.max() * 1e6),
+        ylim=(y.min() * 1e6, y.max() * 1e6),
+        zlim=(z.min() * 1e6, z.max() * 1e6),
+        aspect='equal'
+    )
