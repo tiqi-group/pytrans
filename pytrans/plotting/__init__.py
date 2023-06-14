@@ -1,2 +1,1 @@
-# from .plotting import *
-# from .animate import *
+from .plotting import *  # noqa

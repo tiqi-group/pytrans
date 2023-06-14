@@ -19,7 +19,7 @@ from pytrans.ions import Ion
 from pytrans.timer import timer
 from pytrans.abstract_model import AbstractTrapModel
 
-from pytrans.plotting.plotting import plot3d_make_layout, plot3d_potential
+from pytrans.plotting import plot_potential
 from .mode_solver import mode_solver, init_crystal
 from .results import AnalysisResults
 
@@ -136,16 +136,10 @@ def analyse_potential(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Io
     if verbose:
         print(results)
 
-    if not plot:
-        return results
-
-    if axes is None:
-        fig, axes = plot3d_make_layout(n=1)
-
-    fig, axes = plot3d_potential(trap, voltages, ion1, r_cm, roi, trap_axis=trap_axis, axes=axes, pseudo=pseudo, analyse_results=results, title=title)
-
-    # res['fig'] = fig
-    # res['axes'] = axes
+    if plot:
+        plot_potential(trap, voltages, ion1, r_cm, roi,
+                       trap_axis=trap_axis, axes=axes, pseudo=pseudo,
+                       analyse_results=results, title=title)
 
     return results
 
