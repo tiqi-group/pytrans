@@ -99,16 +99,19 @@ def coulomb_hessian(X: Coords):
 
 class HarmonicTrap:
 
-    def __init__(self, fx, fy, fz, ion: Ion, stray_field=[0, 0, 0]):
+    def __init__(self, fx, fy, fz, ion: Ion, stray_field=[0, 0, 0],
+                 tilt_xy=0, tilt_xz=0, tilt_yz=0):
         wx2, wy2, wz2 = (2 * pi * fx)**2, (2 * pi * fy)**2, (2 * pi * fz)**2
         c_x = ion.mass / ion.charge * wx2
         c_dc = ion.mass / ion.charge * (wy2 - wz2) / 2
         m_c_rf = ion.mass**2 / ion.charge * (wx2 + wy2 + wz2) / 2
 
+        self.rf_null_coords = (None, 0, 0)
+
         self._H_dc = np.asarray([
-            [c_x, 0, 0],
-            [0, c_dc - c_x / 2, 0],
-            [0, 0, -c_dc - c_x / 2]
+            [c_x, tilt_xy, tilt_xz],
+            [tilt_xy, c_dc - c_x / 2, tilt_yz],
+            [tilt_xz, tilt_yz, -c_dc - c_x / 2]
         ])
 
         self._m_H_rf = np.asarray([

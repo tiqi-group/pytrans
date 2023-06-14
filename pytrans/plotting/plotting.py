@@ -81,16 +81,10 @@ def plot_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: Coo
         pass
 
     # mark RF null
-    # TODO: This is still targeted at traps with axis x
-    marker_rf = dict(marker='x', color='none', mec='r', mew=2)
-    y_rf = getattr(trap, 'y0', 0)
-    z_rf = getattr(trap, 'z0', 0)
-    r_rf = r0[0], y_rf, z_rf
-    v_rf = _fun(*r_rf)
-    ax_x.plot(x0 * 1e6, v_rf, **marker_rf)
-    ax_r0.plot(y_rf * 1e6, v_rf, **marker_rf)
-    ax_r1.plot(v_rf, z_rf * 1e6, **marker_rf)
-    ax_im.plot(y_rf * 1e6, z_rf * 1e6, **marker_rf)
+    try:
+        plot_rf_null(ax_im, trap.rf_null_coords, mapper)
+    except Exception:
+        pass
 
     ax_x.set(xlabel=_axes[mapper['trap_x']] + ' [um]')
     ax_r0.set(xlabel=_axes[mapper['trap_r0']] + ' [um]')
@@ -222,6 +216,18 @@ def plot_mode_vectors(ax, res: AnalysisResults, mapper):
     ax.add_patch(a2)
 
 
+def plot_rf_null(ax, rf_null_coords, mapper):
+    marker_rf = dict(marker='x', color='none', mec='gray', mew=2)
+    line_rf = dict(color='gray', lw=1, ls='--')
+    y_rf, z_rf = np.asarray(rf_null_coords)[[mapper['trap_r0'], mapper['trap_r1']]]
+    if y_rf is None or y_rf == np.nan:
+        ax.axhline(z_rf * 1e6, **line_rf)
+    elif z_rf is None or z_rf == np.nan:
+        ax.axvline(y_rf * 1e6, **line_rf)
+    else:
+        ax.plot(y_rf * 1e6, z_rf * 1e6, **marker_rf)
+
+
 def _plot3d_mode_vectors(ax: Axes3D, res: AnalysisResults):
     r0 = res.x_eq
     mode_freqs = res.mode_freqs
@@ -267,22 +273,6 @@ def plot_potential_make_layout(n, figsize=(5, 6), d=0.08, squeeze=True):
     if squeeze:
         axes = axes[0] if len(axes) == 1 else axes
     return fig, axes
-
-
-# def plot_electrodes(ax, electrode_indices=None, y=None, h=None, d=125, L=120, scale=1):
-#     d *= scale
-#     L *= scale
-#     h = np.ptp(ax.get_ylim()) * 0.06 if h is None else h
-#     y = min(ax.get_ylim()) + h if y is None else y
-
-#     electrode_indices = range(1, 11) if electrode_indices is None else electrode_indices
-
-#     for n in electrode_indices:
-#         c = (n - 6) * d
-#         r = Rectangle(((c - L / 2), y - h / 2), L, h, color='gold', zorder=-99)
-#         ax.text(c, y, n - 1)
-#         ax.add_patch(r)
-#     ax.autoscale_view()
 
 
 def plot_fields_curvatures(x, r0, r1, fields, freqs, angle, title=''):
