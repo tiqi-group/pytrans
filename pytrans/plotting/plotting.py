@@ -37,10 +37,10 @@ def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: C
     _axes = 'xyz'
     ix = _axes.index(trap_axis)
     mapper = {'trap_x': ix, 'trap_r0': (ix + 1) % 3, 'trap_r1': (ix + 2) % 3}
+    mapper_slice = list(mapper.values())
 
-    x0 = r0[mapper['trap_x']]
-    y0 = r0[mapper['trap_r0']]
-    z0 = r0[mapper['trap_r1']]
+    r0 = np.asarray(r0)
+    x0, y0, z0 = r0[mapper_slice]
 
     _roi = []
     for key in ['trap_x', 'trap_r0', 'trap_r1']:
@@ -49,22 +49,22 @@ def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: C
         _roi.append(lim)
 
     lx, ly, lz = _roi
-    _trap_x = np.linspace(lx[0], lx[1], 100)
-    _trap_r0 = np.linspace(ly[0], ly[1], 100)
-    _trap_r1 = np.linspace(lz[0], lz[1], 100)
-
-    _xyz = np.stack([_trap_x, _trap_r0, _trap_r1], axis=0)
-    trap_x, trap_r0, trap_r1 = _xyz + np.asarray(r0).reshape((-1, 1))
+    trap_x = np.linspace(lx[0], lx[1], 61) + x0
+    trap_r0 = np.linspace(ly[0], ly[1], 61) + y0
+    trap_r1 = np.linspace(lz[0], lz[1], 61) + z0
 
     def _fun(x, y, z):
         return trap.potential(voltages, x, y, z, ion.mass_amu, pseudo=pseudo)
 
-    fun_args = [0, 0, 0]
-    fun_args[mapper['trap_x']], fun_args[mapper['trap_r0']], fun_args[mapper['trap_r1']] = trap_x, y0, z0
+    fun_args = np.empty((3,), dtype=object)
+
+    fun_args[mapper_slice] = trap_x, y0, z0
     ax_x.plot(trap_x * 1e6, _fun(*fun_args))
-    fun_args[mapper['trap_x']], fun_args[mapper['trap_r0']], fun_args[mapper['trap_r1']] = x0, trap_r0, z0
+
+    fun_args[mapper_slice] = x0, trap_r0, z0
     ax_r0.plot(trap_r0 * 1e6, _fun(*fun_args))
-    fun_args[mapper['trap_x']], fun_args[mapper['trap_r0']], fun_args[mapper['trap_r1']] = x0, y0, trap_r1
+
+    fun_args[mapper_slice] = x0, y0, trap_r1
     ax_r1.plot(_fun(*fun_args), trap_r1 * 1e6)
 
     trap_r0, trap_r1 = np.meshgrid(trap_r0, trap_r1)
