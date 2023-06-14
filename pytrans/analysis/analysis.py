@@ -107,11 +107,14 @@ def analyse_potential(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Io
         _run_mode_solver = False  # is there a better way to do this?
     else:
         if r0.ndim == 1:
-            r0 = init_crystal(r0, dx=5e-6, n_ions=len(ions))
+            r_cm = r0
+            _x = 'xyz'.index(trap_axis)
+            r0 = init_crystal(r0, dx=5e-6, n_ions=len(ions), axis=_x)
+        else:
+            r_cm = r0.mean(axis=0)
         if ion1 is None:
             avg_mass_amu = np.asarray([_ion.mass_amu for _ion in ions]).mean()
             ion1 = Ion(f"Average{ions}", mass_amu=avg_mass_amu, unit_charge=1)  # TODO fix this to charge > 1
-        r_cm = r0.mean(axis=0)
         _run_mode_solver = True
 
     roi = __roi if roi is None else roi
@@ -136,7 +139,7 @@ def analyse_potential(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Io
     if axes is None:
         fig, axes = plot3d_make_layout(n=1)
 
-    fig, axes = plot3d_potential(trap, voltages, ion1, results.x_eq, roi, trap_axis=trap_axis, axes=axes, pseudo=pseudo, analyse_results=results, title=title)
+    fig, axes = plot3d_potential(trap, voltages, ion1, r_cm, roi, trap_axis=trap_axis, axes=axes, pseudo=pseudo, analyse_results=results, title=title)
 
     # res['fig'] = fig
     # res['axes'] = axes

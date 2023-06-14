@@ -221,7 +221,7 @@ def _ravel_coords(*args):
     return shape, X
 
 
-def init_crystal(r0: NDArray[Shape["3"], Float], dx: float, n_ions: int) -> Coords:
+def init_crystal(r0: NDArray[Shape["3"], Float], dx: float, n_ions: int, axis=0, randomize=True) -> Coords:
     """initialize positions of particles in a 1D crystal
     equally spaced by dx along the x axis
 
@@ -229,13 +229,16 @@ def init_crystal(r0: NDArray[Shape["3"], Float], dx: float, n_ions: int) -> Coor
         r0 (array_like, shape (3,)): (x, y, z) position of the center of mass of the crystal
         dx (float): particle spacing
         n_ions (int): number of particles
+        axis (int, default = 0): crystal axis
 
     Returns:
         Coords (array, shape: (n_ions, 3)): particle positions in a crystal
     """
     x0, y0, z0 = r0
     X = np.zeros((n_ions, 3), dtype=float)
-    X[:, 0] = np.linspace(-n_ions / 2 * dx, n_ions / 2 * dx, n_ions) + x0
-    X[:, 1] = y0
-    X[:, 2] = z0
+    X[:, axis] = np.linspace(-n_ions / 2 * dx, n_ions / 2 * dx, n_ions) + x0
+    X[:, axis - 1] = y0
+    X[:, axis - 2] = z0
+    if randomize:
+        X += np.random.randn(n_ions, 3) * dx * 1e-2
     return X

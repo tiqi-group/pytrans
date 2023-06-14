@@ -17,8 +17,10 @@ from pytrans.ions import Ion
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 from matplotlib.colorbar import make_axes
-from matplotlib import patches as mpatches
+from matplotlib.patches import Ellipse, Arrow
 from matplotlib import transforms
+
+from mpl_toolkits.mplot3d import Axes3D
 
 
 def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: Coords1,
@@ -29,9 +31,6 @@ def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: C
 
     ax_x, ax_r0, ax_r1, ax_im, ax0 = axes
     fig = ax_x.figure
-
-    ax_im.get_shared_x_axes().join(ax_im, ax_r0)
-    ax_im.get_shared_y_axes().join(ax_im, ax_r1)
 
     # x0, y0, z0 = r0
     _axes = 'xyz'
@@ -71,7 +70,7 @@ def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: C
     fun_args[mapper_slice] = x0, trap_r0, trap_r1
     ps = _fun(*fun_args)
 
-    c0 = ax_im.contour(trap_r0 * 1e6, trap_r1 * 1e6, ps, 50)
+    c0 = ax_im.contour(trap_r0 * 1e6, trap_r1 * 1e6, ps, 30)
     try:
         # plt.colorbar(c0, ax=ax_im)
         ax_cb, kk = make_axes(ax0, fraction=0.25, aspect=10)
@@ -99,13 +98,14 @@ def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: C
     ax_im.set(title=title, aspect=1)
 
     if analyse_results is not None:
-        plot3d_radial_modes(analyse_results, axes, mapper=mapper)
+        plot_ion_positions(axes, analyse_results, mapper=mapper)
+        plot_mode_vectors(ax_im, analyse_results, mapper=mapper)
 
     return fig, axes
 
 
-def plot3d_radial_modes(res: AnalysisResults, axes, mapper):
-    mapper_slice = list(mapper.values())
+def plot_ion_positions(axes, res: AnalysisResults, mapper=None):
+    mapper_slice = list(mapper.values()) if mapper is not None else list(range(3))
     if res.mode_solver_results is None:
         x1, r0, r1 = res.x_eq[mapper_slice]
         r0c, r1c = r0, r1
@@ -115,36 +115,58 @@ def plot3d_radial_modes(res: AnalysisResults, axes, mapper):
         _, r0c, r1c = res.x_eq[mapper_slice]
         f1 = res.mode_solver_results.trap_pot
 
-    freqs = res.mode_freqs
-    vs = res.mode_vectors
-    angle = res.mode_angle
-
-    ax_x, ax_r0, ax_r1, ax_im, ax0 = axes
-    fig = ax_x.figure
-
     # mark ion(s) positions
     marker_kw = dict(marker='o', mfc='r', mec='r', ls='')
+    if isinstance(axes, Axes3D):
+        axes.plot(x1 * 1e6, r0 * 1e6, r1 * 1e6, **marker_kw)
+    else:
+        ax_x, ax_r0, ax_r1, ax_im, ax0 = axes
 
-    ax_x.plot(x1 * 1e6, f1, **marker_kw)
-    ax_r0.plot(r0 * 1e6, f1, **marker_kw)
-    ax_r1.plot(f1, r1 * 1e6, **marker_kw)
-    ax_im.plot(r0 * 1e6, r1 * 1e6, **marker_kw)
+        ax_x.plot(x1 * 1e6, f1, **marker_kw)
+        ax_r0.plot(r0 * 1e6, f1, **marker_kw)
+        ax_r1.plot(f1, r1 * 1e6, **marker_kw)
+        ax_im.plot(r0 * 1e6, r1 * 1e6, **marker_kw)
 
-    v1 = vs[1, [mapper['trap_r0'], mapper['trap_r1']]]
-    v2 = vs[2, [mapper['trap_r0'], mapper['trap_r1']]]
-    f1, f2 = freqs[[1, 2]]
+
+def plot_mode_vectors(ax, res: AnalysisResults, mapper):
+    r0 = res.x_eq
+    mode_freqs = res.mode_freqs
+    mode_vectors = res.mode_vectors
+    indices = [mapper['trap_r0'], mapper['trap_r1']]
+    v1 = mode_vectors[indices[0], indices]
+    v2 = mode_vectors[indices[1], indices]
+    r0c, r1c = r0[indices]
+    f1, f2 = mode_freqs[indices]
     f0 = np.sqrt(abs(f1 * f2))
+    angle = np.arctan2(1, v2[0] / v2[1]) * 180 / np.pi
+    fig = ax.figure
+    tr = fig.dpi_scale_trans + transforms.ScaledTranslation(r0c * 1e6, r1c * 1e6, ax.transData)
 
-    tr = fig.dpi_scale_trans + transforms.ScaledTranslation(r0c * 1e6, r1c * 1e6, ax_im.transData)
+    circle = Ellipse((0, 0), f0 / f1, f0 / f2, angle=90 + angle,
+                     fill=None, transform=tr, color='C0')
+    ax.add_patch(circle)
 
-    circle = mpatches.Ellipse((0, 0), f0 / f1, f0 / f2, angle=90 + angle,
-                              fill=None, transform=tr, color='C0')
-    ax_im.add_patch(circle)
+    arrow_kwargs = dict(width=0.2, transform=tr)
+    a1 = Arrow(0, 0, *v1 * f0 / f1, **arrow_kwargs)
+    ax.add_patch(a1)
+    a2 = Arrow(0, 0, *v2 * f0 / f2, **arrow_kwargs)
+    ax.add_patch(a2)
 
-    a1 = mpatches.Arrow(0, 0, *v1 * f0 / f1, width=0.2, transform=tr, color='C0')
-    ax_im.add_patch(a1)
-    a2 = mpatches.Arrow(0, 0, *v2 * f0 / f2, width=0.2, transform=tr, color='C1')
-    ax_im.add_patch(a2)
+
+def _plot3d_mode_vectors(ax: Axes3D, res: AnalysisResults):
+    r0 = res.x_eq
+    mode_freqs = res.mode_freqs
+    mode_vectors = res.mode_vectors
+    f0 = pow(abs(np.prod(mode_freqs)), 1 / len(mode_freqs))
+
+    widths = np.asarray(ax.get_w_lims()).reshape(3, 2).ptp(axis=1)
+    dr = widths / 6 * f0 / mode_freqs
+    r0 *= 1e6
+    for k in range(3):
+        r1 = r0.copy()
+        r1 += mode_vectors[:, k] * dr[k]
+        r = np.stack([r0, r1], axis=1)
+        ax.plot(*r)
 
 
 def plot3d_make_axes(fig, left, right, ratio):
@@ -155,17 +177,18 @@ def plot3d_make_axes(fig, left, right, ratio):
                   left=left, right=right,
                   top=0.95, bottom=0.1)
 
+    ax_y = fig.add_subplot(gs[1, 1])
     ax_z = fig.add_subplot(gs[0, 0])
-    ax_im = fig.add_subplot(gs[0, 1])
+    ax_im = fig.add_subplot(gs[0, 1], sharex=ax_y, sharey=ax_z)
     ax0 = fig.add_subplot(gs[1, 0])
     ax0.axis('off')
-    ax_y = fig.add_subplot(gs[1, 1])
     ax_x = fig.add_subplot(gs[2, :])
     return ax_x, ax_y, ax_z, ax_im, ax0
 
 
 def plot3d_make_layout(n, figsize=(5, 6), d=0.08, squeeze=True):
     k = figsize[0] / figsize[1]
+    assert k < 1
     ratio = (2 * k - 1) / (1 - k)
     fig = plt.figure(figsize=(n * figsize[0], figsize[1]))
     axes = [
@@ -288,3 +311,5 @@ def plot3d_contours(trap, voltages, ion, r0, roi, pseudo=True):
         zlim=(z.min() * 1e6, z.max() * 1e6),
         aspect='equal'
     )
+
+    return fig, ax

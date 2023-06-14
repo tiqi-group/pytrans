@@ -113,6 +113,7 @@ class AnalysisResults(Results):
         self.shift = field_to_shift(jac, ion=ion)
         self.mode_freqs = mode_freqs
         self.mode_vectors = mode_vectors
+        # TODO: x-axis specific
         self.mode_angle = np.arctan2(1, mode_vectors[2, 1] / mode_vectors[2, 2]) * 180 / np.pi
         self.minimize_results = minimize_results
         self.mode_solver_results = mode_solver_results
