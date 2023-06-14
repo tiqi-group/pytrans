@@ -27,53 +27,51 @@ def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: C
     if axes is None:
         fig, axes = plot3d_make_layout(n=1)
 
-    ax_tAxis, ax_rAxis0, ax_rAxis1, ax_im, ax0 = axes
-    fig = ax_tAxis.figure
+    ax_x, ax_r0, ax_r1, ax_im, ax0 = axes
+    fig = ax_x.figure
 
-    ax_im.get_shared_x_axes().join(ax_im, ax_rAxis0)
-    ax_im.get_shared_y_axes().join(ax_im, ax_rAxis1)
+    ax_im.get_shared_x_axes().join(ax_im, ax_r0)
+    ax_im.get_shared_y_axes().join(ax_im, ax_r1)
 
     # x0, y0, z0 = r0
     _axes = 'xyz'
     ix = _axes.index(trap_axis)
-    mapper = {'tAxis': ix, 'rAxis0': (ix + 1) % 3, 'rAxis1': (ix + 2) % 3}
-    print(mapper)
+    mapper = {'trap_x': ix, 'trap_r0': (ix + 1) % 3, 'trap_r1': (ix + 2) % 3}
 
-    x0 = r0[mapper['tAxis']]
-    y0 = r0[mapper['rAxis0']]
-    z0 = r0[mapper['rAxis1']]
+    x0 = r0[mapper['trap_x']]
+    y0 = r0[mapper['trap_r0']]
+    z0 = r0[mapper['trap_r1']]
 
     _roi = []
-    for key in ['tAxis', 'rAxis0', 'rAxis1']:
+    for key in ['trap_x', 'trap_r0', 'trap_r1']:
         lim = roi[mapper[key]]
         lim = (-lim, lim) if isinstance(lim, (int, float)) else lim
         _roi.append(lim)
 
     lx, ly, lz = _roi
-    _tAxis = np.linspace(lx[0], lx[1], 100)
-    _rAxis0 = np.linspace(ly[0], ly[1], 100)
-    _rAxis1 = np.linspace(lz[0], lz[1], 100)
+    _trap_x = np.linspace(lx[0], lx[1], 100)
+    _trap_r0 = np.linspace(ly[0], ly[1], 100)
+    _trap_r1 = np.linspace(lz[0], lz[1], 100)
 
-    _xyz = np.stack([_tAxis, _rAxis0, _rAxis1], axis=0)
-
-    tAxis, rAxis0, rAxis1 = _xyz + np.asarray(r0).reshape((-1, 1))
+    _xyz = np.stack([_trap_x, _trap_r0, _trap_r1], axis=0)
+    trap_x, trap_r0, trap_r1 = _xyz + np.asarray(r0).reshape((-1, 1))
 
     def _fun(x, y, z):
         return trap.potential(voltages, x, y, z, ion.mass_amu, pseudo=pseudo)
 
     fun_args = [0, 0, 0]
-    fun_args[mapper['tAxis']], fun_args[mapper['rAxis0']], fun_args[mapper['rAxis1']] = tAxis, y0, z0
-    ax_tAxis.plot(tAxis * 1e6, _fun(*fun_args))
-    fun_args[mapper['tAxis']], fun_args[mapper['rAxis0']], fun_args[mapper['rAxis1']] = x0, rAxis0, z0
-    ax_rAxis0.plot(rAxis0 * 1e6, _fun(*fun_args))
-    fun_args[mapper['tAxis']], fun_args[mapper['rAxis0']], fun_args[mapper['rAxis1']] = x0, y0, rAxis1
-    ax_rAxis1.plot(_fun(*fun_args), rAxis1 * 1e6)
+    fun_args[mapper['trap_x']], fun_args[mapper['trap_r0']], fun_args[mapper['trap_r1']] = trap_x, y0, z0
+    ax_x.plot(trap_x * 1e6, _fun(*fun_args))
+    fun_args[mapper['trap_x']], fun_args[mapper['trap_r0']], fun_args[mapper['trap_r1']] = x0, trap_r0, z0
+    ax_r0.plot(trap_r0 * 1e6, _fun(*fun_args))
+    fun_args[mapper['trap_x']], fun_args[mapper['trap_r0']], fun_args[mapper['trap_r1']] = x0, y0, trap_r1
+    ax_r1.plot(_fun(*fun_args), trap_r1 * 1e6)
 
-    RAXIS0, RAXIS1 = np.meshgrid(rAxis0, rAxis1)
-    fun_args[mapper['tAxis']], fun_args[mapper['rAxis0']], fun_args[mapper['rAxis1']] = x0, RAXIS0, RAXIS1
+    trap_r0, trap_r1 = np.meshgrid(trap_r0, trap_r1)
+    fun_args[mapper['trap_x']], fun_args[mapper['trap_r0']], fun_args[mapper['trap_r1']] = x0, trap_r0, trap_r1
     ps = _fun(*fun_args)
 
-    c0 = ax_im.contour(RAXIS0 * 1e6, RAXIS1 * 1e6, ps, 50)
+    c0 = ax_im.contour(trap_r0 * 1e6, trap_r1 * 1e6, ps, 50)
     try:
         # plt.colorbar(c0, ax=ax_im)
         ax_cb, kk = make_axes(ax0, fraction=0.25, aspect=10)
@@ -83,28 +81,21 @@ def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: C
     except Exception:
         pass
 
-    # # mark the center of the roi (r0)
-    # marker_kw = dict(marker='o', color='none', mfc='none', mec='r')
-    # v0 = _fun(*r0)
-    # ax_x.plot(x0 * 1e6, v0, **marker_kw)
-    # ax_y.plot(y0 * 1e6, v0, **marker_kw)
-    # ax_z.plot(v0, z0 * 1e6, **marker_kw)
-    # ax_im.plot(y0 * 1e6, z0 * 1e6, **marker_kw)
-
     # mark RF null
+    # TODO: This is still targeted at traps with axis x
     marker_rf = dict(marker='x', color='none', mec='r', mew=2)
     y_rf = getattr(trap, 'y0', 0)
     z_rf = getattr(trap, 'z0', 0)
     r_rf = r0[0], y_rf, z_rf
     v_rf = _fun(*r_rf)
-    ax_tAxis.plot(x0 * 1e6, v_rf, **marker_rf)
-    ax_rAxis0.plot(y_rf * 1e6, v_rf, **marker_rf)
-    ax_rAxis1.plot(v_rf, z_rf * 1e6, **marker_rf)
+    ax_x.plot(x0 * 1e6, v_rf, **marker_rf)
+    ax_r0.plot(y_rf * 1e6, v_rf, **marker_rf)
+    ax_r1.plot(v_rf, z_rf * 1e6, **marker_rf)
     ax_im.plot(y_rf * 1e6, z_rf * 1e6, **marker_rf)
 
-    ax_tAxis.set(xlabel=_axes[mapper['tAxis']] + ' [um]')
-    ax_rAxis0.set(xlabel=_axes[mapper['rAxis0']] + ' [um]')
-    ax_rAxis1.set(ylabel=_axes[mapper['rAxis1']] + ' [um]')
+    ax_x.set(xlabel=_axes[mapper['trap_x']] + ' [um]')
+    ax_r0.set(xlabel=_axes[mapper['trap_r0']] + ' [um]')
+    ax_r1.set(ylabel=_axes[mapper['trap_r1']] + ' [um]')
     ax_im.set(title=title, aspect=1)
 
     if analyse_results is not None:
@@ -114,36 +105,37 @@ def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: C
 
 
 def plot3d_radial_modes(res: AnalysisResults, axes, mapper):
+    mapper_slice = list(mapper.values())
     if res.mode_solver_results is None:
-        tAx1, rAx01, rAx11 = res.x_eq[list(mapper.values())]
-        rAx0c, rAx1c = rAx01, rAx11
+        x1, r0, r1 = res.x_eq[mapper_slice]
+        r0c, r1c = r0, r1
         f1 = res.fun
     else:
-        tAx1, rAx01, rAx11 = res.mode_solver_results.x_eq[:, list(mapper.values())].T
-        _, rAx0c, rAx1c = res.x_eq[list(mapper.values())]
+        x1, r0, r1 = res.mode_solver_results.x_eq[:, mapper_slice].T
+        _, r0c, r1c = res.x_eq[mapper_slice]
         f1 = res.mode_solver_results.trap_pot
 
     freqs = res.mode_freqs
     vs = res.mode_vectors
     angle = res.mode_angle
 
-    ax_tAxis, ax_rAxis0, ax_rAxis1, ax_im, ax0 = axes
-    fig = ax_tAxis.figure
+    ax_x, ax_r0, ax_r1, ax_im, ax0 = axes
+    fig = ax_x.figure
 
     # mark ion(s) positions
     marker_kw = dict(marker='o', mfc='r', mec='r', ls='')
 
-    ax_tAxis.plot(tAx1 * 1e6, f1, **marker_kw)
-    ax_rAxis0.plot(rAx01 * 1e6, f1, **marker_kw)
-    ax_rAxis1.plot(f1, rAx11 * 1e6, **marker_kw)
-    ax_im.plot(rAx01 * 1e6, rAx11 * 1e6, **marker_kw)
+    ax_x.plot(x1 * 1e6, f1, **marker_kw)
+    ax_r0.plot(r0 * 1e6, f1, **marker_kw)
+    ax_r1.plot(f1, r1 * 1e6, **marker_kw)
+    ax_im.plot(r0 * 1e6, r1 * 1e6, **marker_kw)
 
-    v1 = vs[1, [mapper['rAxis0'], mapper['rAxis1']]]
-    v2 = vs[2, [mapper['rAxis0'], mapper['rAxis1']]]
+    v1 = vs[1, [mapper['trap_r0'], mapper['trap_r1']]]
+    v2 = vs[2, [mapper['trap_r0'], mapper['trap_r1']]]
     f1, f2 = freqs[[1, 2]]
     f0 = np.sqrt(abs(f1 * f2))
 
-    tr = fig.dpi_scale_trans + transforms.ScaledTranslation(rAx0c * 1e6, rAx1c * 1e6, ax_im.transData)
+    tr = fig.dpi_scale_trans + transforms.ScaledTranslation(r0c * 1e6, r1c * 1e6, ax_im.transData)
 
     circle = mpatches.Ellipse((0, 0), f0 / f1, f0 / f2, angle=90 + angle,
                               fill=None, transform=tr, color='C0')
