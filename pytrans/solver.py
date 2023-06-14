@@ -59,9 +59,9 @@ def solver(trap: AbstractTrap,
     else:
         # this might be moved in the .trap_filter module
         print('watch out, filter in this modele is overriden here-----------------------------')
-        from tools.cryo_filters import cryo_filter
+        from tools.cryo_filters import cryo_filter_without_amp_filter
 
-        b, a, dt = cryo_filter
+        b, a, dt = cryo_filter_without_amp_filter
         _t, h = sg.dimpulse((b, a, dt))
         h = np.squeeze(h)
         m = len(h) - 1
