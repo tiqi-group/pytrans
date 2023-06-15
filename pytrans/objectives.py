@@ -21,7 +21,7 @@ import cvxpy as cx
 from numpy.typing import ArrayLike
 from .ions import Ion
 from .abstract_model import AbstractTrapModel, ElectrodeNames
-from .indexing import get_derivative, gradient_matrix
+from .indexing import get_derivative, diff_matrix
 
 _constraint_operator_map = {
     '<': operator.lt,
@@ -125,10 +125,14 @@ class VoltageObjective(Objective):
         self.local_weights = local_weights
 
     def objective(self, trap: AbstractTrapModel, voltages: cx.Variable):
-        """objective"""
         if self.electrodes is not None:
-            electrodes = trap.electrode_to_index(self.electrodes, in_all=False)
-            voltages = voltages[electrodes]
+            index = trap.electrode_to_index(self.electrodes)
+            if voltages.ndim == 1:
+                voltages = voltages[index]
+            elif voltages.ndim == 2:
+                voltages = voltages[:, index]
+            else:
+                raise ValueError(f"the dimention of voltages is {voltages.ndim}, not 1 or 2.")
         diff = voltages - self.value
         if self.local_weights is not None:
             diff = cx.multiply(np.sqrt(self.local_weights), diff)
@@ -136,19 +140,22 @@ class VoltageObjective(Objective):
         yield cost
 
     def constraint(self, trap: AbstractTrapModel, voltages: cx.Variable):
-        """constraint"""
         if self.electrodes is not None:
-            electrodes = trap.electrode_to_index(self.electrodes)
-            voltages = voltages[electrodes]
+            index = trap.electrode_to_index(self.electrodes)
+            if voltages.ndim == 1:
+                voltages = voltages[index]
+            elif voltages.ndim == 2:
+                voltages = voltages[:, index]
+            else:
+                raise ValueError(f"the dimention of voltages is {voltages.ndim}, not 1 or 2.")
         return self._yield_constraint(voltages, self.value)
 
 
 class SlewRateObjective(Objective):
 
-    def __init__(self, weight: float = 1.0):
+    def __init__(self, value=0, weight=1., constraint_type=None, norm=1e6):
         r"""Implements a cost penalizing the time derivative of the waveform.
             As such, it must be used as a global objective.
-
         Cost
             $$ \mathcal{C} = w\, \sum_{ji}\left( M_{jt} v_{ti} \right)^2, $$
 
@@ -163,33 +170,47 @@ class SlewRateObjective(Objective):
             weight (float, optional): $w$
                 global weight of the cost term.
         """
-        super().__init__(weight, constraint_type=None)
+        super().__init__(weight, constraint_type)
+        self.value = value
+        self.norm = norm
 
     def objective(self, trap: AbstractTrapModel, voltages: cx.Variable):
         """objective"""
         if len(voltages.shape) < 2:
             raise ValueError(f"Not a global objective: wrong waveform shape ({voltages.shape})")
         n_samples = voltages.shape[0]
-        M = gradient_matrix(n_samples)
-        yield cx.multiply(self.weight, cx.sum_squares(M @ voltages))
+        M = diff_matrix(n_samples)
+        norm_inf = cx.multiply(cx.norm(M @ voltages, "inf"), 1 / trap.dt)
+        diff = cx.multiply(norm_inf, 1 / self.norm)
+        cost = cx.multiply(self.weight, diff)
+        yield cost
 
     def constraint(self, trap: AbstractTrapModel, voltages: cx.Variable):
-        raise NotImplementedError
+        n_samples = voltages.shape[0]
+        M = diff_matrix(n_samples)
+        norm_inf = cx.multiply(cx.norm(M @ voltages, "inf"), 1 / trap.dt)
+        return self._yield_constraint(norm_inf, self.value)
 
 
 class SymmetryObjective(Objective):
 
     def __init__(self, lhs_indices: ElectrodeNames, rhs_indices: ElectrodeNames,
-                 sign: float = 1.0, weight: float = 1.0, constraint_type: Optional[str] = None):
+                 sign: float = 1.0, norm: float = 1.0, weight: float = 1.0, constraint_type: Optional[str] = None):
         super().__init__(weight, constraint_type)
         self.lhs_indices = lhs_indices
         self.rhs_indices = rhs_indices
         self.sign = sign
+        self.norm = norm
 
-    def objective(self, trap: AbstractTrapModel, voltages: cx.Variable):
-        raise NotImplementedError
+    def objective(self, trap, voltages):
+        lhs = trap.electrode_to_index(self.lhs_indices)
+        rhs = trap.electrode_to_index(self.rhs_indices)
+        diff = voltages[lhs] - self.sign * voltages[rhs]
+        diff = diff / self.norm
+        cost = cx.multiply(self.weight, cx.sum_squares(diff))
+        yield cost
 
-    def constraint(self, trap: AbstractTrapModel, voltages: cx.Variable):
+    def constraint(self, trap, voltages):
         lhs = trap.electrode_to_index(self.lhs_indices)
         rhs = trap.electrode_to_index(self.rhs_indices)
         return self._yield_constraint(voltages[lhs], self.sign * voltages[rhs])
@@ -398,7 +419,7 @@ class QuarticObjective(Objective):
         elif self.value == 'maximize':
             cost = - cx.sum(pot / self.norm)
         else:
-            cost = cx.sum_squares(pot - self.value / self.norm)
+            cost = cx.sum_squares((pot - self.value) / self.norm)
         cost = cx.multiply(self.weight, cost)
         yield cost
 
@@ -407,4 +428,32 @@ class QuarticObjective(Objective):
             raise NotImplementedError(
                 f"Cannot {self.value} quartic term with a hard constraint.")
         pot = voltages @ trap.dc_fourth_order(*self.xyz)
+        return self._yield_constraint(pot, self.value)
+
+
+class CubicObjective(Objective):
+
+    def __init__(self, x, y, z, value, norm=1.0, weight=1.0, constraint_type=None):
+        super().__init__(weight, constraint_type)
+        self.xyz = x, y, z
+        self.value = value
+        self.norm = norm
+
+    def objective(self, trap, voltages):
+        if not hasattr(trap, 'dc_third_order'):
+            raise NotImplementedError("The current trap model does not implement third-order moments.")
+        pot = voltages @ trap.dc_third_order(*self.xyz)
+        if self.value == 'minimize':
+            cost = cx.sum(pot / self.norm)
+        elif self.value == 'maximize':
+            cost = - cx.sum(pot / self.norm)
+        else:
+            cost = cx.sum_squares((pot - self.value) / self.norm)
+        cost = cx.multiply(self.weight, cost)
+        yield cost
+
+    def constraint(self, trap, voltages):
+        if self.value in ["minimize", "maximize"]:
+            raise NotImplementedError(f"Cannot {self.value} cubic term with a hard constraint.")
+        pot = voltages @ trap.dc_third_order(*self.xyz)
         return self._yield_constraint(pot, self.value)
