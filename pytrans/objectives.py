@@ -203,6 +203,7 @@ class SymmetryObjective(Objective):
         self.norm = norm
 
     def objective(self, trap, voltages):
+        assert voltages.ndim == 1, f"SymmetryObjective is now only supporting voltages.ndim == 1 but voltages.ndim == {voltages.ndim}"
         lhs = trap.electrode_to_index(self.lhs_indices)
         rhs = trap.electrode_to_index(self.rhs_indices)
         diff = voltages[lhs] - self.sign * voltages[rhs]
@@ -211,6 +212,7 @@ class SymmetryObjective(Objective):
         yield cost
 
     def constraint(self, trap, voltages):
+        assert voltages.ndim == 1, f"SymmetryObjective is now only supporting voltages.ndim == 1 but voltages.ndim == {voltages.ndim}"
         lhs = trap.electrode_to_index(self.lhs_indices)
         rhs = trap.electrode_to_index(self.rhs_indices)
         return self._yield_constraint(voltages[lhs], self.sign * voltages[rhs])
