@@ -216,6 +216,22 @@ class SymmetryObjective(Objective):
         return self._yield_constraint(voltages[lhs], self.sign * voltages[rhs])
 
 
+class UnusedElectrodesConstraint(Objective):
+    """Implements a constraint to force unused electrodes to zero voltage"""
+
+    def __init__(self, indices: Union[str, List[str]],
+                 weight: float = 1.0, constraint_type: str = None):
+        super().__init__(weight, constraint_type)
+        self.indices = indices
+
+    def objective(self, trap, voltages):
+        raise NotImplementedError
+
+    def constraint(self, trap, voltages):
+        unused = trap.electrode_to_index(self.indices)
+        return self._yield_constraint(voltages[unused], 0 * voltages[unused])
+
+
 class PotentialObjective(Objective):
 
     def __init__(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, ion: Ion, value: ArrayLike,
