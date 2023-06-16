@@ -13,8 +13,9 @@ Inspired by:
 
 import re
 import numpy as np
-
+from pytrans.abstract_model import AbstractTrapModel
 from typing import Union, List, Tuple, no_type_check
+from pytrans.typing import ElectrodeNames
 
 re_ix = r"(\[[\s\d,]+\]|[-\d:]+)"
 
@@ -65,6 +66,13 @@ def get_derivative(d: Union[int, str, List[Union[int, str]]],
         return [d_map[name] for name in d]
     else:
         raise TypeError(f"Undefined derivative: {d}")
+
+
+def get_electrode_index(electrodes: ElectrodeNames, trap: AbstractTrapModel, ndim: int):
+    index = trap.electrode_to_index(electrodes)
+    if ndim == 2:
+        index = (slice(None), index)
+    return index
 
 
 @no_type_check

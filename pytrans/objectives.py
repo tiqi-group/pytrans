@@ -14,6 +14,7 @@ probably worth defining the symbols here, or in another MD file
 
 """
 from abc import ABC, abstractmethod
+from multiprocessing.sharedctypes import Value
 import operator
 from typing import Optional, Union, List, Literal
 import numpy as np
@@ -21,7 +22,7 @@ import cvxpy as cx
 from numpy.typing import ArrayLike
 from .ions import Ion
 from .abstract_model import AbstractTrapModel, ElectrodeNames
-from .indexing import get_derivative, diff_matrix
+from .indexing import get_derivative, diff_matrix, get_electrode_index
 
 _constraint_operator_map = {
     '<': operator.lt,
@@ -47,7 +48,7 @@ class Objective(ABC):
     weight = 1.0
     constraint_type = None
 
-    def __init__(self, weight: float = 1.0, constraint_type: Optional[str] = None):
+    def __init__(self, var: cx.Variable, weight: float = 1.0, constraint_type: Optional[str] = None):
         """Initialize abstract Objective class.
             The `constraint_type` attribute defines wether the class will be used
             as cost term or a constraint. If `None`, no constraint is implemented
@@ -60,11 +61,12 @@ class Objective(ABC):
             weight (float, optional): global weight of the cost term.
             constraint_type (str, optional): a string defining the constraint type.
         """
+        self.var = var
         self.weight = weight
         self.constraint_type = constraint_type
 
     @abstractmethod
-    def objective(self, trap: AbstractTrapModel, voltages: cx.Variable):
+    def objective(self):
         """override this method to implement a cost objective
 
         Args:
@@ -72,10 +74,9 @@ class Objective(ABC):
             voltages (cx.Variable): optimization variables
         """
         return
-        yield
 
     @abstractmethod
-    def constraint(self, trap: AbstractTrapModel, voltages: cx.Variable):
+    def constraint(self):
         """override this method to implement a constraint
 
         Args:
@@ -83,11 +84,10 @@ class Objective(ABC):
             voltages (cx.Variable): optimization variables
         """
         return
-        yield
 
-    def _yield_constraint(self, lhs, rhs):
+    def _make_constraint(self, lhs, rhs):
         try:
-            yield _constraint_operator_map[self.constraint_type](lhs, rhs)
+            return _constraint_operator_map[self.constraint_type](lhs, rhs)
         except KeyError as e:
             raise KeyError(
                 f"Wrong constraint type defined: {self.constraint_type}") from e
@@ -95,8 +95,10 @@ class Objective(ABC):
 
 class VoltageObjective(Objective):
 
-    def __init__(self, value: ArrayLike, electrodes: Optional[ElectrodeNames] = None,
-                 local_weights: ArrayLike = None,
+    def __init__(self, var: cx.Variable, value: ArrayLike, *,
+                 electrodes: Optional[ElectrodeNames] = None,
+                 trap: Optional[AbstractTrapModel] = None,
+                 local_weights: Optional[ArrayLike] = None,
                  weight: float = 1.0, constraint_type: Optional[str] = None):
         r"""Implements an Objective for the voltages applied to the trap electrodes
 
@@ -119,41 +121,33 @@ class VoltageObjective(Objective):
                 constraint string.
 
         """
-        super().__init__(weight, constraint_type)
+        super().__init__(var, weight, constraint_type)
         self.value = value
-        self.electrodes = electrodes
+        if electrodes is not None:
+            if trap is None:
+                raise ValueError("A `trap` argument is required together with `electrodes`")
+            self.index = get_electrode_index(electrodes, trap, var.ndim)
+        else:
+            self.index = slice(None)
         self.local_weights = local_weights
 
-    def objective(self, trap: AbstractTrapModel, voltages: cx.Variable):
-        if self.electrodes is not None:
-            index = trap.electrode_to_index(self.electrodes)
-            if voltages.ndim == 1:
-                voltages = voltages[index]
-            elif voltages.ndim == 2:
-                voltages = voltages[:, index]
-            else:
-                raise ValueError(f"the dimention of voltages is {voltages.ndim}, not 1 or 2.")
+    def objective(self):
+        voltages = self.var[self.index]
         diff = voltages - self.value
         if self.local_weights is not None:
             diff = cx.multiply(np.sqrt(self.local_weights), diff)
         cost = cx.multiply(self.weight, cx.sum_squares(diff))
-        yield cost
+        return cost
 
-    def constraint(self, trap: AbstractTrapModel, voltages: cx.Variable):
-        if self.electrodes is not None:
-            index = trap.electrode_to_index(self.electrodes)
-            if voltages.ndim == 1:
-                voltages = voltages[index]
-            elif voltages.ndim == 2:
-                voltages = voltages[:, index]
-            else:
-                raise ValueError(f"the dimention of voltages is {voltages.ndim}, not 1 or 2.")
-        return self._yield_constraint(voltages, self.value)
+    def constraint(self):
+        voltages = self.var[self.index]
+        return self._make_constraint(voltages, self.value)
 
 
 class SlewRateObjective(Objective):
 
-    def __init__(self, value=0, norm=1e6, weight=1., constraint_type=None):
+    def __init__(self, var: cx.Variable, dt: float, *,
+                 value=0, norm=1e6, weight=1., constraint_type=None):
         r"""Implements a cost penalizing the time derivative of the waveform.
             As such, it must be used as a global objective.
         Cost
@@ -170,308 +164,311 @@ class SlewRateObjective(Objective):
             weight (float, optional): $w$
                 global weight of the cost term.
         """
-        super().__init__(weight, constraint_type)
+        super().__init__(var, weight, constraint_type)
+        self.dt = dt
         self.value = value
         self.norm = norm
 
-    def objective(self, trap: AbstractTrapModel, voltages: cx.Variable):
+    def objective(self):
         """objective"""
+        voltages = self.var
         if len(voltages.shape) < 2:
             raise ValueError(f"Not a global objective: wrong waveform shape ({voltages.shape})")
         n_samples = voltages.shape[0]
         M = diff_matrix(n_samples)
-        norm_inf = cx.multiply(cx.norm(M @ voltages, "inf"), 1 / trap.dt)
+        norm_inf = cx.multiply(cx.norm(M @ voltages, "inf"), 1 / self.dt)
         diff = cx.multiply(norm_inf, 1 / self.norm)
         cost = cx.multiply(self.weight, diff)
-        yield cost
+        return cost
 
-    def constraint(self, trap: AbstractTrapModel, voltages: cx.Variable):
+    def constraint(self):
+        voltages = self.var
         n_samples = voltages.shape[0]
         M = diff_matrix(n_samples)
-        norm_inf = cx.multiply(cx.norm(M @ voltages, "inf"), 1 / trap.dt)
-        return self._yield_constraint(norm_inf, self.value)
+        norm_inf = cx.multiply(cx.norm(M @ voltages, "inf"), 1 / self.dt)
+        return self._make_constraint(norm_inf, self.value)
 
 
-class SymmetryObjective(Objective):
+# class SymmetryObjective(Objective):
 
-    def __init__(self, lhs_indices: ElectrodeNames, rhs_indices: ElectrodeNames,
-                 sign: float = 1.0, norm: float = 1.0, weight: float = 1.0, constraint_type: Optional[str] = None):
-        super().__init__(weight, constraint_type)
-        self.lhs_indices = lhs_indices
-        self.rhs_indices = rhs_indices
-        self.sign = sign
-        self.norm = norm
+#     def __init__(self, lhs_indices: ElectrodeNames, rhs_indices: ElectrodeNames,
+#                  sign: float = 1.0, norm: float = 1.0, weight: float = 1.0, constraint_type: Optional[str] = None):
+#         super().__init__(weight, constraint_type)
+#         self.lhs_indices = lhs_indices
+#         self.rhs_indices = rhs_indices
+#         self.sign = sign
+#         self.norm = norm
 
-    def objective(self, trap, voltages):
-        assert voltages.ndim == 1, f"SymmetryObjective is now only supporting voltages.ndim == 1 but voltages.ndim == {voltages.ndim}"
-        lhs = trap.electrode_to_index(self.lhs_indices)
-        rhs = trap.electrode_to_index(self.rhs_indices)
-        diff = voltages[lhs] - self.sign * voltages[rhs]
-        diff = diff / self.norm
-        cost = cx.multiply(self.weight, cx.sum_squares(diff))
-        yield cost
+#     def objective(self, trap, voltages):
+#         assert voltages.ndim == 1, f"SymmetryObjective is now only supporting voltages.ndim == 1 but voltages.ndim == {voltages.ndim}"
+#         lhs = trap.electrode_to_index(self.lhs_indices)
+#         rhs = trap.electrode_to_index(self.rhs_indices)
+#         diff = voltages[lhs] - self.sign * voltages[rhs]
+#         diff = diff / self.norm
+#         cost = cx.multiply(self.weight, cx.sum_squares(diff))
+#         return cost
 
-    def constraint(self, trap, voltages):
-        assert voltages.ndim == 1, f"SymmetryObjective is now only supporting voltages.ndim == 1 but voltages.ndim == {voltages.ndim}"
-        lhs = trap.electrode_to_index(self.lhs_indices)
-        rhs = trap.electrode_to_index(self.rhs_indices)
-        return self._yield_constraint(voltages[lhs], self.sign * voltages[rhs])
-
-
-class UnusedElectrodesConstraint(Objective):
-    """Implements a constraint to force unused electrodes to zero voltage"""
-
-    def __init__(self, indices: Union[str, List[str]],
-                 weight: float = 1.0, constraint_type: str = None):
-        super().__init__(weight, constraint_type)
-        self.indices = indices
-
-    def objective(self, trap, voltages):
-        raise NotImplementedError
-
-    def constraint(self, trap, voltages):
-        unused = trap.electrode_to_index(self.indices)
-        return self._yield_constraint(voltages[unused], 0 * voltages[unused])
+#     def constraint(self, trap, voltages):
+#         assert voltages.ndim == 1, f"SymmetryObjective is now only supporting voltages.ndim == 1 but voltages.ndim == {voltages.ndim}"
+#         lhs = trap.electrode_to_index(self.lhs_indices)
+#         rhs = trap.electrode_to_index(self.rhs_indices)
+#         return self._make_constraint(voltages[lhs], self.sign * voltages[rhs])
 
 
-class PotentialObjective(Objective):
+# class UnusedElectrodesConstraint(Objective):
+#     """Implements a constraint to force unused electrodes to zero voltage"""
 
-    def __init__(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, ion: Ion, value: ArrayLike,
-                 pseudo: bool = True, local_weights: ArrayLike = None, norm: float = 1.0,
-                 weight: float = 1.0, constraint_type: Optional[str] = None):
-        r"""Implements an Objective for the potential generated by the trap electrodes
+#     def __init__(self, indices: Union[str, List[str]],
+#                  weight: float = 1.0, constraint_type: str = None):
+#         super().__init__(weight, constraint_type)
+#         self.indices = indices
 
-        Cost
-            $$ \mathcal{C} = w\, \sum_{x} w(x)\left(v_i \frac{\phi_i (x) - U(x)}{\mu} \right)^2. $$
+#     def objective(self, trap, voltages):
+#         raise NotImplementedError
 
-        Constraint
-            $$ v_i \leq x_i \quad \forall i \in \mathcal{E}. $$
-
-        Args:
-            x, y, z (ArrayLike): $x$
-                coordinates where to evaluate the potential. Must be broadcastable.
-            ion (Ion)
-                ion class
-            value (ArrayLike): $U(x)$
-                target potential
-            pseudo (bool, optional)
-                select if to add the pseudopotential
-            local_weights (ArrayLike, optional): $w(x)$
-                position-dependent weight. If `None`, all weights are set to 1.
-            norm (float, optional): $\mu$
-                Charachteristic magnitude of the objective used to normalize the cost.
-            weight (float, optional): $w$
-                global weight of the cost term.
-            constraint_type (str, optional):
-                constraint string.
-
-        """
-        super().__init__(weight, constraint_type)
-        self.xyz = x, y, z
-        self.ion = ion
-        self.value = value
-        self.pseudo = pseudo
-        self.norm = norm
-        self.local_weights = local_weights
-
-    def objective(self, trap: AbstractTrapModel, voltages: cx.Variable):
-        """objective"""
-        pot = voltages @ trap.dc_potentials(*self.xyz)
-        if self.pseudo:
-            pot += trap.pseudo_potential(*self.xyz, self.ion.mass_amu)
-        diff = (pot - self.value) / self.norm
-        if self.local_weights is not None:
-            diff = cx.multiply(np.sqrt(self.local_weights), diff)
-        cost = cx.multiply(self.weight, cx.sum_squares(diff))
-        yield cost
-
-    def constraint(self, trap: AbstractTrapModel, voltages: cx.Variable):
-        """constraint"""
-        pot = voltages @ trap.dc_potentials(*self.xyz)
-        if self.pseudo:
-            pot += trap.pseudo_potential(*self.xyz, self.ion.mass_amu)
-        return self._yield_constraint(pot, self.value)
+#     def constraint(self, trap, voltages):
+#         unused = trap.electrode_to_index(self.indices)
+#         return self._make_constraint(voltages[unused], 0 * voltages[unused])
 
 
-class GradientObjective(Objective):
+# class PotentialObjective(Objective):
 
-    def __init__(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, ion: Ion, value: ArrayLike,
-                 entries: Union[int, str, List[Union[int, str]]] = None,
-                 pseudo: bool = True, norm: float = 1.0,
-                 weight: float = 1.0, constraint_type: Optional[str] = None):
-        r"""Implements an Objective for the potential gradient generated by the trap electrodes
+#     def __init__(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, ion: Ion, value: ArrayLike,
+#                  pseudo: bool = True, local_weights: ArrayLike = None, norm: float = 1.0,
+#                  weight: float = 1.0, constraint_type: Optional[str] = None):
+#         r"""Implements an Objective for the potential generated by the trap electrodes
 
-        Cost
-            $$ \mathcal{C} = w\, \sum_{x} w(x)\left(v_i \frac{\partial_L \phi_i (x) - U(x)}{\mu} \right)^2. $$
+#         Cost
+#             $$ \mathcal{C} = w\, \sum_{x} w(x)\left(v_i \frac{\phi_i (x) - U(x)}{\mu} \right)^2. $$
 
-        Constraint
-            $$ v_i \leq x_i \quad \forall i \in \mathcal{E}. $$
+#         Constraint
+#             $$ v_i \leq x_i \quad \forall i \in \mathcal{E}. $$
 
-        Args:
-            x,y,z (ArrayLike): $x$
-                coordinates where to evaluate the potential. Must be broadcastable.
-            ion (Ion)
-                ion class
-            value (ArrayLike): $U(x)$
-                target potential
-            entries (str, optional) $L$
-                index or string selecting the derivative of interest.\
-                This needs to be explained better.
-            pseudo (bool, optional)
-                select if to add the pseudopotential
-            local_weights (ArrayLike, optional): $w(x)$
-                position-dependent weight. If `None`, all weights are set to 1.
-            norm (float, optional): $\mu$
-                Charachteristic magnitude of the objective used to normalize the cost.
-            weight (float, optional): $w$
-                global weight of the cost term.
-            constraint_type (str, optional):
-                constraint string.
+#         Args:
+#             x, y, z (ArrayLike): $x$
+#                 coordinates where to evaluate the potential. Must be broadcastable.
+#             ion (Ion)
+#                 ion class
+#             value (ArrayLike): $U(x)$
+#                 target potential
+#             pseudo (bool, optional)
+#                 select if to add the pseudopotential
+#             local_weights (ArrayLike, optional): $w(x)$
+#                 position-dependent weight. If `None`, all weights are set to 1.
+#             norm (float, optional): $\mu$
+#                 Charachteristic magnitude of the objective used to normalize the cost.
+#             weight (float, optional): $w$
+#                 global weight of the cost term.
+#             constraint_type (str, optional):
+#                 constraint string.
 
-        """
-        super().__init__(weight, constraint_type)
-        self.xyz = x, y, z
-        self.ion = ion
-        self.value = value
-        self.pseudo = pseudo
-        self.norm = norm
-        self.entries = slice(None) if entries is None else get_derivative(entries)
+#         """
+#         super().__init__(weight, constraint_type)
+#         self.xyz = x, y, z
+#         self.ion = ion
+#         self.value = value
+#         self.pseudo = pseudo
+#         self.norm = norm
+#         self.local_weights = local_weights
 
-    def objective(self, trap: AbstractTrapModel, voltages: cx.Variable):
-        # resulting shape is (3, len(x))
-        pot = voltages @ trap.dc_gradients(*self.xyz)
-        if self.pseudo:
-            pot += trap.pseudo_gradient(*self.xyz, self.ion.mass_amu)
-        pot = pot[self.entries]
-        diff = (pot - self.value) / self.norm
-        cost = cx.multiply(self.weight, cx.sum_squares(diff))
-        yield cost
+#     def objective(self):
+#         """objective"""
+#         pot = voltages @ trap.dc_potentials(*self.xyz)
+#         if self.pseudo:
+#             pot += trap.pseudo_potential(*self.xyz, self.ion.mass_amu)
+#         diff = (pot - self.value) / self.norm
+#         if self.local_weights is not None:
+#             diff = cx.multiply(np.sqrt(self.local_weights), diff)
+#         cost = cx.multiply(self.weight, cx.sum_squares(diff))
+#         return cost
 
-    def constraint(self, trap: AbstractTrapModel, voltages: cx.Variable):
-        pot = voltages @ trap.dc_gradients(*self.xyz)
-        if self.pseudo:
-            pot += trap.pseudo_gradient(*self.xyz, self.ion.mass_amu)
-        pot = pot[self.entries]
-        return self._yield_constraint(pot, self.value)
+#     def constraint(self):
+#         """constraint"""
+#         pot = voltages @ trap.dc_potentials(*self.xyz)
+#         if self.pseudo:
+#             pot += trap.pseudo_potential(*self.xyz, self.ion.mass_amu)
+#         return self._make_constraint(pot, self.value)
 
 
-class HessianObjective(Objective):
+# class GradientObjective(Objective):
 
-    def __init__(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, ion: Ion, value: ArrayLike,
-                 entries: Union[int, str, List[Union[int, str]]] = None,
-                 pseudo: bool = True, norm: float = 1.0,
-                 weight: float = 1.0, constraint_type: Optional[str] = None):
-        r"""Implements an Objective for the potential gradient generated by the trap electrodes
+#     def __init__(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, ion: Ion, value: ArrayLike,
+#                  entries: Union[int, str, List[Union[int, str]]] = None,
+#                  pseudo: bool = True, norm: float = 1.0,
+#                  weight: float = 1.0, constraint_type: Optional[str] = None):
+#         r"""Implements an Objective for the potential gradient generated by the trap electrodes
 
-        Cost
-            $$ \mathcal{C} = w\, \sum_{x} w(x)\left(v_i \frac{\partial^2_L \phi_i (x) - U(x)}{\mu} \right)^2. $$
+#         Cost
+#             $$ \mathcal{C} = w\, \sum_{x} w(x)\left(v_i \frac{\partial_L \phi_i (x) - U(x)}{\mu} \right)^2. $$
 
-        Constraint
-            $$ v_i \leq x_i \quad \forall i \in \mathcal{E}. $$
+#         Constraint
+#             $$ v_i \leq x_i \quad \forall i \in \mathcal{E}. $$
 
-        Args:
-            x,y,z (ArrayLike): $x$
-                coordinates where to evaluate the potential. Must be broadcastable.
-            ion (Ion)
-                ion class
-            value (ArrayLike): $U(x)$
-                target potential
-            entries (str, optional) $L$
-                index or string selecting the derivative of interest.\
-                This needs to be explained better.
-            pseudo (bool, optional)
-                select if to add the pseudopotential
-            local_weights (ArrayLike, optional): $w(x)$
-                position-dependent weight. If `None`, all weights are set to 1.
-            norm (float, optional): $\mu$
-                Charachteristic magnitude of the objective used to normalize the cost.
-            weight (float, optional): $w$
-                global weight of the cost term.
-            constraint_type (str, optional):
-                constraint string.
+#         Args:
+#             x,y,z (ArrayLike): $x$
+#                 coordinates where to evaluate the potential. Must be broadcastable.
+#             ion (Ion)
+#                 ion class
+#             value (ArrayLike): $U(x)$
+#                 target potential
+#             entries (str, optional) $L$
+#                 index or string selecting the derivative of interest.\
+#                 This needs to be explained better.
+#             pseudo (bool, optional)
+#                 select if to add the pseudopotential
+#             local_weights (ArrayLike, optional): $w(x)$
+#                 position-dependent weight. If `None`, all weights are set to 1.
+#             norm (float, optional): $\mu$
+#                 Charachteristic magnitude of the objective used to normalize the cost.
+#             weight (float, optional): $w$
+#                 global weight of the cost term.
+#             constraint_type (str, optional):
+#                 constraint string.
 
-        """
-        super().__init__(weight, constraint_type)
-        self.xyz = x, y, z
-        self.ion = ion
-        self.value = value
-        self.pseudo = pseudo
-        self.norm = norm
-        self.entries = slice(None) if entries is None else get_derivative(entries)
+#         """
+#         super().__init__(weight, constraint_type)
+#         self.xyz = x, y, z
+#         self.ion = ion
+#         self.value = value
+#         self.pseudo = pseudo
+#         self.norm = norm
+#         self.entries = slice(None) if entries is None else get_derivative(entries)
 
-    def objective(self, trap: AbstractTrapModel, voltages: cx.Variable):
-        nv = voltages.shape[-1]
-        pot = voltages @ trap.dc_hessians(*self.xyz).reshape(nv, 9)
-        if self.pseudo:
-            pot += trap.pseudo_hessian(*self.xyz, self.ion.mass_amu).reshape(9)
-        pot = pot[self.entries]
-        diff = (pot - self.value) / self.norm
-        cost = cx.multiply(self.weight, cx.sum_squares(diff))
-        yield cost
+#     def objective(self):
+#         # resulting shape is (3, len(x))
+#         pot = voltages @ trap.dc_gradients(*self.xyz)
+#         if self.pseudo:
+#             pot += trap.pseudo_gradient(*self.xyz, self.ion.mass_amu)
+#         pot = pot[self.entries]
+#         diff = (pot - self.value) / self.norm
+#         cost = cx.multiply(self.weight, cx.sum_squares(diff))
+#         return cost
 
-    def constraint(self, trap: AbstractTrapModel, voltages: cx.Variable):
-        nv = voltages.shape[-1]
-        pot = voltages @ trap.dc_hessians(*self.xyz).reshape(nv, 9)
-        if self.pseudo:
-            pot += trap.pseudo_hessian(*self.xyz, self.ion.mass_amu).reshape(9)
-        pot = pot[self.entries]
-        return self._yield_constraint(pot, self.value)
-
-
-class QuarticObjective(Objective):
-
-    def __init__(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, value: Union[ArrayLike, Literal["minimize", "maximize"]],
-                 norm: float = 1.0, weight: float = 1.0, constraint_type: Optional[str] = None):
-        super().__init__(weight, constraint_type)
-        self.xyz = x, y, z
-        self.value = value
-        self.norm = norm
-
-    def objective(self, trap: AbstractTrapModel, voltages: cx.Variable):
-        if not hasattr(trap, "dc_fourth_order"):
-            raise NotImplementedError(
-                "The current trap model does not implement fourth-order moments.")
-        pot = voltages @ trap.dc_fourth_order(*self.xyz)
-        if self.value == 'minimize':
-            cost = cx.sum(pot / self.norm)
-        elif self.value == 'maximize':
-            cost = - cx.sum(pot / self.norm)
-        else:
-            cost = cx.sum_squares((pot - self.value) / self.norm)
-        cost = cx.multiply(self.weight, cost)
-        yield cost
-
-    def constraint(self, trap: AbstractTrapModel, voltages: cx.Variable):
-        if self.value in ["minimize", "maximize"]:
-            raise NotImplementedError(
-                f"Cannot {self.value} quartic term with a hard constraint.")
-        pot = voltages @ trap.dc_fourth_order(*self.xyz)
-        return self._yield_constraint(pot, self.value)
+#     def constraint(self):
+#         pot = voltages @ trap.dc_gradients(*self.xyz)
+#         if self.pseudo:
+#             pot += trap.pseudo_gradient(*self.xyz, self.ion.mass_amu)
+#         pot = pot[self.entries]
+#         return self._make_constraint(pot, self.value)
 
 
-class CubicObjective(Objective):
+# class HessianObjective(Objective):
 
-    def __init__(self, x, y, z, value, norm=1.0, weight=1.0, constraint_type=None):
-        super().__init__(weight, constraint_type)
-        self.xyz = x, y, z
-        self.value = value
-        self.norm = norm
+#     def __init__(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, ion: Ion, value: ArrayLike,
+#                  entries: Union[int, str, List[Union[int, str]]] = None,
+#                  pseudo: bool = True, norm: float = 1.0,
+#                  weight: float = 1.0, constraint_type: Optional[str] = None):
+#         r"""Implements an Objective for the potential gradient generated by the trap electrodes
 
-    def objective(self, trap, voltages):
-        if not hasattr(trap, 'dc_third_order'):
-            raise NotImplementedError("The current trap model does not implement third-order moments.")
-        pot = voltages @ trap.dc_third_order(*self.xyz)
-        if self.value == 'minimize':
-            cost = cx.sum(pot / self.norm)
-        elif self.value == 'maximize':
-            cost = - cx.sum(pot / self.norm)
-        else:
-            cost = cx.sum_squares((pot - self.value) / self.norm)
-        cost = cx.multiply(self.weight, cost)
-        yield cost
+#         Cost
+#             $$ \mathcal{C} = w\, \sum_{x} w(x)\left(v_i \frac{\partial^2_L \phi_i (x) - U(x)}{\mu} \right)^2. $$
 
-    def constraint(self, trap, voltages):
-        if self.value in ["minimize", "maximize"]:
-            raise NotImplementedError(f"Cannot {self.value} cubic term with a hard constraint.")
-        pot = voltages @ trap.dc_third_order(*self.xyz)
-        return self._yield_constraint(pot, self.value)
+#         Constraint
+#             $$ v_i \leq x_i \quad \forall i \in \mathcal{E}. $$
+
+#         Args:
+#             x,y,z (ArrayLike): $x$
+#                 coordinates where to evaluate the potential. Must be broadcastable.
+#             ion (Ion)
+#                 ion class
+#             value (ArrayLike): $U(x)$
+#                 target potential
+#             entries (str, optional) $L$
+#                 index or string selecting the derivative of interest.\
+#                 This needs to be explained better.
+#             pseudo (bool, optional)
+#                 select if to add the pseudopotential
+#             local_weights (ArrayLike, optional): $w(x)$
+#                 position-dependent weight. If `None`, all weights are set to 1.
+#             norm (float, optional): $\mu$
+#                 Charachteristic magnitude of the objective used to normalize the cost.
+#             weight (float, optional): $w$
+#                 global weight of the cost term.
+#             constraint_type (str, optional):
+#                 constraint string.
+
+#         """
+#         super().__init__(weight, constraint_type)
+#         self.xyz = x, y, z
+#         self.ion = ion
+#         self.value = value
+#         self.pseudo = pseudo
+#         self.norm = norm
+#         self.entries = slice(None) if entries is None else get_derivative(entries)
+
+#     def objective(self):
+#         nv = voltages.shape[-1]
+#         pot = voltages @ trap.dc_hessians(*self.xyz).reshape(nv, 9)
+#         if self.pseudo:
+#             pot += trap.pseudo_hessian(*self.xyz, self.ion.mass_amu).reshape(9)
+#         pot = pot[self.entries]
+#         diff = (pot - self.value) / self.norm
+#         cost = cx.multiply(self.weight, cx.sum_squares(diff))
+#         return cost
+
+#     def constraint(self):
+#         nv = voltages.shape[-1]
+#         pot = voltages @ trap.dc_hessians(*self.xyz).reshape(nv, 9)
+#         if self.pseudo:
+#             pot += trap.pseudo_hessian(*self.xyz, self.ion.mass_amu).reshape(9)
+#         pot = pot[self.entries]
+#         return self._make_constraint(pot, self.value)
+
+
+# class QuarticObjective(Objective):
+
+#     def __init__(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, value: Union[ArrayLike, Literal["minimize", "maximize"]],
+#                  norm: float = 1.0, weight: float = 1.0, constraint_type: Optional[str] = None):
+#         super().__init__(weight, constraint_type)
+#         self.xyz = x, y, z
+#         self.value = value
+#         self.norm = norm
+
+#     def objective(self):
+#         if not hasattr(trap, "dc_fourth_order"):
+#             raise NotImplementedError(
+#                 "The current trap model does not implement fourth-order moments.")
+#         pot = voltages @ trap.dc_fourth_order(*self.xyz)
+#         if self.value == 'minimize':
+#             cost = cx.sum(pot / self.norm)
+#         elif self.value == 'maximize':
+#             cost = - cx.sum(pot / self.norm)
+#         else:
+#             cost = cx.sum_squares((pot - self.value) / self.norm)
+#         cost = cx.multiply(self.weight, cost)
+#         return cost
+
+#     def constraint(self):
+#         if self.value in ["minimize", "maximize"]:
+#             raise NotImplementedError(
+#                 f"Cannot {self.value} quartic term with a hard constraint.")
+#         pot = voltages @ trap.dc_fourth_order(*self.xyz)
+#         return self._make_constraint(pot, self.value)
+
+
+# class CubicObjective(Objective):
+
+#     def __init__(self, x, y, z, value, norm=1.0, weight=1.0, constraint_type=None):
+#         super().__init__(weight, constraint_type)
+#         self.xyz = x, y, z
+#         self.value = value
+#         self.norm = norm
+
+#     def objective(self, trap, voltages):
+#         if not hasattr(trap, 'dc_third_order'):
+#             raise NotImplementedError("The current trap model does not implement third-order moments.")
+#         pot = voltages @ trap.dc_third_order(*self.xyz)
+#         if self.value == 'minimize':
+#             cost = cx.sum(pot / self.norm)
+#         elif self.value == 'maximize':
+#             cost = - cx.sum(pot / self.norm)
+#         else:
+#             cost = cx.sum_squares((pot - self.value) / self.norm)
+#         cost = cx.multiply(self.weight, cost)
+#         return cost
+
+#     def constraint(self, trap, voltages):
+#         if self.value in ["minimize", "maximize"]:
+#             raise NotImplementedError(f"Cannot {self.value} cubic term with a hard constraint.")
+#         pot = voltages @ trap.dc_third_order(*self.xyz)
+#         return self._make_constraint(pot, self.value)
