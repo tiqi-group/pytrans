@@ -38,7 +38,7 @@ def solver(trap: AbstractTrapModel,
            global_objectives: List[Objective],
            extra_constraints: List[Any] = None,
            trap_filter=None,
-           solver="MOSEK", start_value=None, verbose=True):
+           solver="MOSEK", start_value=None, full_output=False, verbose=True):
     """Static solver
 
         Args:
@@ -82,12 +82,8 @@ def solver(trap: AbstractTrapModel,
         # raise NotImplementedError("No parallel compilation")
         with concurrent.futures.ProcessPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
             future_to_result = {
-                executor.submit(
-                    process_obj_cstr,
-                    voltage,
-                    ci,
-                    trap
-                ) for (voltage, ci) in zip(waveform, step_objectives)}
+                executor.submit(process_obj_cstr, voltage, ci, trap) for (voltage, ci) in zip(waveform, step_objectives)
+            }
             for future in tqdm(concurrent.futures.as_completed(future_to_result), total=waveform.shape[0], desc="Compiling step objectives"):
                 cost, cstr_res = future.result()
                 costs.extend(cost)
@@ -129,9 +125,22 @@ def solver(trap: AbstractTrapModel,
 
     problem.solve(solver=solver, warm_start=True, verbose=verbose, mosek_params=mosek_params)
 
-    final_costs = []
-    # for voltages, ci in zip(waveform, step_objectives):
-    #     final_costs.append({f"{j}_{cj.__class__.__name__}": [c for c in cj.objective(trap, voltages)] for j, cj in enumerate(ci)})
-    # final_costs.append({f"{j}_global_{cj.__class__.__name__}": [c for c in cj.objective(trap, waveform)] for j, cj in enumerate(global_objectives)})
+    if not full_output:
+        return waveform0.value
 
-    return waveform0, final_costs
+    final_costs = []
+    for voltages, ci in zip(waveform, step_objectives):
+        final_costs.append({
+            f"{j}_{cj.__class__.__name__}": [c for c in cj.objective(trap, voltages)] for j, cj in enumerate(ci)
+        })
+    final_costs.append({
+        f"{j}_global_{cj.__class__.__name__}": [c for c in cj.objective(trap, waveform)] for j, cj in enumerate(global_objectives)
+    })
+    results = {
+        'problem': problem,
+        'çost': cost,
+        'waveform_variable': waveform0,
+        'final_costs': final_costs
+    }
+
+    return waveform0.value, results

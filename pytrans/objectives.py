@@ -153,7 +153,7 @@ class VoltageObjective(Objective):
 
 class SlewRateObjective(Objective):
 
-    def __init__(self, value=0, weight=1., constraint_type=None, norm=1e6):
+    def __init__(self, value=0, norm=1e6, weight=1., constraint_type=None):
         r"""Implements a cost penalizing the time derivative of the waveform.
             As such, it must be used as a global objective.
         Cost
