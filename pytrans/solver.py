@@ -9,17 +9,13 @@ Module docstring
 '''
 
 import cvxpy as cx
-from .abstract_model import AbstractTrapModel
 from .objectives import Objective
-from typing import List, Any, Optional
+from typing import List
 
-import numpy as np
-from scipy import signal as sg
-from scipy.linalg import convolution_matrix
 
 from tqdm import tqdm
 import multiprocessing
-import concurrent.futures
+# import concurrent.futures
 
 
 def process_obj_cstr(voltages, ci, trap):
@@ -35,27 +31,6 @@ def process_obj_cstr(voltages, ci, trap):
 
 def init_waveform(n_samples, n_electrodes, name='Waveform'):
     return cx.Variable((n_samples, n_electrodes), name=name)
-
-
-class TrapFilterTransform:
-    def __init__(self, trap_filter, pad_after=0) -> None:
-        b, a, dt = trap_filter
-        _, h = sg.dimpulse((b, a, dt))
-        h = np.squeeze(h)
-        pad_before = len(h) - 1
-        self.impulse_response = h
-        self.padding = (pad_before, pad_after)
-
-    def transform(self, waveform: cx.Variable):
-        pad_before, pad_after = self.padding
-        n, w = waveform.shape
-        first_sample = cx.reshape(waveform[0], (1, w))
-        last_sample = cx.reshape(waveform[-1], (1, w))
-        # stacking copies of the same variable is equivalent to constraining them to be equal
-        w0 = cx.vstack([first_sample] * pad_before + [waveform] + [last_sample] * pad_after)
-        assert w0.shape == (pad_before + n + pad_after, w)
-        M = convolution_matrix(self.impulse_response, w0.shape[0], mode='valid')
-        return M @ w0
 
 
 def solver(objectives: List[Objective],
