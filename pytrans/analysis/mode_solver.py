@@ -99,7 +99,7 @@ def coulomb_hessian(X: Coords):
 
 class HarmonicTrap:
 
-    def __init__(self, fx, fy, fz, ion: Ion, stray_field=[0, 0, 0],
+    def __init__(self, fx, fy, fz, ion: Ion, field=[0, 0, 0],
                  tilt_xy=0, tilt_xz=0, tilt_yz=0):
         wx2, wy2, wz2 = (2 * pi * fx)**2, (2 * pi * fy)**2, (2 * pi * fz)**2
         c_x = ion.mass / ion.charge * wx2
@@ -120,7 +120,7 @@ class HarmonicTrap:
             [0, 0, m_c_rf]
         ])
 
-        self._E = np.asarray(stray_field)
+        self._E = np.asarray(field)
 
     def _H(self, mass_amu):
         mass = atomic_mass * np.atleast_1d(mass_amu).reshape(-1, 1, 1)
@@ -211,9 +211,11 @@ def mode_solver(trap: AbstractTrapModel, voltages: NDArray, ions: List[Ion],
     x_eq = res.x.reshape((N, d))
     trap_pot = trap.potential(voltages, *x_eq.T, masses_amu)
     hess = hess(res.x)
+    mode_freqs, mode_vectors = diagonalize_hessian(ions, hess)
 
     result = ModeSolverResults(ions=ions, x0=x0, x_eq=x_eq,
                                fun=res.fun, jac=res.jac, hess=hess,
+                               mode_freqs=mode_freqs, mode_vectors=mode_vectors,
                                trap_pot=trap_pot,
                                minimize_results=res)
 
@@ -226,6 +228,21 @@ def _ravel_coords(*args):
     args = list(map(np.ravel, args))
     X = np.stack(args, axis=1).astype(float)
     return shape, X
+
+
+def diagonalize_hessian(ions: List[Ion], hessian: NDArray[Shape["L, L"], Float]):  # noqa
+    N, d = len(ions), 3
+    masses_amu = np.asarray([ion.mass_amu for ion in ions])
+    masses = np.repeat(masses_amu, d)
+    # H_w = 1 / np.sqrt(np.outer(masses, masses)) * hess  # this results in mass-weighted normal modes
+    H_w = 1 / masses.reshape(-1, 1) * hessian  # standard normal modes
+    h, v = np.linalg.eig(H_w)
+
+    sort = np.abs(h).argsort()
+    h = h[sort]  # shape: (3N,)
+    freqs = np.sign(h) * np.sqrt(elementary_charge / atomic_mass * np.abs(h)) / 2 / np.pi
+    modes = v.T[sort].reshape(N * d, N, d)  # shape: (3N, N, d)
+    return freqs, modes
 
 
 def init_crystal(r0: NDArray[Shape["3"], Float], dx: float, n_ions: int, axis=0, randomize=True) -> Coords:
