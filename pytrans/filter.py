@@ -31,13 +31,13 @@ class TrapFilterTransform:
 
     def transform(self, waveform, pad_after=0):
         if isinstance(waveform, np.ndarray):
-            return self.lfilter_waveform_numpy(waveform, pad_after)
+            return self._lfilter_waveform_numpy(waveform, pad_after)
         elif isinstance(waveform, cx.Variable):
-            return self.lfilter_waveform_cvxpy(waveform, pad_after)
+            return self._lfilter_waveform_cvxpy(waveform, pad_after)
         else:
             raise ValueError(f"Invalid waveform object of type {type(waveform)}")
 
-    def lfilter_waveform_cvxpy(self, waveform: cx.Variable, pad_after: int) -> cx.Variable:
+    def _lfilter_waveform_cvxpy(self, waveform: cx.Variable, pad_after: int) -> cx.Variable:
         pad_before = len(self.impulse_response) - 1
         n, w = waveform.shape
         first_sample = cx.reshape(waveform[0], (1, w))
@@ -48,7 +48,7 @@ class TrapFilterTransform:
         M = convolution_matrix(self.impulse_response, w0.shape[0], mode='valid')
         return M @ w0
 
-    def lfilter_waveform_numpy(self, waveform: NDArray, pad_after: int) -> NDArray:
+    def _lfilter_waveform_numpy(self, waveform: NDArray, pad_after: int) -> NDArray:
         """Filters a waveform using a digital filter
         in the transfer function representation
                             -1              -M

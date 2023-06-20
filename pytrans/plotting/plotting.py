@@ -220,8 +220,9 @@ def plot_mode_vectors(ax, res: AnalysisResults, mapper):
     # f_scale = f_scale / f_scale.max()
     for j, (f, v) in enumerate(zip(f_scale, mode_vectors)):
         v = v[indices]
-        a1 = mpc.Arrow(0, 0, *v * f, color=f"C{j}", **arrow_kwargs)
+        a1 = mpc.Arrow(0, 0, *v * f, color=f"C{j}", **arrow_kwargs, label=f"{mode_freqs[j]*1e-6:.2f} MHz")
         ax.add_patch(a1)
+    ax.legend(fontsize=9)
 
 
 def plot_rf_null(ax, rf_null_coords, mapper):
