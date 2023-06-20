@@ -99,7 +99,7 @@ class AbstractTrapModel:
         """
         return np.stack([self.get_electrode(name).hessian(x, y, z) for name in self.electrodes], axis=0)
 
-    def pseudo_potential(self, x, y, z, ion_mass_amu):
+    def pseudo_potential(self, x, y, z, ion_mass_amu, ion_unit_charge=1):
         """Pseudopotential from RF
 
         This assumes all RF electrodes in phase and at the same RF voltage and frequency
@@ -110,43 +110,43 @@ class AbstractTrapModel:
         TODO In these conditions, it probably doesn't make sense to have
         more than one RFElectrode object in the model. Think about simplifying this.
         """
-        return np.sum([rf_el.potential(x, y, z, ion_mass_amu, self._rf_voltage, self._rf_freq_mhz)
+        return np.sum([rf_el.potential(x, y, z, ion_mass_amu, ion_unit_charge, self._rf_voltage, self._rf_freq_mhz)
                        for rf_el in self._rf_electrodes.values()], axis=0)
 
-    def pseudo_gradient(self, x, y, z, ion_mass_amu):
+    def pseudo_gradient(self, x, y, z, ion_mass_amu, ion_unit_charge=1):
         """Pseudopotential gradient
 
         Returns:
             out: ndarray, shape: x.shape + (3,)
         """
-        return np.sum([rf_el.gradient(x, y, z, ion_mass_amu, self._rf_voltage, self._rf_freq_mhz)
+        return np.sum([rf_el.gradient(x, y, z, ion_mass_amu, ion_unit_charge, self._rf_voltage, self._rf_freq_mhz)
                        for rf_el in self._rf_electrodes.values()], axis=0)
 
-    def pseudo_hessian(self, x, y, z, ion_mass_amu):
+    def pseudo_hessian(self, x, y, z, ion_mass_amu, ion_unit_charge=1):
         """Pseudopotential curvatures
 
         Returns:
             out: ndarray, shape: x.shape + (3, 3)
         """
-        return np.sum([rf_el.hessian(x, y, z, ion_mass_amu, self._rf_voltage, self._rf_freq_mhz)
+        return np.sum([rf_el.hessian(x, y, z, ion_mass_amu, ion_unit_charge, self._rf_voltage, self._rf_freq_mhz)
                        for rf_el in self._rf_electrodes.values()], axis=0)
 
-    def potential(self, voltages, x, y, z, ion_mass_amu, pseudo=True):
+    def potential(self, voltages, x, y, z, ion_mass_amu, ion_unit_charge=1, pseudo=True):
         u = np.tensordot(voltages, self.dc_potentials(x, y, z), axes=1)
         if len(self._rf_electrodes) > 0 and pseudo:
-            u += self.pseudo_potential(x, y, z, ion_mass_amu)
+            u += self.pseudo_potential(x, y, z, ion_mass_amu, ion_unit_charge)
         return u
 
-    def gradient(self, voltages, x, y, z, ion_mass_amu, pseudo=True):
+    def gradient(self, voltages, x, y, z, ion_mass_amu, ion_unit_charge=1, pseudo=True):
         u = np.tensordot(voltages, self.dc_gradients(x, y, z), axes=1)
         if len(self._rf_electrodes) > 0 and pseudo:
-            u += self.pseudo_gradient(x, y, z, ion_mass_amu)
+            u += self.pseudo_gradient(x, y, z, ion_mass_amu, ion_unit_charge)
         return u
 
-    def hessian(self, voltages, x, y, z, ion_mass_amu, pseudo=True):
+    def hessian(self, voltages, x, y, z, ion_mass_amu, ion_unit_charge=1, pseudo=True):
         u = np.tensordot(voltages, self.dc_hessians(x, y, z), axes=1)
         if len(self._rf_electrodes) > 0 and pseudo:
-            u += self.pseudo_hessian(x, y, z, ion_mass_amu)
+            u += self.pseudo_hessian(x, y, z, ion_mass_amu, ion_unit_charge)
         return u
 
     @property

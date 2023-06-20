@@ -13,6 +13,7 @@ Split the remaining work in 4 areas
 - analysis:
   - [ ] Remove simulate1d, unify it with simulate 3d using the same mapper as in plotting
   - [ ] move diagonalize and other postprocesing in analysis, rather than in results
+  - [ ] Test for nan values
 - mode_solver:
   - [ ] label modes of chain by projections on potential principal axes
   - [ ] pretty plots of normal modes
