@@ -5,11 +5,12 @@
 # Author: Carmelo Mordini <cmordini@phys.ethz.ch>
 
 import numpy as np
-from typing import Optional
+from typing import Union, Optional
 from nptyping import NDArray
-from pytrans.typing import Coords1, Roi
+from pytrans.typing import Coords1, RoiSize, Bounds
 
 from pytrans.analysis.results import AnalysisResults
+from pytrans.analysis.roi import Roi
 
 from pytrans.abstract_model import AbstractTrapModel
 from pytrans.ions import Ion
@@ -24,7 +25,7 @@ from mpl_toolkits.mplot3d import Axes3D
 
 
 def plot_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: Coords1,
-                   roi: Roi, axes=None, trap_axis='x', pseudo=True, analyse_results: Optional[AnalysisResults] = None, title=''):
+                   roi: Union[RoiSize, Bounds], axes=None, trap_axis='x', pseudo=True, analyse_results: Optional[AnalysisResults] = None, title=''):
 
     if axes is None:
         fig, axes = plot_potential_make_layout(n=1)
@@ -38,19 +39,13 @@ def plot_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: Coo
     mapper = {'trap_x': ix, 'trap_r0': (ix + 1) % 3, 'trap_r1': (ix + 2) % 3}
     mapper_slice = list(mapper.values())
 
-    r0 = np.asarray(r0)
-    x0, y0, z0 = r0[mapper_slice]
+    roi = Roi(roi, r0)
+    x0, y0, z0 = [r0[ix] for ix in mapper_slice]
+    lx, ly, lz = [roi.bounds[ix] for ix in mapper_slice]
 
-    _roi = []
-    for key in ['trap_x', 'trap_r0', 'trap_r1']:
-        lim = roi[mapper[key]]
-        lim = (-lim, lim) if isinstance(lim, (int, float)) else lim
-        _roi.append(lim)
-
-    lx, ly, lz = _roi
-    trap_x = np.linspace(lx[0], lx[1], 61) + x0
-    trap_r0 = np.linspace(ly[0], ly[1], 61) + y0
-    trap_r1 = np.linspace(lz[0], lz[1], 61) + z0
+    trap_x = np.linspace(lx[0], lx[1], 61)
+    trap_r0 = np.linspace(ly[0], ly[1], 61)
+    trap_r1 = np.linspace(lz[0], lz[1], 61)
 
     def _fun(x, y, z):
         return trap.potential(voltages, x, y, z, ion.mass_amu, pseudo=pseudo)
@@ -98,20 +93,16 @@ def plot_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: Coo
     return fig, axes
 
 
-def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: Coords1, roi: Roi,
+def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: Coords1, roi: Union[RoiSize, Bounds],
                      pseudo=True, analyse_results: Optional[AnalysisResults] = None, title=''):
 
     x0, y0, z0 = r0
 
-    _roi = []
-    for lim in roi:
-        lim = (-lim, lim) if isinstance(lim, (int, float)) else lim
-        _roi.append(lim)
-
-    lx, ly, lz = _roi
-    x = np.linspace(lx[0], lx[1], 51) + x0
-    y = np.linspace(ly[0], ly[1], 51) + y0
-    z = np.linspace(lz[0], lz[1], 51) + z0
+    roi = Roi(roi, r0)
+    lx, ly, lz = roi.bounds
+    x = np.linspace(lx[0], lx[1], 61)
+    y = np.linspace(ly[0], ly[1], 61)
+    z = np.linspace(lz[0], lz[1], 61)
 
     # Create the figure and subplots
     fig = plt.figure(figsize=(8, 6))

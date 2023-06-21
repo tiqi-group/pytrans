@@ -12,7 +12,7 @@ from nptyping import NDArray, Shape, Float
 ElectrodeNames = Union[str, List[str]]
 Coords = NDArray[Shape["*, 3"], Float]
 Coords1 = NDArray[Shape["3"], Float]
-Roi = NDArray[Shape["3"], Float]
+RoiSize = Tuple[float]
 Bounds = List[Tuple[float, float]]
 
 Waveform = NDArray[Shape["*, *"], Float]

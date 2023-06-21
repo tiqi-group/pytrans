@@ -13,7 +13,8 @@ from tqdm import tqdm
 from typing import Union, List, Dict, Optional
 from nptyping import NDArray
 
-from pytrans.typing import Coords, Coords1, Roi, Bounds, Waveform
+from pytrans.typing import Coords, Coords1, RoiSize, Bounds, Waveform
+from .roi import Roi
 
 from pytrans.ions import Ion
 from pytrans.timer import timer
@@ -30,12 +31,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 # from itertools import permutations
 
 
-__roi: Roi = np.asarray((400e-6, 30e-6, 30e-6))
 __default_minimize_options = dict(accuracy=1e-8)
-
-
-def _bounds_from_roi(r0: Coords1, roi: Roi) -> Bounds:
-    return [(-r + x, r + x) for x, r in zip(r0, roi)]
 
 
 def _minimize_potential_single_ion(trap: AbstractTrapModel, voltages: NDArray, ion: Ion,
@@ -82,9 +78,10 @@ def _analyse_potential_single_ion(trap: AbstractTrapModel, voltages: NDArray, io
 
 
 def analyse_potential(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Ion, List[Ion]],
-                      r0: Union[Coords1, Coords], ion1: Optional[Ion] = None, find_3dmin=True, pseudo=True,
-                      plot=True, trap_axis='x', axes=None, title='',
-                      roi=None, minimize_options=dict(), verbose=True):
+                      r0: Union[Coords1, Coords], roi: Union[RoiSize, Bounds],
+                      ion1: Optional[Ion] = None, find_3dmin=True, pseudo=True,
+                      plot=True, plot_roi=None, trap_axis='x', axes=None, title='',
+                      minimize_options=dict(), verbose=True):
 
     r0 = np.asarray(r0)
     if isinstance(ions, Ion):
@@ -103,8 +100,8 @@ def analyse_potential(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Io
             ion1 = Ion(f"Average{ions}", mass_amu=avg_mass_amu, unit_charge=1)  # TODO fix this to charge > 1
         _run_mode_solver = True
 
-    roi = __roi if roi is None else roi
-    bounds = _bounds_from_roi(r_cm, roi)
+    roi = Roi(roi, center=r_cm)
+    bounds = roi.bounds
     _minimize_options = __default_minimize_options.copy()
     _minimize_options.update(minimize_options)
     results = _analyse_potential_single_ion(trap, voltages, ion1, r_cm, bounds, pseudo,
@@ -120,7 +117,8 @@ def analyse_potential(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Io
         print(results)
 
     if plot:
-        plot_potential(trap, voltages, ion1, r_cm, roi,
+        plot_roi = roi._size if plot_roi is None else plot_roi
+        plot_potential(trap, voltages, ion1, r_cm, plot_roi,
                        trap_axis=trap_axis, axes=axes, pseudo=pseudo,
                        analyse_results=results, title=title)
 
@@ -128,17 +126,17 @@ def analyse_potential(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Io
 
 
 def analyse_waveform(trap: AbstractTrapModel, waveform: Waveform, ions: Union[Ion, List[Ion]],
-                     r0: Union[Coords1, Coords, List[Union[Coords1, Coords]]],
-                     ion1: Optional[Ion] = None, find_3dmin=True, pseudo=True,
-                     title='',
-                     roi=None, minimize_options=dict(), max_workers=None):
+                     r0: Union[Coords1, Coords], roi: Union[RoiSize, Bounds],
+                     ion1: Optional[Ion] = None, find_3dmin=True, pseudo=True, title='',
+                     minimize_options=dict(), max_workers=None):
 
     results = []
     _kwargs = dict(trap=trap, ions=ions, ion1=ion1, find_3dmin=find_3dmin, pseudo=pseudo, title=title,
                    roi=roi, minimize_options=minimize_options,
                    plot=False, verbose=False)
     L = len(waveform)
-    r0s = r0 if isinstance(r0, (list, tuple)) else [r0] * L
+    r0 = np.asarray(r0)
+    r0s = r0 if r0.ndim > 1 else [r0] * L
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         future_to_result = {
             executor.submit(
