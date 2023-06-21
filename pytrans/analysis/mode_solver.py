@@ -258,11 +258,9 @@ def init_crystal(r0: NDArray[Shape["3"], Float], dx: float, n_ions: int, axis=0,
     Returns:
         Coords (array, shape: (n_ions, 3)): particle positions in a crystal
     """
-    x0, y0, z0 = r0
     X = np.zeros((n_ions, 3), dtype=float)
-    X[:, axis] = np.linspace(-n_ions / 2 * dx, n_ions / 2 * dx, n_ions) + x0
-    X[:, axis - 1] = y0
-    X[:, axis - 2] = z0
+    X[:] = r0
+    X[:, axis] += np.linspace(-n_ions / 2 * dx, n_ions / 2 * dx, n_ions)
     if randomize:
         X += np.random.randn(n_ions, 3) * dx * 1e-2
     return X

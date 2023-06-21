@@ -51,7 +51,7 @@ def solver(objectives: List[Objective],
     costs = []
     cstr = []
 
-    objectives_iter = tqdm(objectives, desc="Compiling step objectives") if verbose else objectives
+    objectives_iter = tqdm(objectives, desc="Compiling objectives") if verbose else objectives
     for obj in objectives_iter:
         if obj.constraint_type is None:
             costs.append(obj.objective())

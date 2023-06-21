@@ -201,14 +201,14 @@ class SymmetryObjective(Objective):
         self.sign = sign
         self.norm = norm
 
-    def objective(self, trap, voltages):
-        diff = voltages[self.index_lhs] - self.sign * voltages[self.index_rhs]
+    def objective(self):
+        diff = self.var[self.index_lhs] - self.sign * self.var[self.index_rhs]
         diff = diff / self.norm
         cost = cx.multiply(self.weight, cx.sum_squares(diff))
         return cost
 
-    def constraint(self, trap, voltages):
-        return self._make_constraint(voltages[self.index_lhs], self.sign * voltages[self.index_rhs])
+    def constraint(self):
+        return self._make_constraint(self.var[self.index_lhs], self.sign * self.var[self.index_rhs])
 
 
 class PotentialObjective(Objective):
