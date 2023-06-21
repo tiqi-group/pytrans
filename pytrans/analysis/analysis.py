@@ -20,7 +20,7 @@ from pytrans.timer import timer
 from pytrans.abstract_model import AbstractTrapModel
 
 from pytrans.plotting import plot_potential
-from .mode_solver import mode_solver, init_crystal
+from .mode_solver import mode_solver, init_crystal, diagonalize_hessian
 from .results import AnalysisResults
 
 from scipy.optimize import minimize
@@ -32,26 +32,6 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 __roi: Roi = np.asarray((400e-6, 30e-6, 30e-6))
 __default_minimize_options = dict(accuracy=1e-8)
-
-
-# def _eig_hessian(H, sort_close_to=None):
-#     h, vs = np.linalg.eig(H)
-#     if sort_close_to is not None:
-#         ix = _sort_close_to(h, sort_close_to)
-#     else:
-#         ix = [np.argmax(abs(vs[0])), np.argmax(abs(vs[1])), np.argmax(abs(vs[2]))]
-#     # ix = np.argsort(abs(h))
-#     h = h[ix]
-#     vs = vs[:, ix]
-#     angle = np.arctan2(1, vs[1, 2] / vs[2, 2]) * 180 / np.pi
-#     return h, vs, angle
-
-
-# def _sort_close_to(x0, x1):
-#     perm = list(map(list, permutations(range(len(x1)))))
-#     diff = np.asarray([x0 - x1[s] for s in perm])
-#     ix = np.argmin((diff**2).sum(1))
-#     return perm[ix]
 
 
 def _bounds_from_roi(r0: Coords1, roi: Roi) -> Bounds:
@@ -93,7 +73,10 @@ def _analyse_potential_single_ion(trap: AbstractTrapModel, voltages: NDArray, io
     jac = trap.gradient(voltages, x_eq[0], x_eq[1], x_eq[2], ion.mass_amu, pseudo=pseudo)
     hess = trap.hessian(voltages, x_eq[0], x_eq[1], x_eq[2], ion.mass_amu, pseudo=pseudo)
 
-    results = AnalysisResults(ion, x_eq, fun, jac, hess, minimize_results, title=title, mode_solver_results=None)
+    mode_freqs, mode_vectors = diagonalize_hessian([ion], hess)
+    mode_vectors = np.squeeze(mode_vectors)
+    results = AnalysisResults(ion, x_eq, fun, jac, hess, mode_freqs, mode_vectors,
+                              minimize_results=minimize_results, title=title, mode_solver_results=None)
 
     return results
 

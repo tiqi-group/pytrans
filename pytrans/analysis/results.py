@@ -6,11 +6,10 @@
 
 
 import numpy as np
-from nptyping import NDArray, Shape, Float
 from typing import List
 from tabulate import tabulate
 
-from pytrans.ions import Ion, atomic_mass, elementary_charge
+from pytrans.ions import Ion
 from pytrans.conversion import field_to_shift
 from colorama import init as colorama_init, Fore
 from scipy.optimize import OptimizeResult
@@ -20,21 +19,6 @@ colorama_init(autoreset=True)
 
 def _color_str(color, str):
     return f"{color}{str:s}{Fore.RESET}"
-
-
-def _diagonalize_hessian(ions: List[Ion], hessian: NDArray[Shape["L, L"], Float]):  # noqa
-    N, d = len(ions), 3
-    masses_amu = np.asarray([ion.mass_amu for ion in ions])
-    masses = np.repeat(masses_amu, d)
-    # H_w = 1 / np.sqrt(np.outer(masses, masses)) * hess  # this results in mass-weighted normal modes
-    H_w = 1 / masses.reshape(-1, 1) * hessian  # standard normal modes
-    h, v = np.linalg.eig(H_w)
-
-    sort = np.abs(h).argsort()
-    h = h[sort]  # shape: (3N,)
-    freqs = np.sign(h) * np.sqrt(elementary_charge / atomic_mass * np.abs(h)) / 2 / np.pi
-    modes = v.T[sort].reshape(N * d, N, d)  # shape: (3N, N, d)
-    return freqs, modes
 
 
 class Results:
@@ -85,9 +69,8 @@ class ModeSolverResults(Results):
         minimize_result: minimization result returned by scipy.minimize
     """
 
-    def __init__(self, ions: List[Ion], x0, x_eq, fun, jac, hess, trap_pot, minimize_results, title=''):
+    def __init__(self, ions: List[Ion], x0, x_eq, fun, jac, hess, mode_freqs, mode_vectors, trap_pot, minimize_results, title=''):
         super().__init__()
-        mode_freqs, mode_vectors = _diagonalize_hessian(ions, hess)
         self.x0 = x0
         self.ions = ions
         self.x_eq = x_eq
@@ -122,10 +105,8 @@ class ModeSolverResults(Results):
 
 class AnalysisResults(Results):
 
-    def __init__(self, ion: Ion, x_eq, fun, jac, hess, minimize_results, title='', mode_solver_results=None):
+    def __init__(self, ion: Ion, x_eq, fun, jac, hess, mode_freqs, mode_vectors, minimize_results, title='', mode_solver_results=None):
         super().__init__()
-        mode_freqs, mode_vectors = _diagonalize_hessian([ion], hess)
-        mode_vectors = np.squeeze(mode_vectors)
         self.ion = ion
         self.x_eq = x_eq
         self.fun = fun
@@ -135,7 +116,7 @@ class AnalysisResults(Results):
         self.mode_freqs = mode_freqs
         self.mode_vectors = mode_vectors
         # TODO: x-axis specific
-        self.mode_angle = np.arctan2(1, mode_vectors[2, 1] / mode_vectors[2, 2]) * 180 / np.pi
+        self.mode_angle = np.arctan2(mode_vectors[2, 2], mode_vectors[2, 1]) * 180 / np.pi
         self.minimize_results = minimize_results
         self.mode_solver_results = mode_solver_results
         self.title = title

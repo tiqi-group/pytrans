@@ -67,21 +67,21 @@ class DCElectrode(Electrode):
 
 class RFElectrode(Electrode):
 
-    def kappa(self, ion_mass_amu, rf_voltage, rf_freq_mhz):
-        return rf_voltage**2 / ion_mass_amu / rf_freq_mhz**2
+    def kappa(self, ion_mass_amu, ion_unit_charge, rf_voltage, rf_freq_mhz):
+        return rf_voltage**2 * ion_unit_charge / ion_mass_amu / rf_freq_mhz**2
 
-    def potential(self, x, y, z, ion_mass_amu, rf_voltage, rf_freq_mhz):
-        kk = self.kappa(ion_mass_amu, rf_voltage, rf_freq_mhz)
+    def potential(self, x, y, z, ion_mass_amu, ion_unit_charge, rf_voltage, rf_freq_mhz):
+        kk = self.kappa(ion_mass_amu, ion_unit_charge, rf_voltage, rf_freq_mhz)
         return kk * self._unit_potential(x, y, z)
 
-    def gradient(self, x, y, z, ion_mass_amu, rf_voltage, rf_freq_mhz):
-        kk = self.kappa(ion_mass_amu, rf_voltage, rf_freq_mhz)
+    def gradient(self, x, y, z, ion_mass_amu, ion_unit_charge, rf_voltage, rf_freq_mhz):
+        kk = self.kappa(ion_mass_amu, ion_unit_charge, rf_voltage, rf_freq_mhz)
         if isinstance(kk, np.ndarray):
             kk = kk[:, np.newaxis]
         return kk * self._unit_gradient(x, y, z)
 
-    def hessian(self, x, y, z, ion_mass_amu, rf_voltage, rf_freq_mhz):
-        kk = self.kappa(ion_mass_amu, rf_voltage, rf_freq_mhz)
+    def hessian(self, x, y, z, ion_mass_amu, ion_unit_charge, rf_voltage, rf_freq_mhz):
+        kk = self.kappa(ion_mass_amu, ion_unit_charge, rf_voltage, rf_freq_mhz)
         if isinstance(kk, np.ndarray):
             kk = kk[:, np.newaxis, np.newaxis]
         return kk * self._unit_hessian(x, y, z)

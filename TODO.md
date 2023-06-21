@@ -6,11 +6,14 @@ Split the remaining work in 4 areas
 
 - [x] Classical simulator
 - [x] Decent plotting API, independent from trap axes orientation
+- [x] waveform generation: merge Yuto's contributions
+- [x] Move trap filter to "Waveform transform" API
 - [ ] Decide for the good on function signatures
-- [ ] waveform generation: merge Yuto's contributions
+- [ ] Waveform container class?
 - analysis:
   - [ ] Remove simulate1d, unify it with simulate 3d using the same mapper as in plotting
   - [ ] move diagonalize and other postprocesing in analysis, rather than in results
+  - [ ] Test for nan values
 - mode_solver:
   - [ ] label modes of chain by projections on potential principal axes
   - [ ] pretty plots of normal modes
@@ -19,7 +22,6 @@ Split the remaining work in 4 areas
   - [ ] save/load results
   - [ ] plot from results
   - [ ] SimulationResult container class?
-  - [ ] Waveform container class?
 
 ## Examples
 

@@ -17,7 +17,7 @@ from pytrans.ions import Ion
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 from matplotlib.colorbar import make_axes
-from matplotlib.patches import Ellipse, Arrow
+from matplotlib import patches as mpc
 from matplotlib import transforms
 
 from mpl_toolkits.mplot3d import Axes3D
@@ -196,24 +196,33 @@ def plot_mode_vectors(ax, res: AnalysisResults, mapper):
     mode_freqs = res.mode_freqs
     mode_vectors = res.mode_vectors
     indices = [mapper['trap_r0'], mapper['trap_r1']]
-    v1 = mode_vectors[indices[0], indices]
-    v2 = mode_vectors[indices[1], indices]
     r0c, r1c = r0[indices]
-    f1, f2 = mode_freqs[indices]
-    f0 = np.sqrt(abs(f1 * f2))
-    angle = np.arctan2(1, v2[0] / v2[1]) * 180 / np.pi
     fig = ax.figure
     tr = fig.dpi_scale_trans + transforms.ScaledTranslation(r0c * 1e6, r1c * 1e6, ax.transData)
 
-    circle = Ellipse((0, 0), f0 / f1, f0 / f2, angle=90 + angle,
-                     fill=None, transform=tr, color='C0')
-    ax.add_patch(circle)
+    # v1 = mode_vectors[indices[0], indices]
+    # v2 = mode_vectors[2][indices]
+    # f1, f2 = mode_freqs[indices]
+    # f0 = np.sqrt(abs(f1 * f2))
+    # angle = np.arctan2(v2[1], v2[0]) * 180 / np.pi
+    # circle = mpc.Ellipse((0, 0), f0 / f1, f0 / f2, angle=90 + angle,
+    #                  fill=None, transform=tr, color='C0')
+    # ax.add_patch(circle)
+
+    # a1 = Arrow(0, 0, *v1 * f0 / f1, **arrow_kwargs)
+    # ax.add_patch(a1)
+    # a2 = Arrow(0, 0, *v2 * f0 / f2, **arrow_kwargs)
+    # ax.add_patch(a2)
 
     arrow_kwargs = dict(width=0.2, transform=tr)
-    a1 = Arrow(0, 0, *v1 * f0 / f1, **arrow_kwargs)
-    ax.add_patch(a1)
-    a2 = Arrow(0, 0, *v2 * f0 / f2, **arrow_kwargs)
-    ax.add_patch(a2)
+    f0 = pow(abs(np.prod(mode_freqs)), 1 / len(mode_freqs))
+    f_scale = f0 / mode_freqs
+    # f_scale = f_scale / f_scale.max()
+    for j, (f, v) in enumerate(zip(f_scale, mode_vectors)):
+        v = v[indices]
+        a1 = mpc.Arrow(0, 0, *v * f, color=f"C{j}", **arrow_kwargs, label=f"{mode_freqs[j]*1e-6:.2f} MHz")
+        ax.add_patch(a1)
+    ax.legend(fontsize=9)
 
 
 def plot_rf_null(ax, rf_null_coords, mapper):
