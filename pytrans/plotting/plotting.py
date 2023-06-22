@@ -5,7 +5,7 @@
 # Author: Carmelo Mordini <cmordini@phys.ethz.ch>
 
 import numpy as np
-from typing import Union, Optional
+from typing import Union, List, Optional
 from nptyping import NDArray
 from pytrans.typing import Coords1, RoiSize, Bounds
 
@@ -18,6 +18,7 @@ from pytrans.ions import Ion
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 from matplotlib.colorbar import make_axes
+from matplotlib.lines import Line2D
 from matplotlib import patches as mpc
 from matplotlib import transforms
 
@@ -68,9 +69,11 @@ def plot_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: Coo
     c0 = ax_im.contour(trap_r0 * 1e6, trap_r1 * 1e6, ps, 30)
     try:
         # plt.colorbar(c0, ax=ax_im)
-        ax_cb, kk = make_axes(ax0, fraction=0.25, aspect=10)
+        ax_cb, kk = make_axes(ax0, fraction=0.25, aspect=10, location='left')
         plt.colorbar(c0, cax=ax_cb, **kk)
-        ax_cb.yaxis.set_ticks_position('left')
+        # ax_cb.locator_params(nbins=1)
+        # ax_cb.yaxis.set_ticks_position('left')
+        ax_cb.set_yticks([])
 
     except Exception:
         pass
@@ -164,22 +167,29 @@ def plot_ion_positions(axes, res: AnalysisResults, mapper=None):
         x1, r0, r1 = res.x_eq[mapper_slice]
         r0c, r1c = r0, r1
         f1 = res.fun
+        ions = [res.ion]
     else:
-        x1, r0, r1 = res.mode_solver_results.x_eq[:, mapper_slice].T
+        mres = res.mode_solver_results
+        x1, r0, r1 = mres.x_eq[:, mapper_slice].T
         _, r0c, r1c = res.x_eq[mapper_slice]
-        f1 = res.mode_solver_results.trap_pot
+        f1 = mres.trap_pot
+        ions = mres.ions
+
+    colors = [_get_ion_color(ion) for ion in ions]
+    marker_kw = dict(c=colors, zorder=99)
 
     # mark ion(s) positions
-    marker_kw = dict(marker='o', mfc='r', mec='r', ls='')
     if isinstance(axes, Axes3D):
-        axes.plot(x1 * 1e6, r0 * 1e6, r1 * 1e6, **marker_kw)
+        axes.scatter(x1 * 1e6, r0 * 1e6, r1 * 1e6, **marker_kw)
+        _make_ions_legend(axes, ions)
     else:
         ax_x, ax_r0, ax_r1, ax_im, ax0 = axes
 
-        ax_x.plot(x1 * 1e6, f1, **marker_kw)
-        ax_r0.plot(r0 * 1e6, f1, **marker_kw)
-        ax_r1.plot(f1, r1 * 1e6, **marker_kw)
-        ax_im.plot(r0 * 1e6, r1 * 1e6, **marker_kw)
+        ax_x.scatter(x1 * 1e6, f1, **marker_kw)
+        ax_r0.scatter(r0 * 1e6, f1, **marker_kw)
+        ax_r1.scatter(f1, r1 * 1e6, **marker_kw)
+        ax_im.scatter(r0 * 1e6, r1 * 1e6, **marker_kw)
+        _make_ions_legend(ax_x, ions, loc='upper left')
 
 
 def plot_mode_vectors(ax, res: AnalysisResults, mapper):
@@ -308,3 +318,24 @@ def _make_format(current, other):
         x1, y1 = inv.transform(display_coord)
         return f"x: {x:.2f}    freq: {y1:.2f}    angle: {y:.2f}"
     return format_coord
+
+
+_ion_colors = {
+    'Ca40': 'C3',
+    'Be9': 'C0',
+    'Mg24': 'cyan',
+    'Ba138': 'purple',
+    'Yb171': 'darkgray'
+}
+
+
+def _get_ion_color(ion: Ion):
+    return _ion_colors.get(str(ion), 'black')
+
+
+def _make_ions_legend(ax, ions: List[Ion], **kwargs):
+    handles = []
+    for ion in set(ions):
+        color = _get_ion_color(ion)
+        handles.append(Line2D([0], [0], color=color, marker='o', ls='', label=str(ion)))
+    ax.legend(handles=handles, **kwargs)

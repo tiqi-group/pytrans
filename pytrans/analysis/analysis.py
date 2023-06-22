@@ -56,8 +56,7 @@ def _analyse_potential_single_ion(trap: AbstractTrapModel, voltages: NDArray, io
                                   verbose: bool, title: str):
 
     if find_3dmin:
-        # TODO should use the mode solver directly here? Something like
-        # res = mode_solver(trap, voltages, ions=ion, x0=np.asarray(r0).reshape(1, -1), bounding_box=bounds)
+        r0 += np.random.randn(*r0.shape) * 1e-8
         minimize_results = _minimize_potential_single_ion(trap, voltages, ion, r0, bounds, pseudo,
                                                           minimize_options, verbose)
         x_eq = minimize_results.x

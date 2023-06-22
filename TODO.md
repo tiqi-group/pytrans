@@ -25,7 +25,19 @@ Split the remaining work in 4 areas
 
 ## Examples
 
-- [ ] Make sure there's at least one example for each use case discussed on the paper
+Make sure there's at least one example for each use case discussed on the paper
+
+- [ ] 01 - static potential SegmentedTrap
+- [ ] 02 - Be-Ca-Ca-Be crystal in the previous potential
+- [ ] 03 - transport SurfaceTrap
+- [ ] 04 - 3d simulation of transport (same section)
+
+not in the paper
+
+- [ ] 05 - double well
+- [ ] 06 - mode solver with HarmonicTrap and Yb ion string
+- [ ] 07 - filter-compensated sawtooth
+- [ ] 08 - showcase plotting
 
 ## Paper - me, for the moment
 
