@@ -116,8 +116,9 @@ def analyse_potential(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Io
         print(results)
 
     if plot:
+        r0 = results.x_eq
         plot_roi = roi._size if plot_roi is None else plot_roi
-        plot_potential(trap, voltages, ion1, r_cm, plot_roi,
+        plot_potential(trap, voltages, ion1, r0, plot_roi,
                        trap_axis=trap_axis, axes=axes, pseudo=pseudo,
                        analyse_results=results, title=title)
 

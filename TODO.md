@@ -8,17 +8,17 @@ Split the remaining work in 4 areas
 - [x] Decent plotting API, independent from trap axes orientation
 - [x] waveform generation: merge Yuto's contributions
 - [x] Move trap filter to "Waveform transform" API
-- [ ] Decide for the good on function signatures
+- [x] Decide for the good on function signatures
 - [ ] Waveform container class?
 - analysis:
   - [ ] Remove simulate1d, unify it with simulate 3d using the same mapper as in plotting
-  - [ ] move diagonalize and other postprocesing in analysis, rather than in results
+  - [x] move diagonalize and other postprocesing in analysis, rather than in results
   - [ ] Test for nan values
 - mode_solver:
   - [ ] label modes of chain by projections on potential principal axes
   - [ ] pretty plots of normal modes
 - Results:
-  - [ ] make Result classes only container
+  - [x] make Result classes only container
   - [ ] save/load results
   - [ ] plot from results
   - [ ] SimulationResult container class?
@@ -27,17 +27,16 @@ Split the remaining work in 4 areas
 
 Make sure there's at least one example for each use case discussed on the paper
 
-- [ ] 01 - static potential SegmentedTrap
-- [ ] 02 - Be-Ca-Ca-Be crystal in the previous potential
-- [ ] 03 - transport SurfaceTrap
-- [ ] 04 - 3d simulation of transport (same section)
+- [ ] 01 - static potential SegmentedTrap with Be-Ca-Ca-Be crystal
+- [ ] 02 - transport SurfaceTrap
+- [ ] 03 - 3d simulation of transport (same section)
 
 not in the paper
 
-- [ ] 05 - double well
-- [ ] 06 - mode solver with HarmonicTrap and Yb ion string
-- [ ] 07 - filter-compensated sawtooth
-- [ ] 08 - showcase plotting
+- [ ] 04 - double well potential
+- [ ] 05 - mode solver with HarmonicTrap and long ion strings (James / Monroe papers)
+- [ ] 06 - filter-compensated sawtooth
+- [ ] 07 - showcase plotting
 
 ## Paper - me, for the moment
 
