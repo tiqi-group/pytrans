@@ -234,9 +234,9 @@ def diagonalize_hessian(ions: List[Ion], hessian: NDArray[Shape["L, L"], Float])
     N, d = len(ions), 3
     masses_amu = np.asarray([ion.mass_amu for ion in ions])
     masses = np.repeat(masses_amu, d)
-    # H_w = 1 / np.sqrt(np.outer(masses, masses)) * hess  # this results in mass-weighted normal modes
-    H_w = 1 / masses.reshape(-1, 1) * hessian  # standard normal modes
-    h, v = np.linalg.eig(H_w)
+    H_w = 1 / np.sqrt(np.outer(masses, masses)) * hessian  # this results in mass-weighted normal modes
+    # H_w = 1 / masses.reshape(-1, 1) * hessian  # standard normal modes
+    h, v = np.linalg.eigh(H_w)
 
     sort = np.abs(h).argsort()
     h = h[sort]  # shape: (3N,)

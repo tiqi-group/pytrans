@@ -176,12 +176,14 @@ def plot_ion_positions(axes, res: AnalysisResults, mapper=None):
         ions = mres.ions
 
     colors = [_get_ion_color(ion) for ion in ions]
+    # m_min = min([ion.mass_amu for ion in ions])
+    # sizes = [(ion.mass_amu / m_min) * plt.rcParams['lines.markersize'] ** 2 for ion in ions]
     marker_kw = dict(c=colors, zorder=99)
 
     # mark ion(s) positions
     if isinstance(axes, Axes3D):
         axes.scatter(x1 * 1e6, r0 * 1e6, r1 * 1e6, **marker_kw)
-        _make_ions_legend(axes, ions)
+        _add_ions_legend(axes, ions)
     else:
         ax_x, ax_r0, ax_r1, ax_im, ax0 = axes
 
@@ -189,7 +191,7 @@ def plot_ion_positions(axes, res: AnalysisResults, mapper=None):
         ax_r0.scatter(r0 * 1e6, f1, **marker_kw)
         ax_r1.scatter(f1, r1 * 1e6, **marker_kw)
         ax_im.scatter(r0 * 1e6, r1 * 1e6, **marker_kw)
-        _make_ions_legend(ax_x, ions, loc='upper left')
+        _add_ions_legend(ax_x, ions, loc='upper left')
 
 
 def plot_mode_vectors(ax, res: AnalysisResults, mapper):
@@ -321,19 +323,22 @@ def _make_format(current, other):
 
 
 _ion_colors = {
-    'Ca40': 'C3',
-    'Be9': 'C0',
-    'Mg24': 'cyan',
-    'Ba138': 'purple',
-    'Yb171': 'darkgray'
+    'Ca40': 'tab:blue',
+    'Be9': 'tab:red',
+    'Mg24': 'tab:cyan',
+    'Ba138': 'tab:purple',
+    'Yb171': 'tab:gray'
 }
 
 
 def _get_ion_color(ion: Ion):
-    return _ion_colors.get(str(ion), 'black')
+    if hasattr(ion, 'color'):
+        return ion.color
+    else:
+        return _ion_colors.get(str(ion), 'black')
 
 
-def _make_ions_legend(ax, ions: List[Ion], **kwargs):
+def _add_ions_legend(ax, ions: List[Ion], **kwargs):
     handles = []
     for ion in set(ions):
         color = _get_ion_color(ion)

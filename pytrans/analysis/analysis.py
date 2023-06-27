@@ -82,7 +82,7 @@ def analyse_potential(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Io
                       plot=True, plot_roi=None, trap_axis='x', axes=None, title='',
                       minimize_options=dict(), verbose=True):
 
-    r0 = np.asarray(r0)
+    r0 = np.asarray(r0, dtype=float)
     if isinstance(ions, Ion):
         ion1 = ions
         r_cm = r0
