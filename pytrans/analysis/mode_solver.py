@@ -97,7 +97,7 @@ def coulomb_hessian(X: Coords):
 
 
 def mode_solver(trap: AbstractTrapModel, voltages: NDArray, ions: List[Ion],
-                x0: Coords, bounds=None, minimize_options=dict()) -> ModeSolverResults:
+                x0: Coords, bounds=None, sort_axis=None, minimize_options=dict()) -> ModeSolverResults:
     N, d = x0.shape
     # ions = [ions] * N if isinstance(ions, Ion) else ions
     masses_amu = np.asarray([ion.mass_amu for ion in ions])
@@ -150,6 +150,11 @@ def mode_solver(trap: AbstractTrapModel, voltages: NDArray, ions: List[Ion],
     trap_pot = trap.potential(voltages, *x_eq.T, masses_amu)
     hess = hess(res.x)
     mode_freqs, mode_vectors = diagonalize_hessian(ions, hess)
+
+    if sort_axis is not None:
+        ix = np.argsort(x_eq[:, 0])
+        x_eq = x_eq[ix]
+        mode_vectors = mode_vectors[:, ix, :]
 
     result = ModeSolverResults(ions=ions, x0=x0, x_eq=x_eq,
                                fun=res.fun, jac=res.jac, hess=hess,

@@ -130,7 +130,7 @@ def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: C
     # ax.plot_surface(X, Y, Z, cmap='viridis')
 
     # Plot the contour slices along the principal axes on the walls
-    _kwargs = dict(levels=30, cmap='coolwarm', alpha=0.65)
+    _kwargs = dict(levels=30, cmap='coolwarm', alpha=0.65, zorder=-1)
 
     X, Y = np.meshgrid(x, y)
     xy_slice = _fun(X, Y, z0)
@@ -323,8 +323,8 @@ def _make_format(current, other):
 
 
 _ion_colors = {
-    'Ca40': 'tab:blue',
-    'Be9': 'tab:red',
+    'Ca40': 'tab:red',
+    'Be9': 'tab:blue',
     'Mg24': 'tab:cyan',
     'Ba138': 'tab:purple',
     'Yb171': 'tab:gray'

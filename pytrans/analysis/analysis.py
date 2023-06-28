@@ -90,10 +90,11 @@ def analyse_potential(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Io
     else:
         if r0.ndim == 1:
             r_cm = r0
-            _x = 'xyz'.index(trap_axis)
-            r0 = init_crystal(r0, dx=5e-6, n_ions=len(ions), axis=_x)
+            _axis = 'xyz'.index(trap_axis)
+            r0 = init_crystal(r0, dx=5e-6, n_ions=len(ions), axis=_axis)
         else:
             r_cm = r0.mean(axis=0)
+            _axis = None
         if ion1 is None:
             avg_mass_amu = np.asarray([_ion.mass_amu for _ion in ions]).mean()
             ion1 = Ion(f"Average{ions}", mass_amu=avg_mass_amu, unit_charge=1)  # TODO fix this to charge > 1
@@ -107,7 +108,7 @@ def analyse_potential(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Io
                                             find_3dmin, _minimize_options, verbose, title)
 
     if _run_mode_solver:
-        res = mode_solver(trap, voltages, ions, r0, bounds, _minimize_options)
+        res = mode_solver(trap, voltages, ions, r0, bounds, _axis, _minimize_options)
         results.mode_solver_results = res
     else:
         results.mode_solver_results = None
