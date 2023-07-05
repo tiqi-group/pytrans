@@ -11,22 +11,19 @@ Module docstring
 import cvxpy as cx
 from .objectives import Objective
 from typing import List
-
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from tqdm import tqdm
 import multiprocessing
 # import concurrent.futures
 
 
-def process_obj_cstr(voltages, ci, trap):
-    costs = []
-    cstr = []
-    for cj in ci:
-        if cj.constraint_type is None:
-            costs.extend(cj.objective(trap, voltages))
-        else:
-            cstr.extend(cj.constraint(trap, voltages))
-    return costs, cstr
+def _process_objective(obj: Objective):
+    if obj.constraint_type is None:
+        res = obj.objective()
+    else:
+        res = obj.constraint()
+    return obj.constraint_type, res
 
 
 def init_waveform(n_samples, n_electrodes, name='Waveform'):
@@ -51,25 +48,37 @@ def solver(objectives: List[Objective],
     costs = []
     cstr = []
 
-    objectives_iter = tqdm(objectives, desc="Compiling objectives") if verbose else objectives
-    for obj in objectives_iter:
-        if obj.constraint_type is None:
-            costs.append(obj.objective())
-        else:
-            cstr.append(obj.constraint())
+    # objectives_iter = tqdm(objectives, desc="Compiling objectives") if verbose else objectives
+    # for obj in objectives_iter:
+    #     if obj.constraint_type is None:
+    #         costs.append(obj.objective())
+    #     else:
+    #         cstr.append(obj.constraint())
+    with ProcessPoolExecutor(max_workers=None) as executor:
+        futures = [
+            executor.submit(_process_objective, obj) for obj in objectives
+        ]
+        for future in tqdm(as_completed(futures), total=len(objectives), desc="Compiling objectives"):
+            constraint_type, result = future.result()
+            if constraint_type is None:
+                costs.append(result)
+            else:
+                cstr.append(result)
 
     cost = sum(costs)
     objective = cx.Minimize(cost)
     problem = cx.Problem(objective, cstr)
 
+    solver_kwargs = {}
     if solver == "MOSEK":
         # mosek_params = {}
         mosek_params = {
             "MSK_IPAR_NUM_THREADS": multiprocessing.cpu_count(),
             # "MSK_IPAR_INFEAS_REPORT_AUTO": "MSK_ON"
         }
+        solver_kwargs['mosek_params'] = mosek_params
 
-    problem.solve(solver=solver, warm_start=True, verbose=verbose, mosek_params=mosek_params)
+    problem.solve(solver=solver, warm_start=True, verbose=verbose, **solver_kwargs)
 
     final_costs = []
     # for voltages, ci in zip(waveform, step_objectives):
@@ -81,7 +90,7 @@ def solver(objectives: List[Objective],
     # })
     results = {
         'problem': problem,
-        'çost': cost,
+        'cost': cost,
         'final_costs': final_costs
     }
 
