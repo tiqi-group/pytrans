@@ -7,7 +7,7 @@
 '''
 Module docstring
 '''
-
+import numpy as np
 import cvxpy as cx
 from .objectives import Objective
 from typing import List
@@ -30,10 +30,67 @@ def init_waveform(n_samples, n_electrodes, name='Waveform'):
     return cx.Variable((n_samples, n_electrodes), name=name)
 
 
+def _compile_objectives(objectives: List[Objective], verbose=True, parallel_compile=True):
+    # static voltage cost
+    costs = []
+    constraints = []
+
+    if parallel_compile:
+        with ProcessPoolExecutor(max_workers=None) as executor:
+            futures = [
+                executor.submit(_process_objective, obj) for obj in objectives
+            ]
+            futures_iter = tqdm(as_completed(futures), total=len(objectives), desc="Compiling objectives") if verbose else as_completed(futures)
+            for future in futures_iter:
+                constraint_type, result = future.result()
+                if constraint_type is None:
+                    costs.append(result)
+                else:
+                    constraints.append(result)
+    else:
+        objectives_iter = tqdm(objectives, desc="Compiling objectives") if verbose else objectives
+        for obj in objectives_iter:
+            if obj.constraint_type is None:
+                costs.append(obj.objective())
+            else:
+                constraints.append(obj.constraint())
+
+    return costs, constraints
+
+
+def _solve(costs: list, constraints: list, solver="MOSEK", verbose=True, solver_kwargs={}):
+    cost = cx.sum(costs)
+    objective = cx.Minimize(cost)
+    problem = cx.Problem(objective, constraints)
+
+    _kwargs = {}
+    if solver == "MOSEK":
+        mosek_params = {
+            "MSK_IPAR_NUM_THREADS": multiprocessing.cpu_count(),
+            # "MSK_IPAR_INFEAS_REPORT_AUTO": "MSK_ON"
+        }
+        _kwargs['mosek_params'] = mosek_params
+    _kwargs.update(solver_kwargs)
+    problem.solve(solver=solver, warm_start=True, verbose=verbose, **_kwargs)
+    waveform = problem.variables()[0]
+    # test that all variables propagated in the problem actually share the same information
+    assert all(v.id == waveform.id for v in problem.variables())
+    assert all(np.all(v.value == waveform.value) for v in problem.variables())
+
+    results = {
+        'waveform': waveform,
+        'problem': problem,
+        'costs': costs,
+        'constraints': constraints
+    }
+
+    return results
+
+
 def solver(objectives: List[Objective],
            #    extra_constraints: List[Any] = None,
            #    trap_filter: Optional[TrapFilterTransform] = None,
-           solver="MOSEK", verbose=True):
+           solver="MOSEK", verbose=True, parallel_compile=True):
     """Static solver
 
         Args:
@@ -42,56 +99,7 @@ def solver(objectives: List[Objective],
 
         Returns:
         waveform: shape = (num_timesteps, num_electrodes)
-        """
-
-    # static voltage cost
-    costs = []
-    cstr = []
-
-    # objectives_iter = tqdm(objectives, desc="Compiling objectives") if verbose else objectives
-    # for obj in objectives_iter:
-    #     if obj.constraint_type is None:
-    #         costs.append(obj.objective())
-    #     else:
-    #         cstr.append(obj.constraint())
-    with ProcessPoolExecutor(max_workers=None) as executor:
-        futures = [
-            executor.submit(_process_objective, obj) for obj in objectives
-        ]
-        for future in tqdm(as_completed(futures), total=len(objectives), desc="Compiling objectives"):
-            constraint_type, result = future.result()
-            if constraint_type is None:
-                costs.append(result)
-            else:
-                cstr.append(result)
-
-    cost = sum(costs)
-    objective = cx.Minimize(cost)
-    problem = cx.Problem(objective, cstr)
-
-    solver_kwargs = {}
-    if solver == "MOSEK":
-        # mosek_params = {}
-        mosek_params = {
-            "MSK_IPAR_NUM_THREADS": multiprocessing.cpu_count(),
-            # "MSK_IPAR_INFEAS_REPORT_AUTO": "MSK_ON"
-        }
-        solver_kwargs['mosek_params'] = mosek_params
-
-    problem.solve(solver=solver, warm_start=True, verbose=verbose, **solver_kwargs)
-
-    final_costs = []
-    # for voltages, ci in zip(waveform, step_objectives):
-    #     final_costs.append({
-    #         f"{j}_{cj.__class__.__name__}": [c for c in cj.objective(trap, voltages)] for j, cj in enumerate(ci)
-    #     })
-    # final_costs.append({
-    #     f"{j}_global_{cj.__class__.__name__}": [c for c in cj.objective(trap, waveform)] for j, cj in enumerate(global_objectives)
-    # })
-    results = {
-        'problem': problem,
-        'cost': cost,
-        'final_costs': final_costs
-    }
-
+    """
+    costs, constraints = _compile_objectives(objectives, verbose, parallel_compile)
+    results = _solve(costs, constraints, solver, verbose)
     return results

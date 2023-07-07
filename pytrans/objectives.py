@@ -122,16 +122,17 @@ class VoltageObjective(Objective):
         """
         super().__init__(var, weight, constraint_type)
         self.value = value
+        self.electrodes = electrodes
         if electrodes is not None:
             if trap is None:
                 raise ValueError("A `trap` argument is required together with `electrodes`")
-            self.index = get_electrode_index(electrodes, trap, var.ndim)
+            self._index = get_electrode_index(electrodes, trap, var.ndim)
         else:
-            self.index = slice(None)
+            self._index = slice(None)
         self.local_weights = local_weights
 
     def objective(self):
-        voltages = self.var[self.index]
+        voltages = self.var[self._index]
         diff = voltages - self.value
         if self.local_weights is not None:
             diff = cx.multiply(np.sqrt(self.local_weights), diff)
@@ -139,7 +140,7 @@ class VoltageObjective(Objective):
         return cost
 
     def constraint(self):
-        voltages = self.var[self.index]
+        voltages = self.var[self._index]
         return self._make_constraint(voltages, self.value)
 
 
@@ -196,19 +197,21 @@ class SymmetryObjective(Objective):
                  sign: float = 1.0, norm: float = 1.0, weight: float = 1.0, constraint_type: Optional[str] = None):
         super().__init__(var, weight, constraint_type)
         self.trap = trap
-        self.index_lhs = get_electrode_index(electrodes_lhs, trap, var.ndim)
-        self.index_rhs = get_electrode_index(electrodes_rhs, trap, var.ndim)
+        self.electrodes_lhs = electrodes_lhs
+        self.electrodes_rhs = electrodes_rhs
         self.sign = sign
         self.norm = norm
+        self._index_lhs = get_electrode_index(electrodes_lhs, trap, var.ndim)
+        self._index_rhs = get_electrode_index(electrodes_rhs, trap, var.ndim)
 
     def objective(self):
-        diff = self.var[self.index_lhs] - self.sign * self.var[self.index_rhs]
+        diff = self.var[self._index_lhs] - self.sign * self.var[self._index_rhs]
         diff = diff / self.norm
         cost = cx.multiply(self.weight, cx.sum_squares(diff))
         return cost
 
     def constraint(self):
-        return self._make_constraint(self.var[self.index_lhs], self.sign * self.var[self.index_rhs])
+        return self._make_constraint(self.var[self._index_lhs], self.sign * self.var[self._index_rhs])
 
 
 class PotentialObjective(Objective):
@@ -316,14 +319,15 @@ class GradientObjective(Objective):
         self.value = value
         self.pseudo = pseudo
         self.norm = norm
-        self.entries = slice(None) if entries is None else get_derivative(entries)
+        self.entries = entries
 
     def objective(self):
         # resulting shape is (3, len(x))
         pot = self.var @ self.trap.dc_gradients(*self.xyz)
         if self.pseudo:
             pot += self.trap.pseudo_gradient(*self.xyz, self.ion.mass_amu)
-        pot = pot[self.entries]
+        if self.entries is not None:
+            pot = pot[get_derivative(self.entries)]
         diff = (pot - self.value) / self.norm
         cost = cx.multiply(self.weight, cx.sum_squares(diff))
         return cost
@@ -332,7 +336,8 @@ class GradientObjective(Objective):
         pot = self.var @ self.trap.dc_gradients(*self.xyz)
         if self.pseudo:
             pot += self.trap.pseudo_gradient(*self.xyz, self.ion.mass_amu)
-        pot = pot[self.entries]
+        if self.entries is not None:
+            pot = pot[get_derivative(self.entries)]
         return self._make_constraint(pot, self.value)
 
 
@@ -380,14 +385,15 @@ class HessianObjective(Objective):
         self.value = value
         self.pseudo = pseudo
         self.norm = norm
-        self.entries = slice(None) if entries is None else get_derivative(entries)
+        self.entries = entries
 
     def objective(self):
         nv = self.var.shape[-1]
         pot = self.var @ self.trap.dc_hessians(*self.xyz).reshape(nv, 9)
         if self.pseudo:
             pot += self.trap.pseudo_hessian(*self.xyz, self.ion.mass_amu).reshape(9)
-        pot = pot[self.entries]
+        if self.entries is not None:
+            pot = pot[get_derivative(self.entries)]
         diff = (pot - self.value) / self.norm
         cost = cx.multiply(self.weight, cx.sum_squares(diff))
         return cost
@@ -397,7 +403,8 @@ class HessianObjective(Objective):
         pot = self.var @ self.trap.dc_hessians(*self.xyz).reshape(nv, 9)
         if self.pseudo:
             pot += self.trap.pseudo_hessian(*self.xyz, self.ion.mass_amu).reshape(9)
-        pot = pot[self.entries]
+        if self.entries is not None:
+            pot = pot[get_derivative(self.entries)]
         return self._make_constraint(pot, self.value)
 
 
