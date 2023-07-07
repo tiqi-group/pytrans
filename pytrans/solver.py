@@ -12,6 +12,7 @@ import cvxpy as cx
 from .objectives import Objective
 from typing import List
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from dataclasses import dataclass
 
 from tqdm import tqdm
 import multiprocessing
@@ -28,6 +29,14 @@ def _process_objective(obj: Objective):
 
 def init_waveform(n_samples, n_electrodes, name='Waveform'):
     return cx.Variable((n_samples, n_electrodes), name=name)
+
+
+@dataclass(frozen=True)
+class SolverResults:
+    waveform: cx.Variable
+    problem: cx.Problem
+    costs: list[cx.Expression]
+    constraints: list[cx.Constraint]
 
 
 def _compile_objectives(objectives: List[Objective], verbose=True, parallel_compile=True):
@@ -71,26 +80,20 @@ def _solve(costs: list, constraints: list, solver="MOSEK", verbose=True, solver_
         }
         _kwargs['mosek_params'] = mosek_params
     _kwargs.update(solver_kwargs)
-    problem.solve(solver=solver, warm_start=True, verbose=verbose, **_kwargs)
+    problem.solve(solver=solver, warm_start=False, verbose=verbose, **_kwargs)
     waveform = problem.variables()[0]
     # test that all variables propagated in the problem actually share the same information
     assert all(v.id == waveform.id for v in problem.variables())
     assert all(np.all(v.value == waveform.value) for v in problem.variables())
 
-    results = {
-        'waveform': waveform,
-        'problem': problem,
-        'costs': costs,
-        'constraints': constraints
-    }
-
+    results = SolverResults(waveform, problem, costs, constraints)
     return results
 
 
 def solver(objectives: List[Objective],
            #    extra_constraints: List[Any] = None,
            #    trap_filter: Optional[TrapFilterTransform] = None,
-           solver="MOSEK", verbose=True, parallel_compile=True):
+           solver="MOSEK", verbose=True, parallel_compile=True) -> SolverResults:
     """Static solver
 
         Args:
