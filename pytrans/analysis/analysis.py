@@ -20,7 +20,7 @@ from pytrans.ions import Ion
 from pytrans.timer import timer
 from pytrans.abstract_model import AbstractTrapModel
 
-from pytrans.plotting import plot_potential
+from pytrans.plotting.plotting import plot_potential
 from .mode_solver import mode_solver, init_crystal, diagonalize_hessian
 from .results import AnalysisResults
 
@@ -87,6 +87,7 @@ def analyse_potential(trap: AbstractTrapModel, voltages: NDArray, ions: Union[Io
         ion1 = ions
         r_cm = r0
         _run_mode_solver = False  # is there a better way to do this?
+        _axis = None
     else:
         if r0.ndim == 1:
             r_cm = r0

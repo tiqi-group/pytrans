@@ -17,8 +17,10 @@ class Roi:
             b = size[j]
             if isinstance(b, (tuple, list)) and len(b) == 2:
                 pass
-            elif isinstance(b, float):
-                b = (-b + center[j], b + center[j])
+            elif isinstance(b, (int, float)):
+                if center is None:
+                    raise ValueError("center argument is required")
+                b = (-float(b) + center[j], float(b) + center[j])
             else:
                 raise ValueError(f"Wrong entry in roi.size[{j}]")
             self._bounds.append(b)

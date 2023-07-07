@@ -78,6 +78,14 @@ def plot_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: Coo
     except Exception:
         pass
 
+    # mark r0
+    f1 = _fun(x0, y0, z0)
+    marker_kw = dict(marker='+', c='k', zorder=89)
+    ax_x.scatter(x0 * 1e6, f1, **marker_kw)
+    ax_r0.scatter(y0 * 1e6, f1, **marker_kw)
+    ax_r1.scatter(f1, z0 * 1e6, **marker_kw)
+    ax_im.scatter(y0 * 1e6, z0 * 1e6, **marker_kw)
+
     # mark RF null
     try:
         plot_rf_null(ax_im, trap.rf_null_coords, mapper)
