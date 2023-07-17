@@ -92,6 +92,51 @@ class Objective(ABC):
                 f"Wrong constraint type defined: {self.constraint_type}") from e
 
 
+class VariableObjective(Objective):
+
+    def __init__(self, var: cx.Variable,
+                 value: Union[ArrayLike, Literal["minimize", "maximize"]],
+                 weight: float = 1.0, constraint_type: Optional[str] = None):
+        r"""Implements an Objective for a generic optimization variable
+
+        Cost
+            if value has a numerical value $v$:
+                $$ \mathcal{C} = w\, \left( v - x \right)^2. $$
+            if value == 'minimize':
+                $$ \mathcal{C} = v. $$
+            if value == 'maximize':
+                $$ \mathcal{C} = -v. $$
+
+        Constraint
+            $$ v \leq x. $$
+
+        Args:
+            value (ArrayLike) or str: $x$
+                target value, or one of 'minimize' or 'maximize'
+            weight (float, optional): $w$
+                global weight of the cost term.
+            constraint_type (str, optional):
+                constraint string.
+
+        """
+        super().__init__(var, weight, constraint_type)
+        self.value = value
+
+    def objective(self):
+        if self.value == 'minimize':
+            cost = cx.sum(self.var)
+        elif self.value == 'maximize':
+            cost = - cx.sum(self.var)
+        else:
+            cost = cx.sum_squares(self.var - self.value)
+        cost = cx.multiply(self.weight, cost)
+        return cost
+
+    def constraint(self):
+        voltages = self.var[self._index]
+        return self._make_constraint(voltages, self.value)
+
+
 class VoltageObjective(Objective):
 
     def __init__(self, var: cx.Variable, value: ArrayLike, *,
