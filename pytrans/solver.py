@@ -7,7 +7,6 @@
 '''
 Module docstring
 '''
-import numpy as np
 import cvxpy as cx
 from .objectives import Objective
 from typing import List
@@ -15,8 +14,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 
 from tqdm import tqdm
-import multiprocessing
-# import concurrent.futures
+from multiprocessing import cpu_count
 
 
 def _process_objective(obj: Objective):
@@ -27,19 +25,20 @@ def _process_objective(obj: Objective):
     return obj.constraint_type, res
 
 
-def init_waveform(n_samples, n_electrodes, name='Waveform'):
+def init_waveform(n_samples, n_electrodes, name='waveform'):
     return cx.Variable((n_samples, n_electrodes), name=name)
 
 
 @dataclass(frozen=True)
 class SolverResults:
-    waveform: cx.Variable
     problem: cx.Problem
+    variables: dict[str, cx.Variable]
     costs: list[cx.Expression]
     constraints: list[cx.Constraint]
+    waveform: cx.Variable | None
 
 
-def _compile_objectives(objectives: List[Objective], verbose=True, parallel_compile=True):
+def _compile_objectives(objectives: List[Objective], verbose=True, parallel_compile=False):
     # static voltage cost
     costs = []
     constraints = []
@@ -75,33 +74,31 @@ def _solve(costs: list, constraints: list, solver="MOSEK", verbose=True, solver_
     _kwargs = {}
     if solver == "MOSEK":
         mosek_params = {
-            "MSK_IPAR_NUM_THREADS": multiprocessing.cpu_count(),
+            "MSK_IPAR_NUM_THREADS": cpu_count(),
             # "MSK_IPAR_INFEAS_REPORT_AUTO": "MSK_ON"
         }
         _kwargs['mosek_params'] = mosek_params
     _kwargs.update(solver_kwargs)
     problem.solve(solver=solver, warm_start=False, verbose=verbose, **_kwargs)
-    waveform = problem.variables()[0]
-    # test that all variables propagated in the problem actually share the same information
-    assert all(v.id == waveform.id for v in problem.variables())
-    assert all(np.all(v.value == waveform.value) for v in problem.variables())
 
-    results = SolverResults(waveform, problem, costs, constraints)
+    variables = dict()
+    for v in problem.variables():
+        # variables that have been copied by multiprocessing actually have the same name and value
+        variables[v.name()] = v
+    waveform = variables.get('waveform', None)
+    results = SolverResults(problem, variables, costs, constraints, waveform)
     return results
 
 
 def solver(objectives: List[Objective],
-           #    extra_constraints: List[Any] = None,
-           #    trap_filter: Optional[TrapFilterTransform] = None,
-           solver="MOSEK", verbose=True, parallel_compile=True) -> SolverResults:
-    """Static solver
+           solver="MOSEK", verbose=True, parallel_compile=False) -> SolverResults:
+    """Waveform solver
 
         Args:
-        step_objectives: list of lists of objectives
-        global_objectives: list of objectives
+        objectives: list of objectives
 
         Returns:
-        waveform: shape = (num_timesteps, num_electrodes)
+        results: an object containing the optimization results
     """
     costs, constraints = _compile_objectives(objectives, verbose, parallel_compile)
     results = _solve(costs, constraints, solver, verbose)
