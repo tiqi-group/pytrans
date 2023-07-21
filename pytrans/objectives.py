@@ -133,8 +133,7 @@ class VariableObjective(Objective):
         return cost
 
     def constraint(self):
-        voltages = self.var[self._index]
-        return self._make_constraint(voltages, self.value)
+        return self._make_constraint(self.var, self.value)
 
 
 class VoltageObjective(Objective):
