@@ -5,12 +5,13 @@
 # Author: Carmelo Mordini <cmordini@phys.ethz.ch>
 
 import numpy as np
-from typing import Union, List, Optional
+from typing import TYPE_CHECKING, Union, List, Optional
 from nptyping import NDArray
 from pytrans.typing import Coords1, RoiSize, Bounds
 
-from pytrans.analysis.results import AnalysisResults
-from pytrans.analysis.roi import Roi
+from .roi import Roi
+if TYPE_CHECKING:
+    from pytrans.analysis.results import AnalysisResults
 
 from pytrans.abstract_model import AbstractTrapModel
 from pytrans.ions import Ion
@@ -26,7 +27,8 @@ from mpl_toolkits.mplot3d import Axes3D
 
 
 def plot_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: Coords1,
-                   roi: Union[RoiSize, Bounds], axes=None, trap_axis='x', pseudo=True, analyse_results: Optional[AnalysisResults] = None, title=''):
+                   roi: Union[RoiSize, Bounds], axes=None, trap_axis='x', pseudo=True,
+                   plot_colorbar=False, analyse_results: Optional["AnalysisResults"] = None, title=''):
 
     if axes is None:
         fig, axes = plot_potential_make_layout(n=1)
@@ -67,16 +69,17 @@ def plot_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: Coo
     ps = _fun(*fun_args)
 
     c0 = ax_im.contour(trap_r0 * 1e6, trap_r1 * 1e6, ps, 30)
-    try:
-        # plt.colorbar(c0, ax=ax_im)
-        ax_cb, kk = make_axes(ax0, fraction=0.25, aspect=10, location='left')
-        plt.colorbar(c0, cax=ax_cb, **kk)
-        # ax_cb.locator_params(nbins=1)
-        # ax_cb.yaxis.set_ticks_position('left')
-        ax_cb.set_yticks([])
+    if plot_colorbar:
+        try:
+            # plt.colorbar(c0, ax=ax_im)
+            ax_cb, kk = make_axes(ax0, fraction=0.25, aspect=10, location='left')
+            plt.colorbar(c0, cax=ax_cb, **kk)
+            # ax_cb.locator_params(nbins=1)
+            # ax_cb.yaxis.set_ticks_position('left')
+            ax_cb.set_yticks([])
 
-    except Exception:
-        pass
+        except Exception:
+            pass
 
     # mark r0
     f1 = _fun(x0, y0, z0)
@@ -94,8 +97,10 @@ def plot_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: Coo
 
     ax_x.set(xlabel=_axes[mapper['trap_x']] + ' [um]')
     ax_r0.set(xlabel=_axes[mapper['trap_r0']] + ' [um]')
+    # _set_xlabel_bottom_left(ax_x, _axes[mapper['trap_x']] + ' [um]')
+    # _set_xlabel_bottom_left(ax_r0, _axes[mapper['trap_r0']] + ' [um]')
     ax_r1.set(ylabel=_axes[mapper['trap_r1']] + ' [um]')
-    ax_im.set(title=title, aspect=1)
+    ax_im.set(title=title)
 
     if analyse_results is not None:
         plot_ion_positions(axes, analyse_results, mapper=mapper)
@@ -105,7 +110,7 @@ def plot_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: Coo
 
 
 def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: Coords1, roi: Union[RoiSize, Bounds],
-                     pseudo=True, analyse_results: Optional[AnalysisResults] = None, title=''):
+                     pseudo=True, analyse_results: Optional["AnalysisResults"] = None, title=''):
 
     x0, y0, z0 = r0
 
@@ -169,7 +174,7 @@ def plot3d_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: C
     return fig, ax
 
 
-def plot_ion_positions(axes, res: AnalysisResults, mapper=None):
+def plot_ion_positions(axes, res: "AnalysisResults", mapper=None):
     mapper_slice = list(mapper.values()) if mapper is not None else list(range(3))
     if res.mode_solver_results is None:
         x1, r0, r1 = res.x_eq[mapper_slice]
@@ -202,7 +207,7 @@ def plot_ion_positions(axes, res: AnalysisResults, mapper=None):
         _add_ions_legend(ax_x, ions, loc='upper left')
 
 
-def plot_mode_vectors(ax, res: AnalysisResults, mapper):
+def plot_mode_vectors(ax, res: "AnalysisResults", mapper):
     r0 = res.x_eq
     mode_freqs = res.mode_freqs
     mode_vectors = res.mode_vectors
@@ -248,7 +253,7 @@ def plot_rf_null(ax, rf_null_coords, mapper):
         ax.plot(y_rf * 1e6, z_rf * 1e6, **marker_rf)
 
 
-def _plot3d_mode_vectors(ax: Axes3D, res: AnalysisResults):
+def _plot3d_mode_vectors(ax: Axes3D, res: "AnalysisResults"):
     r0 = res.x_eq
     mode_freqs = res.mode_freqs
     mode_vectors = res.mode_vectors
@@ -268,22 +273,29 @@ def plot_potential_make_axes(fig, left, right, ratio):
     gs = GridSpec(3, 2, fig,
                   height_ratios=[ratio, 1, 1],
                   width_ratios=[1, ratio],
-                  wspace=0.1, hspace=0.15,
+                  wspace=0.2, hspace=0.15,
                   left=left, right=right,
                   top=0.95, bottom=0.1)
 
     ax_y = fig.add_subplot(gs[1, 1])
     ax_z = fig.add_subplot(gs[0, 0])
     ax_im = fig.add_subplot(gs[0, 1], sharex=ax_y, sharey=ax_z)
+    for label in ax_im.get_xticklabels():
+        label.set_visible(False)
+    for label in ax_im.get_yticklabels():
+        label.set_visible(False)
+    ax_y.set_yticks([])
+    ax_z.set_xticks([])
+    ax_im.set_aspect(1)
     ax0 = fig.add_subplot(gs[1, 0])
     ax0.axis('off')
     ax_x = fig.add_subplot(gs[2, :])
     return ax_x, ax_y, ax_z, ax_im, ax0
 
 
-def plot_potential_make_layout(n, figsize=(5, 6), d=0.08, squeeze=True):
+def plot_potential_make_layout(n, figsize=(4, 5), d=0.1, squeeze=True):
     k = figsize[0] / figsize[1]
-    assert k < 1
+    assert k < 1, "'figsize' argument needs width < height"
     ratio = (2 * k - 1) / (1 - k)
     fig = plt.figure(figsize=(n * figsize[0], figsize[1]))
     axes = [
@@ -352,3 +364,17 @@ def _add_ions_legend(ax, ions: List[Ion], **kwargs):
         color = _get_ion_color(ion)
         handles.append(Line2D([0], [0], color=color, marker='o', ls='', label=str(ion)))
     ax.legend(handles=handles, **kwargs)
+
+
+def _set_xlabel_bottom_left(ax, label):
+    xlabel = ax.set_xlabel('x')
+
+    # Get the bounding box of the xticklabels
+    bbox = ax.get_xticklabels()[0].get_window_extent()
+    transform = ax.transAxes.inverted()
+
+    # Get the y-position in the axes coordinate system
+    y_bottom_in_ax = transform.transform((0, bbox.y0))[1]
+
+    # Set the position of the x-label to the left of the axes and at the same height as the xticklabels
+    xlabel.set_position((0, y_bottom_in_ax))

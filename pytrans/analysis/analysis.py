@@ -14,7 +14,7 @@ from typing import Union, List, Dict, Optional
 from nptyping import NDArray
 
 from pytrans.typing import Coords, Coords1, RoiSize, Bounds, Waveform
-from .roi import Roi
+from pytrans.plotting.roi import Roi
 
 from pytrans.ions import Ion
 from pytrans.timer import timer
