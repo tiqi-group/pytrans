@@ -72,7 +72,7 @@ def plot_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: Coo
     if plot_colorbar:
         try:
             # plt.colorbar(c0, ax=ax_im)
-            ax_cb, kk = make_axes(ax0, fraction=0.25, aspect=10, location='left')
+            ax_cb, kk = make_axes(ax0, fraction=0.25, aspect=10, location='right')
             plt.colorbar(c0, cax=ax_cb, **kk)
             # ax_cb.locator_params(nbins=1)
             # ax_cb.yaxis.set_ticks_position('left')
@@ -95,11 +95,15 @@ def plot_potential(trap: AbstractTrapModel, voltages: NDArray, ion: Ion, r0: Coo
     except Exception:
         pass
 
-    ax_x.set(xlabel=_axes[mapper['trap_x']] + ' [um]')
-    ax_r0.set(xlabel=_axes[mapper['trap_r0']] + ' [um]')
-    # _set_xlabel_bottom_left(ax_x, _axes[mapper['trap_x']] + ' [um]')
-    # _set_xlabel_bottom_left(ax_r0, _axes[mapper['trap_r0']] + ' [um]')
-    ax_r1.set(ylabel=_axes[mapper['trap_r1']] + ' [um]')
+    ax_x.text(0.99, 0.05, _axes[mapper['trap_x']] + ' [um]',
+              ha='right', va='bottom', transform=ax_x.transAxes)
+    ax_r0.text(0.99, 0.05, _axes[mapper['trap_r0']] + ' [um]',
+               ha='right', va='bottom', transform=ax_r0.transAxes)
+    ax_r1.text(0.05, 0.99, _axes[mapper['trap_r1']] + ' [um]',
+               ha='left', va='top', transform=ax_r1.transAxes)
+    # ax_x.set(xlabel=_axes[mapper['trap_x']] + ' [um]')
+    # ax_r0.set(xlabel=_axes[mapper['trap_r0']] + ' [um]')
+    # ax_r1.set(ylabel=_axes[mapper['trap_r1']] + ' [um]')
     ax_im.set(title=title)
 
     if analyse_results is not None:
@@ -216,20 +220,6 @@ def plot_mode_vectors(ax, res: "AnalysisResults", mapper):
     fig = ax.figure
     tr = fig.dpi_scale_trans + transforms.ScaledTranslation(r0c * 1e6, r1c * 1e6, ax.transData)
 
-    # v1 = mode_vectors[indices[0], indices]
-    # v2 = mode_vectors[2][indices]
-    # f1, f2 = mode_freqs[indices]
-    # f0 = np.sqrt(abs(f1 * f2))
-    # angle = np.arctan2(v2[1], v2[0]) * 180 / np.pi
-    # circle = mpc.Ellipse((0, 0), f0 / f1, f0 / f2, angle=90 + angle,
-    #                  fill=None, transform=tr, color='C0')
-    # ax.add_patch(circle)
-
-    # a1 = Arrow(0, 0, *v1 * f0 / f1, **arrow_kwargs)
-    # ax.add_patch(a1)
-    # a2 = Arrow(0, 0, *v2 * f0 / f2, **arrow_kwargs)
-    # ax.add_patch(a2)
-
     arrow_kwargs = dict(width=0.2, transform=tr)
     f0 = pow(abs(np.prod(mode_freqs)), 1 / len(mode_freqs))
     f_scale = f0 / mode_freqs
@@ -238,7 +228,7 @@ def plot_mode_vectors(ax, res: "AnalysisResults", mapper):
         v = v[indices]
         a1 = mpc.Arrow(0, 0, *v * f, color=f"C{j}", **arrow_kwargs, label=f"{mode_freqs[j]*1e-6:.2f} MHz")
         ax.add_patch(a1)
-    ax.legend(fontsize=9)
+    ax.legend()
 
 
 def plot_rf_null(ax, rf_null_coords, mapper):
@@ -269,39 +259,36 @@ def _plot3d_mode_vectors(ax: Axes3D, res: "AnalysisResults"):
         ax.plot(*r)
 
 
-def plot_potential_make_axes(fig, left, right, ratio):
+def plot_potential_make_axes(fig, ratio):
     gs = GridSpec(3, 2, fig,
                   height_ratios=[ratio, 1, 1],
-                  width_ratios=[1, ratio],
-                  wspace=0.2, hspace=0.15,
-                  left=left, right=right,
-                  top=0.95, bottom=0.1)
+                  width_ratios=[1, ratio])
 
+    ax_x = fig.add_subplot(gs[2, :])
     ax_y = fig.add_subplot(gs[1, 1])
     ax_z = fig.add_subplot(gs[0, 0])
     ax_im = fig.add_subplot(gs[0, 1], sharex=ax_y, sharey=ax_z)
+    ax0 = fig.add_subplot(gs[1, 0])
     for label in ax_im.get_xticklabels():
         label.set_visible(False)
     for label in ax_im.get_yticklabels():
         label.set_visible(False)
+    ax_x.set_yticks([])
     ax_y.set_yticks([])
     ax_z.set_xticks([])
-    ax_im.set_aspect(1)
-    ax0 = fig.add_subplot(gs[1, 0])
+    ax_im.set_aspect(1, adjustable='box')
     ax0.axis('off')
-    ax_x = fig.add_subplot(gs[2, :])
     return ax_x, ax_y, ax_z, ax_im, ax0
 
 
-def plot_potential_make_layout(n, figsize=(4, 5), d=0.1, squeeze=True):
-    k = figsize[0] / figsize[1]
-    assert k < 1, "'figsize' argument needs width < height"
-    ratio = (2 * k - 1) / (1 - k)
-    fig = plt.figure(figsize=(n * figsize[0], figsize[1]))
-    axes = [
-        plot_potential_make_axes(fig, left=k / n + d / 2, right=(k + 1) / n - d / 2, ratio=ratio)
-        for k in range(n)
-    ]
+def plot_potential_make_layout(n, figure_width=None, squeeze=True):
+    fig_aspect = 4 / 5  # width / height
+    figsize = plt.figaspect(1 / fig_aspect) if figure_width is None else (figure_width, figure_width / fig_aspect)
+    ratio = (2 * fig_aspect - 1) / (1 - fig_aspect)
+    wspace = 0.05
+    fig = plt.figure(figsize=((n + wspace * (n - 1)) * figsize[0], figsize[1]), layout='compressed')
+    subfigures = fig.subfigures(1, n, hspace=0, wspace=wspace, squeeze=False).ravel()
+    axes = [plot_potential_make_axes(sfig, ratio=ratio) for sfig in subfigures]
     if squeeze:
         axes = axes[0] if len(axes) == 1 else axes
     return fig, axes
@@ -364,17 +351,3 @@ def _add_ions_legend(ax, ions: List[Ion], **kwargs):
         color = _get_ion_color(ion)
         handles.append(Line2D([0], [0], color=color, marker='o', ls='', label=str(ion)))
     ax.legend(handles=handles, **kwargs)
-
-
-def _set_xlabel_bottom_left(ax, label):
-    xlabel = ax.set_xlabel('x')
-
-    # Get the bounding box of the xticklabels
-    bbox = ax.get_xticklabels()[0].get_window_extent()
-    transform = ax.transAxes.inverted()
-
-    # Get the y-position in the axes coordinate system
-    y_bottom_in_ax = transform.transform((0, bbox.y0))[1]
-
-    # Set the position of the x-label to the left of the axes and at the same height as the xticklabels
-    xlabel.set_position((0, y_bottom_in_ax))
