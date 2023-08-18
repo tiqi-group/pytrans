@@ -259,10 +259,10 @@ def _plot3d_mode_vectors(ax: Axes3D, res: "AnalysisResults"):
         ax.plot(*r)
 
 
-def plot_potential_make_axes(fig, ratio):
+def plot_potential_make_axes(fig, subplots_ratio):
     gs = GridSpec(3, 2, fig,
-                  height_ratios=[ratio, 1, 1],
-                  width_ratios=[1, ratio])
+                  height_ratios=[subplots_ratio, 1, 1],
+                  width_ratios=[1, subplots_ratio])
 
     ax_x = fig.add_subplot(gs[2, :])
     ax_y = fig.add_subplot(gs[1, 1])
@@ -281,14 +281,14 @@ def plot_potential_make_axes(fig, ratio):
     return ax_x, ax_y, ax_z, ax_im, ax0
 
 
-def plot_potential_make_layout(n, figure_width=None, squeeze=True):
-    fig_aspect = 4 / 5  # width / height
-    figsize = plt.figaspect(1 / fig_aspect) if figure_width is None else (figure_width, figure_width / fig_aspect)
-    ratio = (2 * fig_aspect - 1) / (1 - fig_aspect)
+def plot_potential_make_layout(n, fig_height=None, subplots_ratio=4, squeeze=True):
+    fig_aspect = 4 / 4.8  # width / height
+    fig_height = plt.rcParams['figure.figsize'][1] if fig_height is None else fig_height
+    fig_width = fig_height * fig_aspect
     wspace = 0.05
-    fig = plt.figure(figsize=((n + wspace * (n - 1)) * figsize[0], figsize[1]), layout='compressed')
+    fig = plt.figure(figsize=((n + wspace * (n - 1)) * fig_width, fig_height), layout='compressed')
     subfigures = fig.subfigures(1, n, hspace=0, wspace=wspace, squeeze=False).ravel()
-    axes = [plot_potential_make_axes(sfig, ratio=ratio) for sfig in subfigures]
+    axes = [plot_potential_make_axes(sfig, subplots_ratio) for sfig in subfigures]
     if squeeze:
         axes = axes[0] if len(axes) == 1 else axes
     return fig, axes
