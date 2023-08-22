@@ -281,10 +281,13 @@ def plot_potential_make_axes(fig, subplots_ratio):
     return ax_x, ax_y, ax_z, ax_im, ax0
 
 
-def plot_potential_make_layout(n, fig_height=None, subplots_ratio=4, squeeze=True):
+def plot_potential_make_layout(n, fig_width=None, fig_height=None, subplots_ratio=4, squeeze=True):
     fig_aspect = 4 / 4.8  # width / height
-    fig_height = plt.rcParams['figure.figsize'][1] if fig_height is None else fig_height
-    fig_width = fig_height * fig_aspect
+    if fig_width is not None:
+        fig_height = fig_width / fig_aspect
+    else:
+        fig_height = plt.rcParams['figure.figsize'][1] if fig_height is None else fig_height
+        fig_width = fig_height * fig_aspect
     wspace = 0.05
     fig = plt.figure(figsize=((n + wspace * (n - 1)) * fig_width, fig_height), layout='compressed')
     subfigures = fig.subfigures(1, n, hspace=0, wspace=wspace, squeeze=False).ravel()
