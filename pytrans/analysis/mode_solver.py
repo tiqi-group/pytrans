@@ -188,7 +188,7 @@ def diagonalize_hessian(ions: List[Ion], hessian: NDArray[Shape["L, L"], Float])
     return freqs, modes
 
 
-def project_on_single_ion_modes(mode_vectors: NDArray[Shape["3*N, N, 3"], Float],
+def project_on_single_ion_modes(mode_vectors: NDArray[Shape["M, N, 3"], Float],  # noqa: F821
                                 single_ion_modes: NDArray[Shape["3, 3"], Float] = np.eye(3),
                                 keys: List[str] = ['x', 'y', 'z']):
     """
