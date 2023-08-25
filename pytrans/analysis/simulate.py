@@ -89,7 +89,7 @@ def simulate_waveform(trap: AbstractTrapModel, waveform: Waveform, ions: List[Io
         def waveform_t(t):
             return waveform_s(t * _t0 / (dt * n_samples * slowdown))
 
-    p0 = np.zeros_like(x0) if v0 is None else v0 * np.repeat(mass_amu, d)
+    p0 = np.zeros_like(x0) if v0 is None else _m0 * v0 * mass_amu.reshape(-1, 1)
     y0 = np.r_[x0.ravel() / _x0, p0.ravel() / _p0]
 
     def force(t, x):
@@ -164,7 +164,7 @@ def simulate_waveform(trap: AbstractTrapModel, waveform: Waveform, ions: List[Io
 
     sol.t = sol.t * _t0
     sol.x = (sol.y[:N * d] * _x0).T.reshape(len(sol.t), N, d)
-    sol.v = (sol.y[N * d:] * _p0 / np.repeat(mass_amu, d).reshape(-1, 1)).T.reshape(len(sol.t), N, d)
+    sol.v = (sol.y[N * d:] * _p0 / (_m0 * np.repeat(mass_amu, d).reshape(-1, 1))).T.reshape(len(sol.t), N, d)
 
     if sol.t_events is not None and len(sol.t_events[0]) > 0:
         sol.out_of_bounds = True
@@ -172,9 +172,10 @@ def simulate_waveform(trap: AbstractTrapModel, waveform: Waveform, ions: List[Io
         _y = sol.y_events[0]
         sol.t_out = _t * _t0
         sol.x_out = (_y[:, :N * d] * _x0).reshape(len(_t), N, d)
-        sol.v_out = (_y[:, N * d:] * _p0 / np.repeat(mass_amu, d).reshape(1, -1)).reshape(len(_t), N, d)
+        sol.v_out = (_y[:, N * d:] * _p0 / (_m0 * np.repeat(mass_amu, d).reshape(1, -1))).reshape(len(_t), N, d)
     else:
         sol.out_of_bounds = False
+        sol.t_out = None
         sol.x_out = None
         sol.v_out = None
 
