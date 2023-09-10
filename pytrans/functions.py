@@ -33,6 +33,11 @@ def erfspace(a, b, npts, erf_scaling=2.5):
     return vout_zc + a - vout_zc[0]  # shift range
 
 
+def sinsquared(a, b, npts):
+    t = np.linspace(0, 1, npts)
+    return a + (b - a) * np.sin(np.pi / 2 * t)**2
+
+
 def zpspace(a, b, npts, k=3, gap=1.5, gap2=None):
     """Linspace replacement, producing a zero-pole curve with adjustable width + smoothness
     Test in linspace_fn_test.org

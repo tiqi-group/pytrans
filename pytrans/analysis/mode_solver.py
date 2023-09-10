@@ -188,6 +188,48 @@ def diagonalize_hessian(ions: List[Ion], hessian: NDArray[Shape["L, L"], Float])
     return freqs, modes
 
 
+def project_on_single_ion_modes(mode_vectors: NDArray[Shape["M, N, 3"], Float],  # noqa: F821
+                                single_ion_modes: NDArray[Shape["3, 3"], Float] = np.eye(3),
+                                keys: List[str] = ['x', 'y', 'z']):
+    """
+    Project the normal modes of a string of trapped ions on single-ion eigenmodes.
+
+    Args:
+        mode_vectors (np.ndarray):
+            A (3N, N, 3) array containing the mode participation eigenvectors
+            of the normal modes of a string of N trapped ions.
+        single_ion_modes (np.ndarray, optional):
+            A (3, 3) orthogonal matrix with the mode orientations
+            of a single particle. Defaults to np.eye(3).
+        keys (List[str], optional): A list of three strings naming the modes. Defaults to ['x', 'y', 'z'].
+
+    Returns:
+        mode_vectors_projected : ndarray, shape (3N, N)
+            projections of mode_vectors on the target single ion mode
+        The second element is a dictionary mapping the mode names ('x', 'y', or 'z')
+          to the indices of the modes in `mode_vectors` that correspond to each name.
+
+    Example:
+    >>> mode_vectors = np.random.rand(9, 3, 3)
+    >>> single_ion_modes = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    >>> keys = ['x', 'y', 'z']
+    >>> project_on_single_ion_modes(mode_vectors, single_ion_modes, keys)
+    (array([...]), {'x': array([...]), 'y': array([...]), 'z': array([...])})
+    """
+    # projections of normal modes on single-ion eigenmodes
+    proj = abs(np.einsum('Mai,mi', mode_vectors, single_ion_modes)).sum(1)
+    mode1_index = np.argmax(proj, axis=1)
+
+    mode_vectors_projected = np.asarray([mode_vectors[j] @ single_ion_modes[mode1_index[j]] for j in range(len(mode_vectors))])
+
+    mode_labels = {}
+    keys = 'xyz' if keys is None else keys
+    for j, key in enumerate(keys):
+        mode_labels[key] = np.where(mode1_index == j)[0]
+
+    return mode_vectors_projected, mode_labels
+
+
 def init_crystal(r0: NDArray[Shape["3"], Float], dx: float, n_ions: int, axis=0, randomize=True) -> Coords:
     """initialize positions of particles in a 1D crystal
     equally spaced by dx along the specified axis

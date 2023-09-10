@@ -14,8 +14,8 @@ from .mode_solver import coulomb_gradient, coulomb_hessian
 
 from pytrans.abstract_model import AbstractTrapModel
 from pytrans.ions import Ion
-from pytrans.typing import Coords, Waveform
-from typing import List
+from pytrans.typing import Coords, Waveform, Bounds
+from typing import List, Optional
 
 # length and time scales
 from scipy.constants import atomic_mass as _m0
@@ -27,7 +27,51 @@ _p0 = _m0 * _x0 / _t0
 _E0 = _m0 * _x0 / _q0 / _t0**2
 
 
-def simulate_waveform(trap: AbstractTrapModel, waveform: Waveform, ions: List[Ion], t, dt, x0: Coords, v0=None, bounds=None, time_interp_kind='linear', slowdown=1, pseudo=True, solve_kw=dict()):
+def simulate_waveform(trap: AbstractTrapModel, waveform: Waveform, ions: List[Ion], t, dt, x0: Coords,
+                      v0=None, bounds: Optional[Bounds] = None, time_interp_kind='linear', slowdown=1, pseudo=True, solve_kw=dict()):
+    """
+    Simulate the waveform for a specified trap model, set of ions, and initial conditions.
+
+    Args:
+        trap : AbstractTrapModel
+            The trap model used for the simulation.
+        waveform : Waveform
+            The waveform object containing the waveform data to be simulated.
+        ions : List[Ion]
+            A list of ions for which the waveform is being simulated.
+        t : ndarray
+            The array of timesteps to simulate.
+        dt : float
+            The waveform time step.
+        x0 : Coords
+            The initial coordinates of the ions.
+        v0 : Coords, optional
+            The initial velocities of the ions. Defaults to None, which sets them to zero.
+        bounds : Bounds, optional
+            The bounds within which the simulation takes place. Defaults to None.
+            If set, the simulation will be terminated when one of the particles reaches the simulation boundary.
+        time_interp_kind : str or int, optional
+            The kind of time interpolation between the waveform timesteps, as defined by scipy.interpolate.interp1d. Defaults to 'linear'.
+        slowdown : int, optional
+            A factor by which to slow down the simulation. Defaults to 1.
+        pseudo : bool, optional
+            Whether to include the pseudo potential in the simulation. Defaults to True.
+        solve_kw : dict, optional
+            Additional keyword arguments for solve_ivp. Defaults to an empty dict.
+
+    Returns:
+        sol: A OdeSolution object, as resutned by scipy.integrate.solve_ivp, with the extra fields defined:
+            t : ndarray, shape (n_points,)
+                Time points.
+            x : ndarray, shape (n_points, n_ions, 3)
+                Coordinates of the simulated ions at `t`.
+            v : ndarray, shape (n_points, n_ions, 3)
+                Velocity of the simulated ions at `t`.
+            out_of_bounds : bool
+                A flag to indicate whether the simulation was terminated because particles reached the bounds.
+            t_out, x_out, v_out : ndarrays
+                Time, position and velocity of the out_of_bounds termination event. None if no termination occurred.
+    """
 
     N, d = x0.shape
     mass_amu = np.asarray([ion.mass_amu for ion in ions])
@@ -45,8 +89,8 @@ def simulate_waveform(trap: AbstractTrapModel, waveform: Waveform, ions: List[Io
         def waveform_t(t):
             return waveform_s(t * _t0 / (dt * n_samples * slowdown))
 
-    v0 = np.zeros_like(x0) if v0 is None else v0
-    y0 = np.r_[x0.ravel() / _x0, v0.ravel() / _p0]
+    p0 = np.zeros_like(x0) if v0 is None else _m0 * v0 * mass_amu.reshape(-1, 1)
+    y0 = np.r_[x0.ravel() / _x0, p0.ravel() / _p0]
 
     def force(t, x):
         _X = x.reshape(N, d) * _x0
@@ -102,7 +146,7 @@ def simulate_waveform(trap: AbstractTrapModel, waveform: Waveform, ions: List[Io
         return fun(t, y)
 
     t0, t1 = t[[0, -1]] / _t0
-    state = [t0, (t1 - t0) / 1000]
+    state = [t0, (t1 - t0) / 100]
 
     kw = dict(t_eval=t / _t0, dense_output=True, events=events,
               jac=jac, method='LSODA')
@@ -111,16 +155,29 @@ def simulate_waveform(trap: AbstractTrapModel, waveform: Waveform, ions: List[Io
     print("Exec simulate_waveform")
     ts = time.time()
 
-    with tqdm(total=1000, unit="%") as pbar:
+    with tqdm(total=100, unit="%") as pbar:
         sol = solve_ivp(fun_pbar, (t0, t1), y0, args=(pbar, state), **kw)
 
     te = time.time()
     elapsed = te - ts
-    print(f"- simulate_waveform elapsed time: {elapsed * 1e3:.3f} ms")
+    print(f"- simulate_waveform elapsed time: {elapsed * 1e3:.3f} ms\n{sol.message}")
 
     sol.t = sol.t * _t0
     sol.x = (sol.y[:N * d] * _x0).T.reshape(len(sol.t), N, d)
-    sol.p = (sol.y[N * d:] * _p0).T.reshape(len(sol.t), N, d)
+    sol.v = (sol.y[N * d:] * _p0 / (_m0 * np.repeat(mass_amu, d).reshape(-1, 1))).T.reshape(len(sol.t), N, d)
+
+    if sol.t_events is not None and len(sol.t_events[0]) > 0:
+        sol.out_of_bounds = True
+        _t = sol.t_events[0]  # there will be only one event, as it is terminal
+        _y = sol.y_events[0]
+        sol.t_out = _t * _t0
+        sol.x_out = (_y[:, :N * d] * _x0).reshape(len(_t), N, d)
+        sol.v_out = (_y[:, N * d:] * _p0 / (_m0 * np.repeat(mass_amu, d).reshape(1, -1))).reshape(len(_t), N, d)
+    else:
+        sol.out_of_bounds = False
+        sol.t_out = None
+        sol.x_out = None
+        sol.v_out = None
 
     # def kin(p):
     #     k = p**2 / 2 / mass / _m0

@@ -9,6 +9,7 @@ import numpy as np
 import cvxpy as cx
 import scipy.signal as sg
 from scipy.linalg import convolution_matrix
+from functools import partial
 
 from nptyping import NDArray
 
@@ -18,6 +19,10 @@ def pad_waveform(waveform, pad_after, pad_before=0):
     """
     pad_width = [(pad_before, pad_after)] + [(0, 0)] * (waveform.ndim - 1)
     return np.pad(waveform, pad_width, mode='edge')
+
+
+def _rename(wname):
+    return wname + "_filt"
 
 
 class TrapFilterTransform:
@@ -46,7 +51,9 @@ class TrapFilterTransform:
         w0 = cx.vstack([first_sample] * pad_before + [waveform] + [last_sample] * pad_after)
         assert w0.shape == (pad_before + n + pad_after, w)
         M = convolution_matrix(self.impulse_response, w0.shape[0], mode='valid')
-        return M @ w0
+        w_filt = M @ w0
+        w_filt.name = partial(_rename, waveform.name())
+        return w_filt
 
     def _lfilter_waveform_numpy(self, waveform: NDArray, pad_after: int) -> NDArray:
         """Filters a waveform using a digital filter

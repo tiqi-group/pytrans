@@ -51,6 +51,9 @@ class AbstractTrapModel:
         else:
             self._electrodes = self._all_electrodes
 
+    def __repr__(self) -> str:
+        return self.__class__.__name__
+
     @property
     def electrodes(self) -> List[str]:
         """Names of DC electrodes in use"""
