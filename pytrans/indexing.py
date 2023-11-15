@@ -13,8 +13,9 @@ Inspired by:
 
 import re
 import numpy as np
-
+from pytrans.abstract_model import AbstractTrapModel
 from typing import Union, List, Tuple, no_type_check
+from pytrans.typing import ElectrodeNames
 
 re_ix = r"(\[[\s\d,]+\]|[-\d:]+)"
 
@@ -25,6 +26,13 @@ def gradient_matrix(n):
     M += np.diagflat([-1] * (n - 1), k=-1) / 2
     M[0, [0, 1]] = -1, 1
     M[-1, [-2, -1]] = -1, 1
+    return M
+
+
+def diff_matrix(n):
+    M = np.zeros((n - 1, n))
+    M += np.concatenate([np.diag([-1.] * (n - 1)), np.zeros((n - 1, 1)).reshape([-1, 1])], axis=1)
+    M += np.concatenate([np.zeros((n - 1, 1)).reshape([-1, 1]), np.diag([+1.] * (n - 1))], axis=1)
     return M
 
 
@@ -58,6 +66,13 @@ def get_derivative(d: Union[int, str, List[Union[int, str]]],
         return [d_map[name] for name in d]
     else:
         raise TypeError(f"Undefined derivative: {d}")
+
+
+def get_electrode_index(electrodes: ElectrodeNames, trap: AbstractTrapModel, ndim: int):
+    index = trap.electrode_to_index(electrodes)
+    if ndim == 2:
+        index = (slice(None), index)
+    return index
 
 
 @no_type_check
