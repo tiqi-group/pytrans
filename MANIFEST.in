@@ -1,3 +1,2 @@
-include *.txt
 include README.md
-include tests/*
+include pytrans/plotting/*.mplstyle

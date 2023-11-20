@@ -1,37 +1,51 @@
-[tool.poetry]
+[project]
 name = "pytrans"
 version = "2.1.0"
-description = "Transport waveform-related generation and analysis utilities"
-authors = ["cmordini <cmordini@phys.ethz.ch>"]
-license = "MIT"
+authors = [
+  { name = "Carmelo Mordini", email = "carmelo.mordini@gmail.com" },
+]
+description = "Generation of potentials and waveforms for trapped ions"
+readme = "README.md"
+license = { file = "LICENSE" }
+keywords = ["python", "trapped ions", "waveforms", "ion transport", "quantum computing"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.8,<3.12"
-numpy = "^1.22.2"
-scipy = "^1.8.0"
-nptyping = "^2.5.0"
-cvxpy = "^1.1.18"
-Mosek = "^9.3.14"
-tqdm = "^4.62.3"
-matplotlib = "^3.5.1"
-PyQt5 = "^5.15.6"
-colorama = "^0.4.4"
-tabulate = "^0.9.0"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy",
+  "scipy",
+  "nptyping",
+  "cvxpy",
+  "tqdm",
+  "matplotlib",
+  "colorama",
+  "tabulate"
+]
 
-pytest = { version = "*", optional = true }
-pytest-cov = { version = "*", optional = true }
-autopep8 = { version = "*", optional = true }
-flake8 = { version = "*", optional = true }
-mypy = { version = "*", optional = true }
+[project.optional-dependencies]
+mosek = [
+  "mosek"
+]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "autopep8",
+    "black"
+]
+docs = [
+  "mkdocs",
+  "mkdocs-include-markdown-plugin",
+  "mkdocstrings"
+]
 
-mkdocs = { version = "*", optional = true }
-mkdocs-include-markdown-plugin = { version = "*", optional = true }
-mkdocstrings = {version = ">=0.18", extras = ["python"], optional = true}
-
-[tool.poetry.extras]
-dev = ["pytest", "pytest-cov", "autopep8", "flake8", "mypy"]
-docs = ["mkdocs", "mkdocs-include-markdown-plugin", "mkdocstrings"]
+[project.urls]
+Homepage = "https://github.com/tiqi-group/pytrans"
+Documentation = "https://pytrans.readthedocs.io"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
