@@ -36,7 +36,8 @@ dev = [
 docs = [
   "mkdocs",
   "mkdocs-include-markdown-plugin",
-  "mkdocstrings"
+  "mkdocstrings",
+  "mkdocstrings-python"
 ]
 
 [project.urls]

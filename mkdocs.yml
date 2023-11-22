@@ -1,6 +1,6 @@
 site_name: Pytrans
-site_url:
-repo_url: https://gitlab.phys.ethz.ch/tiqi-projects/pytrans2
+site_url: https://pytrans.readthedocs.io
+repo_url: https://github.com/tiqi-group/pytrans
 edit_uri: tree/docs/docs
 repo_name: pytrans
 
@@ -61,6 +61,7 @@ plugins:
   - mkdocstrings:
       watch:
         - pytrans
+      default_handler: python
       handlers:
         python:
           paths: [pytrans] # search packages in the src folder

@@ -1,37 +1,128 @@
-# Pytrans, a library for creating and modifying DEATH transport waveforms
+# pytrans: potentials and waveforms for trapped ions
 
-## Who should use pytrans and when?
-The whole point of pytrans is to generate fast and dynamic waveforms for transport/splitting to be played back by the DEATH (our home-built fast DAC/AWG). If you want to do that, then go ahead and use pytrans!
-However, if you just want to generate and analyze a static well, then it is probably a lot easier to just do that stand-alone rather than using pytrans and all its layers of abstraction and arcane file handling.
-Historically, pytrans has been developed for the segtrap (i.e. a deep trap with nice symmetry and separate shim electrodes). Robin has adapted it to be somewhat useable with a surface trap (Sandia HoA2), but it is far from polished at the moment.
+[![License](https://img.shields.io/badge/License-AGPLv3-firebrick.svg?style=flat-square)](https://opensource.org/license/agpl-v3/)
 
-## Dependencies
-pytrans is built on top of the default python libraries for numerical calculations and plotting (scipy, numpy, matplotlib). Additionally, it uses 'cvxpy' in order to facilitate formulating the optimization problem. You can install it and its dependencies using 'pip install cvxpy'.
+Pytrans is a python package for creating static and dynamic potentials for ion traps. Starting from a description of the trap geometry and its electrical properties, it allows finding optimal sets of voltages (often called *waveforms* if time-dependent) producing the target trapping potential. It allows to evaluate the equilibrium configuration of an ensamble of ions trapped in the resulting potential and to simulate their classical dynamics.
 
-## Installation files
-In addition to the files present in this git repository, you also need the following files:
-- global_settings.py
-This file specifies which solver to use. By default it uses 'ECOS', which should be present if you have installed the dependencies correctly. For simple waveform calculations it should be enough. For more complicated problems it makes sense to use better solvers, i.e. Gurobi or MOSEK. Talk to Robin or Vlad regarding setting them up.
-You can get it from J:\Temp\Robin\pytrans\global_settings.py.
-Put it into the main pytrans folder, i.e. \pytrans\global_settings.py
-- trap.pickle
-This file contains the data from the BEM simulation for Daniels 3d trap packaged in a way that is easy and fast to import into python.
-You can get it from J:\Temp\Robin\pytrans\moments_file\trap.pickle
-Put it into \pytrans\moments_file\
+While the solution depends on the specifics of the trap for which it has been generated, pytrans is trap-agnostic: it can model different types of ion traps, wrapping specific data into generic structures that implement waveform generation and analysis in a unified way.
+
+It uses [cvxpy](https://www.cvxpy.org/index.html) as optimization backend, and numpy, scipy and matplotlib for analysis, simulation, and visualization. Pytrans is open source and tested for Python >= 3.10 on all Unix and Windows platforms.
+
+- [pytrans: potentials and waveforms for trapped ions](#pytrans-potentials-and-waveforms-for-trapped-ions)
+  - [Installation](#installation)
+    - [pip](#pip)
+    - [poetry](#poetry)
+    - [Install from source](#install-from-source)
+  - [Documentation](#documentation)
+  - [Usage](#usage)
+    - [Trapping Ca40 in a Paul trap](#trapping-ca40-in-a-paul-trap)
+  - [Contributing](#contributing)
+  - [License](#license)
+  - [Authors and history](#authors-and-history)
+  - [References](#references)
+
+## Installation
+
+### pip
+
+Pytrans is available on PyPI. You can install it via `pip` by
+
+```bash
+pip install pytrans
+```
+
+Additionally, to use other solvers suported by cvxpy, it is necessary to install additional packages. Follow the installation instructions on <https://www.cvxpy.org/install/>.
+
+### poetry
+
+When using pytrans as part of a project, including e.g. one or more trap models and other specific tools, we recommend using a project manager tool like `poetry`. The [pytrans-examples](https://github.com/tiqi-group/pytrans-examples) repo is a reference implementation of a poetry project dedicated to generating waveforms for specific ion traps.
+
+### Install from source
+
+Clone a fresh copy of the source repository, perhaps within a virtual environment, and install it in editable mode including both the required and the optional dependencies for code linting and documentation.
+
+```bash
+git clone https://github.com/tiqi-group/pytrans
+cd pytrans
+pip install -e .[dev,docs]
+```
+
+Pytrans requires python >= 3.10.
+
+## Documentation
+
+The latest documentation can be found on <https://pytrans.readthedocs.io>.
+
+In [pytrans-examples](https://github.com/tiqi-group/pytrans-examples/tree/main/examples) we provide numerous examples of waveform generation and potential analysis in two different types of ion traps.
 
 ## Usage
 
-Please write a short description of each new file you create here, and which functions it exposes for use in experiments.
+A typical usage of pytrans involves:
 
-__loading_utils.py__ : implements the basic loading waveform and saves it to a waveform file. All the other experiments rely on it to generate the basic loading and reordering parts of their waveform file.
+- implementing a model for a specific ion trap
+- defining a target potential and setting up an optimization problem to reproduce it in the trap
+- analyzing and visualizing the results
+  
+### Trapping Ca40 in a Paul trap
 
-__transport_utils.py__ : implements functions for:
-- static_waveform - generate a single waveform with position, frequency (assuming 40Ca+ ion) and DC offset as the main inputs
-- transport_waveform - generate a single waveform whose parameters are swept in time
-- transport_waveform_multiple - like transport_waveform, solving for multiple simultaneous wells
-- conveyor_waveform - generate a waveform that merges together two independent wells, then recreates the well originally in the loading zone (used for loading only)
-- reordering_waveform - mixed-species waveform that creates a DC push, then a DC twist, then undoes the push, then undoes the twist. Designed to reorder a mixed-species crystal into a deterministic arrangement of ions
+Here we find a set of voltages suitable for traping one Ca40 ion in a 3D, segmented, microfabricated Paul trap, in a potential well with an axial oscillation frequency of 1 MHz. Extract from the example notebook [01_static_potential.ipynb](https://github.com/tiqi-group/pytrans-examples/tree/main/examples/01_static_potential.ipynb).
 
-__trans_single.py__ : various routines for transport and shallow wells, used to measure the trap heating rate (20.09.2016)
+```python
+trap = SegmentedTrap()
 
-__load_split_swept.py__ : splitting waveform file with many waveforms with which parameters can be swept by scanning in Ionizer
+n_samples = 1
+waveform = init_waveform(n_samples, trap.n_electrodes)
+
+r0 = (0, 0, trap.z0)
+axial_curv = freq_to_curv(1e6, ion=Ca40)
+
+objectives = [
+    obj.GradientObjective(waveform[0], trap, *r0, value=0, ion=Ca40),
+    obj.HessianObjective(waveform[0], trap, *r0, entries='xx', value=axial_curv, ion=Ca40),
+
+    obj.VoltageObjective(waveform, 10, constraint_type='<='),
+    obj.VoltageObjective(waveform, -10, constraint_type='>='),
+]
+
+res = solver(objectives, verbose=True)
+waveform = res.waveform.value  # optimal value, np array
+```
+
+## Contributing
+
+All contributions are welcome! Use the [issues](https://docs.github.com/en/issues/tracking-your-work-with-issues/about-issues) to report bugs or feature requests, or add your own code by forking the project and [opening a pull request](https://docs.github.com/en/get-started/quickstart/contributing-to-projects).
+
+## License
+
+Pytrans is open source and released under the GNU Affero General Public License version 3 [(AGPLv3)](https://opensource.org/license/agpl-v3/).
+
+## Authors and history
+
+The project has been developed in the [Trapped Ion Quantum Information](https://tiqi.ethz.ch/) (TIQI) group at [ETH Zurich](https://ethz.ch/). Started as a collection of python scripts for generating shuttling waveforms in a specific ion trap, it received contributions from numerous members of the group, ranging from students to PhDs and postdocs. It is currently used to model all the ion traps used in TIQI projects.
+
+Contributors, in a non-strictly-cronological order:
+
+- Vlad Negnevitsky
+- Matteo Marinelli
+- Francesco Lancellotti
+- Robin Ostwald
+- Sebastian Heinekamp
+- Tobias Sagesser
+- Carmelo Mordini
+- Yuto Motohashi
+- Michalis Theodorou
+
+## References
+
+Articles or theses describing the projects through which this project has been developed, and further references.
+
+- V. Negnevitsky, Feedback-stabilised quantum states in a mixed-species ion system, [PhD thesis](https://www.research-collection.ethz.ch/handle/20.500.11850/295923)
+- D. Leibfried et al., Quantum dynamics of single trapped ions, <https://doi.org/10.1103/RevModPhys.75.281>
+- J. P. Home, Quantum science and metrology with mixed-species ion chains, <https://arxiv.org/abs/1306.5950>
+
+The logic of the modular cost function was inspired by the [electrode](https://github.com/nist-ionstorage/electrode) package by Robert Jordens.
+
+About documentation:
+
+- <https://diataxis.fr/>
+- <https://github.com/mhucka/readmine>
