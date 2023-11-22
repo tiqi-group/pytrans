@@ -16,20 +16,17 @@ classifiers = [
 
 requires-python = ">=3.10"
 dependencies = [
+  "cvxpy>=1.2",
   "numpy",
   "scipy",
-  "nptyping",
-  "cvxpy",
-  "tqdm",
   "matplotlib",
+  "nptyping",
+  "tqdm",
   "colorama",
   "tabulate"
 ]
 
 [project.optional-dependencies]
-mosek = [
-  "mosek"
-]
 dev = [
     "pytest",
     "pytest-cov",
@@ -47,5 +44,5 @@ Homepage = "https://github.com/tiqi-group/pytrans"
 Documentation = "https://pytrans.readthedocs.io"
 
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=68.1.0"]
 build-backend = "setuptools.build_meta"
