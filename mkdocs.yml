@@ -1,13 +1,14 @@
 site_name: Pytrans
-site_url:
-repo_url: https://gitlab.phys.ethz.ch/tiqi-projects/pytrans2
+site_url: https://pytrans.readthedocs.io
+repo_url: https://github.com/tiqi-group/pytrans
 edit_uri: tree/docs/docs
 repo_name: pytrans
 
 nav:
   - Home: index.md
-  - User Guide:
-      - Installation: installation.md
+  - How-to:
+    - Build a trap model:
+      - howto/build_trap_model_comsol.md
   # - Features:
   #     - Metadata: features/metadata.md
   #     - Decorators: features/decorators.md
@@ -61,6 +62,7 @@ plugins:
   - mkdocstrings:
       watch:
         - pytrans
+      default_handler: python
       handlers:
         python:
           paths: [pytrans] # search packages in the src folder
