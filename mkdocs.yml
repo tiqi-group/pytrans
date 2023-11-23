@@ -6,8 +6,9 @@ repo_name: pytrans
 
 nav:
   - Home: index.md
-  - User Guide:
-      - Installation: installation.md
+  - How-to:
+    - Build a trap model:
+      - howto/build_trap_model_comsol.md
   # - Features:
   #     - Metadata: features/metadata.md
   #     - Decorators: features/decorators.md
