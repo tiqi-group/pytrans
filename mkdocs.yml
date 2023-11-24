@@ -1,7 +1,7 @@
-site_name: Pytrans
+site_name: Pytrans Documentation
 site_url: https://pytrans.readthedocs.io
 repo_url: https://github.com/tiqi-group/pytrans
-edit_uri: tree/docs/docs
+edit_uri: blob/docs/docs
 repo_name: pytrans
 
 nav:

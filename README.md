@@ -1,6 +1,7 @@
-# pytrans: potentials and waveforms for trapped ions
+# pytrans: potentials and waveforms for trapped ions <!-- omit from toc -->
 
 [![License](https://img.shields.io/badge/License-AGPLv3-firebrick.svg?style=flat-square)](https://opensource.org/license/agpl-v3/)
+[![Documentation Status](https://readthedocs.org/projects/pytrans/badge/?version=latest)](https://pytrans.readthedocs.io/en/latest/?badge=latest)
 
 Pytrans is a python package for creating static and dynamic potentials for ion traps. Starting from a description of the trap geometry and its electrical properties, it allows finding optimal sets of voltages (often called *waveforms* if time-dependent) producing the target trapping potential. It allows to evaluate the equilibrium configuration of an ensamble of ions trapped in the resulting potential and to simulate their classical dynamics.
 
@@ -8,18 +9,17 @@ While the solution depends on the specifics of the trap for which it has been ge
 
 It uses [cvxpy](https://www.cvxpy.org/index.html) as optimization backend, and numpy, scipy and matplotlib for analysis, simulation, and visualization. Pytrans is open source and tested for Python >= 3.10 on all Unix and Windows platforms.
 
-- [pytrans: potentials and waveforms for trapped ions](#pytrans-potentials-and-waveforms-for-trapped-ions)
-  - [Installation](#installation)
-    - [pip](#pip)
-    - [poetry](#poetry)
-    - [Install from source](#install-from-source)
-  - [Documentation](#documentation)
-  - [Usage](#usage)
-    - [Trapping Ca40 in a Paul trap](#trapping-ca40-in-a-paul-trap)
-  - [Contributing](#contributing)
-  - [License](#license)
-  - [Authors and history](#authors-and-history)
-  - [References](#references)
+- [Installation](#installation)
+  - [pip](#pip)
+  - [poetry](#poetry)
+  - [Install from source](#install-from-source)
+- [Documentation](#documentation)
+- [Usage](#usage)
+  - [Trapping Ca40 in a Paul trap](#trapping-ca40-in-a-paul-trap)
+- [Contributing](#contributing)
+- [License](#license)
+- [Authors and history](#authors-and-history)
+- [References](#references)
 
 ## Installation
 
