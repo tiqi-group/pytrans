@@ -2,6 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-AGPLv3-firebrick.svg?style=flat-square)](https://opensource.org/license/agpl-v3/)
 [![Documentation Status](https://readthedocs.org/projects/pytrans/badge/?version=latest)](https://pytrans.readthedocs.io/en/latest/?badge=latest)
+[![DOI](https://zenodo.org/badge/722720016.svg)](https://zenodo.org/doi/10.5281/zenodo.10204441)
 
 Pytrans is a python package for creating static and dynamic potentials for ion traps. Starting from a description of the trap geometry and its electrical properties, it allows finding optimal sets of voltages (often called *waveforms* if time-dependent) producing the target trapping potential. It allows to evaluate the equilibrium configuration of an ensamble of ions trapped in the resulting potential and to simulate their classical dynamics.
 

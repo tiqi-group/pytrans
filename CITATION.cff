@@ -1,0 +1,41 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: pytrans
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Carmelo
+    family-names: Mordini
+    orcid: 'https://orcid.org/0000-0002-7162-4836'
+    affiliation: ETH Zurich
+    email: carmelo.mordini@gmail.com
+  - given-names: Francesco
+    family-names: Lancellotti
+    affiliation: ETH Zurich
+  - given-names: Vlad
+    family-names: Negnevitsky
+    affiliation: ETH Zurich
+  - given-names: Matteo
+    family-names: Marinelli
+    affiliation: ETH Zurich
+  - given-names: Robin
+    family-names: Ostwald
+    affiliation: ETH Zurich
+  - given-names: Tobias
+    family-names: Saegesser
+    affiliation: ETH Zurich
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.10204441
+    description: latest
+url: 'https://github.com/tiqi-group/pytrans'
+abstract: Generation of potentials and waveforms for trapped ions
+keywords:
+  - trapped ions
+  - ion transport
+  - quantum computing
+license: AGPL-3.0-or-later
