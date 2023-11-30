@@ -6,6 +6,8 @@
 
 import sys
 import pytrans  # noqa
+from pytrans import analysis  # noqa
+from pytrans import plotting  # noqa
 
 
 def test_import():
