@@ -16,6 +16,7 @@ import time
 from scipy.constants import atomic_mass as _m0
 from scipy.constants import elementary_charge as _q0
 from scipy.constants import epsilon_0
+
 _x0 = 1e-6
 _t0 = 1e-6
 
@@ -26,23 +27,27 @@ _K0 = 1 / 4 / np.pi / epsilon_0 * _q0**2 * _t0**2 / _m0 / _x0**3
 
 def coulomb_force_a(x1, x2):
     s = np.sign(x2 - x1)
-    return _K0 / (x2 - x1)**2 * np.asarray([s, -s])
+    return _K0 / (x2 - x1) ** 2 * np.asarray([s, -s])
 
 
-def simulate_waveform_1d(trap, waveform, t, x0, bounds=None, slowdown=1, pseudo=False, time_interp_kind='linear', solve_kw=dict()):
-
+def simulate_waveform_1d(
+    trap, waveform, t, x0, bounds=None, slowdown=1, pseudo=False, time_interp_kind="linear", solve_kw=dict()
+):
     mass = trap.ion.mass / _m0
     charge = trap.ion.charge / _q0
     x0 = np.asarray(x0)
 
     n_samples = len(waveform)
     if n_samples == 1:
+
         def waveform_t(t):
             return waveform[0]
+
     else:
         s = np.linspace(0, 1, n_samples)
-        waveform_s = interp1d(s, waveform, axis=0, kind=time_interp_kind,
-                              bounds_error=False, fill_value=(waveform[0], waveform[-1]))
+        waveform_s = interp1d(
+            s, waveform, axis=0, kind=time_interp_kind, bounds_error=False, fill_value=(waveform[0], waveform[-1])
+        )
 
         def waveform_t(t):
             return waveform_s(t * _t0 / (trap.dt * n_samples * slowdown))
@@ -55,12 +60,14 @@ def simulate_waveform_1d(trap, waveform, t, x0, bounds=None, slowdown=1, pseudo=
 
     def trap_force(t, x0):
         vv = waveform_t((t))
-        force = - charge * trap.gradient(vv, x0 * _x0, 0, trap.z0, trap.ion.mass_amu, pseudo=pseudo)[:, 0] / _E0
+        force = -charge * trap.gradient(vv, x0 * _x0, 0, trap.z0, trap.ion.mass_amu, pseudo=pseudo)[:, 0] / _E0
         return force
 
     if n_ions > 1:
+
         def force(t, x0):
-            return - charge**2 * coulomb_force_a(*x0) + trap_force(t, x0)
+            return -(charge**2) * coulomb_force_a(*x0) + trap_force(t, x0)
+
     else:
         force = trap_force
 
@@ -68,8 +75,10 @@ def simulate_waveform_1d(trap, waveform, t, x0, bounds=None, slowdown=1, pseudo=
         assert isinstance(bounds, (list, tuple)) and len(bounds) == 2
         events = []
         for j in range(n_ions):
+
             def exit_event(t, y, *args):
                 return (y[j] - bounds[0] / _x0) * (y[j] - bounds[1] / _x0)
+
             exit_event.terminal = True
             events.append(exit_event)
     else:
@@ -90,7 +99,7 @@ def simulate_waveform_1d(trap, waveform, t, x0, bounds=None, slowdown=1, pseudo=
     t0, t1 = t[[0, -1]] / _t0
     state = [t0, (t1 - t0) / 1000]
 
-    kw = dict(t_eval=t / _t0, dense_output=True, events=events, method='LSODA')
+    kw = dict(t_eval=t / _t0, dense_output=True, events=events, method="LSODA")
     kw.update(solve_kw)
 
     print("Exec simulate_waveform_1d")
@@ -112,8 +121,8 @@ def simulate_waveform_1d(trap, waveform, t, x0, bounds=None, slowdown=1, pseudo=
     def pot(t, x0, pseudo):
         # TODO: Coulomb potential energy missing
         www = waveform_t(t / _t0)
-        ww_index = 'tv' if n_samples > 1 else 'v'
-        u = np.einsum(f'{ww_index},vnt->nt', www, trap.dc_potentials(x0, 0, trap.z0))
+        ww_index = "tv" if n_samples > 1 else "v"
+        u = np.einsum(f"{ww_index},vnt->nt", www, trap.dc_potentials(x0, 0, trap.z0))
         if pseudo:
             u += trap.pseudo_potential(x0, 0, trap.z0)
         return _q0 * charge * u.sum(0)

@@ -31,8 +31,8 @@ def gradient_matrix(n):
 
 def diff_matrix(n):
     M = np.zeros((n - 1, n))
-    M += np.concatenate([np.diag([-1.] * (n - 1)), np.zeros((n - 1, 1)).reshape([-1, 1])], axis=1)
-    M += np.concatenate([np.zeros((n - 1, 1)).reshape([-1, 1]), np.diag([+1.] * (n - 1))], axis=1)
+    M += np.concatenate([np.diag([-1.0] * (n - 1)), np.zeros((n - 1, 1)).reshape([-1, 1])], axis=1)
+    M += np.concatenate([np.zeros((n - 1, 1)).reshape([-1, 1]), np.diag([+1.0] * (n - 1))], axis=1)
     return M
 
 
@@ -48,16 +48,18 @@ def populate_map(names):
     return d_map
 
 
-d_names = [[""]] + [s.split() for s in [
-    "x y z",
-    "xx xy xz yx yy yz zx zy zz",
-]]
+d_names = [[""]] + [
+    s.split()
+    for s in [
+        "x y z",
+        "xx xy xz yx yy yz zx zy zz",
+    ]
+]
 
 d_map = populate_map(d_names)
 
 
-def get_derivative(d: Union[int, str, List[Union[int, str]]],
-                   d_map=d_map) -> Union[str, List[str]]:
+def get_derivative(d: Union[int, str, List[Union[int, str]]], d_map=d_map) -> Union[str, List[str]]:
     if isinstance(d, int):
         return d_map[d]
     elif isinstance(d, str):
@@ -95,16 +97,16 @@ def parse_indexing_string(indexing: str) -> Tuple[slice, int, list]:
       '[:,1], ::' -> invalid string
       '1, 3, [, 11' -> invalid string
     """
-    rem = re.sub(re_ix, '', indexing)
-    if not set(rem) <= {',', ' '}:
+    rem = re.sub(re_ix, "", indexing)
+    if not set(rem) <= {",", " "}:
         # there should be no other characters left after matching
         raise ValueError("invalid string")
     slices = []
     for match in re.findall(re_ix, indexing):
-        if '[' in match:
-            sl = list(map(int, match.strip('[]').split(',')))
-        elif ':' in match:
-            sl = slice(*(int(i) if i else None for i in match.strip().split(':')))
+        if "[" in match:
+            sl = list(map(int, match.strip("[]").split(",")))
+        elif ":" in match:
+            sl = slice(*(int(i) if i else None for i in match.strip().split(":")))
         else:
             sl = int(match)
         slices.append(sl)
@@ -120,24 +122,26 @@ def parse_indexing(indexing):
         raise TypeError("Incorrect type of indexing")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     strings = """[0, 1], 10, ::-1
 :, :, 1
 0:-4:10,::-1,112,[0,10,18]
 :, 3,...,10
 :, a, 11
 [:,1], ::
-1, 3, [, 11""".split('\n')
+1, 3, [, 11""".split(
+        "\n"
+    )
 
     for string in strings:
-        print(f"'{string}'", end=' -> ')
+        print(f"'{string}'", end=" -> ")
         try:
             print(parse_indexing_string(string))
         except ValueError as e:
             print(e)
 
     print(d_names)
-    __import__('pprint').pprint(d_map)
+    __import__("pprint").pprint(d_map)
     print(get_derivative(1, d_map))
-    print(get_derivative('xy', d_map))
-    print(get_derivative(['x', 'xy'], d_map))
+    print(get_derivative("xy", d_map))
+    print(get_derivative(["x", "xy"], d_map))

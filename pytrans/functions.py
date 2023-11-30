@@ -13,12 +13,12 @@ from .conversion import freq_to_curv
 
 
 def gaussian_1d(x, x0, sigma):
-    return np.exp(-(x - x0)**2 / 2 / sigma**2)
+    return np.exp(-((x - x0) ** 2) / 2 / sigma**2)
 
 
 def quadratic_potential_1d(x, x0, freq, offset, ion: Ion):
     curv = freq_to_curv(freq, ion=ion)
-    return 0.5 * curv * (x - x0)**2 + offset
+    return 0.5 * curv * (x - x0) ** 2 + offset
 
 
 def erfspace(a, b, npts, erf_scaling=2.5):
@@ -35,7 +35,7 @@ def erfspace(a, b, npts, erf_scaling=2.5):
 
 def sinsquared(a, b, npts):
     t = np.linspace(0, 1, npts)
-    return a + (b - a) * np.sin(np.pi / 2 * t)**2
+    return a + (b - a) * np.sin(np.pi / 2 * t) ** 2
 
 
 def zpspace(a, b, npts, k=3, gap=1.5, gap2=None):
@@ -50,6 +50,7 @@ def zpspace(a, b, npts, k=3, gap=1.5, gap2=None):
     y = np.log(np.abs((w - 1j * w0) / (w - 1j * w1)))
     return a + (b - a) * (y - y.min()) / (y.max() - y.min())
 
+
 # Linspace replacement, producing a line with 2 identical points at
 # the start and the end looking like a _/-
 # def rampspace(a, b, npts, pad=1):
@@ -59,6 +60,6 @@ def zpspace(a, b, npts, k=3, gap=1.5, gap2=None):
 
 
 def vlinspace(start_vec, end_vec, npts, lin_fn=np.linspace):
-    """ Linspace on column vectors specifying the starts and ends"""
+    """Linspace on column vectors specifying the starts and ends"""
     assert start_vec.shape == end_vec.shape and start_vec.ndim == 1, "Inputs don't have the same length"
     return np.stack([lin_fn(sv, ev, npts) for sv, ev in zip(start_vec, end_vec)], axis=1)

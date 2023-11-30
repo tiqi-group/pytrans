@@ -24,16 +24,16 @@ from .abstract_model import AbstractTrapModel, ElectrodeNames
 from .indexing import get_derivative, diff_matrix, get_electrode_index
 
 _constraint_operator_map = {
-    '<': operator.lt,
-    '<=': operator.le,
-    '==': operator.eq,
-    '>=': operator.ge,
-    '>': operator.gt,
-    'lt': operator.lt,
-    'le': operator.le,
-    'eq': operator.eq,
-    'ge': operator.ge,
-    'gt': operator.gt,
+    "<": operator.lt,
+    "<=": operator.le,
+    "==": operator.eq,
+    ">=": operator.ge,
+    ">": operator.gt,
+    "lt": operator.lt,
+    "le": operator.le,
+    "eq": operator.eq,
+    "ge": operator.ge,
+    "gt": operator.gt,
 }
 
 
@@ -44,6 +44,7 @@ class Objective(ABC):
     cost function to be optimized, or to implement constraints on the optimization
     variables.
     """
+
     weight = 1.0
     constraint_type = None
 
@@ -88,15 +89,17 @@ class Objective(ABC):
         try:
             return _constraint_operator_map[self.constraint_type](lhs, rhs)
         except KeyError as e:
-            raise KeyError(
-                f"Wrong constraint type defined: {self.constraint_type}") from e
+            raise KeyError(f"Wrong constraint type defined: {self.constraint_type}") from e
 
 
 class VariableObjective(Objective):
-
-    def __init__(self, var: cx.Variable,
-                 value: Union[ArrayLike, Literal["minimize", "maximize"]],
-                 weight: float = 1.0, constraint_type: Optional[str] = None):
+    def __init__(
+        self,
+        var: cx.Variable,
+        value: Union[ArrayLike, Literal["minimize", "maximize"]],
+        weight: float = 1.0,
+        constraint_type: Optional[str] = None,
+    ):
         r"""Implements an Objective for a generic optimization variable
 
         Cost
@@ -123,10 +126,10 @@ class VariableObjective(Objective):
         self.value = value
 
     def objective(self):
-        if self.value == 'minimize':
+        if self.value == "minimize":
             cost = cx.sum(self.var)
-        elif self.value == 'maximize':
-            cost = - cx.sum(self.var)
+        elif self.value == "maximize":
+            cost = -cx.sum(self.var)
         else:
             cost = cx.sum_squares(self.var - self.value)
         cost = cx.multiply(self.weight, cost)
@@ -137,12 +140,17 @@ class VariableObjective(Objective):
 
 
 class VoltageObjective(Objective):
-
-    def __init__(self, var: cx.Variable, value: ArrayLike, *,
-                 electrodes: Optional[ElectrodeNames] = None,
-                 trap: Optional[AbstractTrapModel] = None,
-                 local_weights: Optional[ArrayLike] = None,
-                 weight: float = 1.0, constraint_type: Optional[str] = None):
+    def __init__(
+        self,
+        var: cx.Variable,
+        value: ArrayLike,
+        *,
+        electrodes: Optional[ElectrodeNames] = None,
+        trap: Optional[AbstractTrapModel] = None,
+        local_weights: Optional[ArrayLike] = None,
+        weight: float = 1.0,
+        constraint_type: Optional[str] = None,
+    ):
         r"""Implements an Objective for the voltages applied to the trap electrodes
 
         Cost
@@ -189,9 +197,7 @@ class VoltageObjective(Objective):
 
 
 class SlewRateObjective(Objective):
-
-    def __init__(self, var: cx.Variable, dt: float, *,
-                 value=0, norm=1e6, weight=1., constraint_type=None):
+    def __init__(self, var: cx.Variable, dt: float, *, value=0, norm=1e6, weight=1.0, constraint_type=None):
         r"""Implements a cost penalizing the time derivative of the waveform.
             As such, it must be used as a global objective.
         Cost
@@ -234,11 +240,18 @@ class SlewRateObjective(Objective):
 
 
 class SymmetryObjective(Objective):
-
-    def __init__(self, var: cx.Variable,
-                 electrodes_lhs: ElectrodeNames, electrodes_rhs: ElectrodeNames,
-                 trap: AbstractTrapModel, *,
-                 sign: float = 1.0, norm: float = 1.0, weight: float = 1.0, constraint_type: Optional[str] = None):
+    def __init__(
+        self,
+        var: cx.Variable,
+        electrodes_lhs: ElectrodeNames,
+        electrodes_rhs: ElectrodeNames,
+        trap: AbstractTrapModel,
+        *,
+        sign: float = 1.0,
+        norm: float = 1.0,
+        weight: float = 1.0,
+        constraint_type: Optional[str] = None,
+    ):
         super().__init__(var, weight, constraint_type)
         self.trap = trap
         self.electrodes_lhs = electrodes_lhs
@@ -259,11 +272,22 @@ class SymmetryObjective(Objective):
 
 
 class PotentialObjective(Objective):
-
-    def __init__(self, var: cx.Variable, trap: AbstractTrapModel,
-                 x: ArrayLike, y: ArrayLike, z: ArrayLike, ion: Ion, value: ArrayLike, *,
-                 pseudo: bool = True, local_weights: ArrayLike = None, norm: float = 1.0,
-                 weight: float = 1.0, constraint_type: Optional[str] = None):
+    def __init__(
+        self,
+        var: cx.Variable,
+        trap: AbstractTrapModel,
+        x: ArrayLike,
+        y: ArrayLike,
+        z: ArrayLike,
+        ion: Ion,
+        value: ArrayLike,
+        *,
+        pseudo: bool = True,
+        local_weights: ArrayLike = None,
+        norm: float = 1.0,
+        weight: float = 1.0,
+        constraint_type: Optional[str] = None,
+    ):
         r"""Implements an Objective for the potential generated by the trap electrodes
 
         Cost
@@ -320,12 +344,22 @@ class PotentialObjective(Objective):
 
 
 class GradientObjective(Objective):
-
-    def __init__(self, var: cx.Variable, trap: AbstractTrapModel,
-                 x: ArrayLike, y: ArrayLike, z: ArrayLike, ion: Ion, value: ArrayLike, *,
-                 entries: Union[int, str, List[Union[int, str]]] = None,
-                 pseudo: bool = True, norm: float = 1.0,
-                 weight: float = 1.0, constraint_type: Optional[str] = None):
+    def __init__(
+        self,
+        var: cx.Variable,
+        trap: AbstractTrapModel,
+        x: ArrayLike,
+        y: ArrayLike,
+        z: ArrayLike,
+        ion: Ion,
+        value: ArrayLike,
+        *,
+        entries: Union[int, str, List[Union[int, str]]] = None,
+        pseudo: bool = True,
+        norm: float = 1.0,
+        weight: float = 1.0,
+        constraint_type: Optional[str] = None,
+    ):
         r"""Implements an Objective for the potential gradient generated by the trap electrodes
 
         Cost
@@ -386,12 +420,22 @@ class GradientObjective(Objective):
 
 
 class HessianObjective(Objective):
-
-    def __init__(self, var: cx.Variable, trap: AbstractTrapModel,
-                 x: ArrayLike, y: ArrayLike, z: ArrayLike, ion: Ion, value: ArrayLike, *,
-                 entries: Union[int, str, List[Union[int, str]]] = None,
-                 pseudo: bool = True, norm: float = 1.0,
-                 weight: float = 1.0, constraint_type: Optional[str] = None):
+    def __init__(
+        self,
+        var: cx.Variable,
+        trap: AbstractTrapModel,
+        x: ArrayLike,
+        y: ArrayLike,
+        z: ArrayLike,
+        ion: Ion,
+        value: ArrayLike,
+        *,
+        entries: Union[int, str, List[Union[int, str]]] = None,
+        pseudo: bool = True,
+        norm: float = 1.0,
+        weight: float = 1.0,
+        constraint_type: Optional[str] = None,
+    ):
         r"""Implements an Objective for the potential gradient generated by the trap electrodes
 
         Cost
@@ -453,15 +497,22 @@ class HessianObjective(Objective):
 
 
 class QuarticObjective(Objective):
-
-    def __init__(self, var: cx.Variable, trap: AbstractTrapModel,
-                 x: ArrayLike, y: ArrayLike, z: ArrayLike,
-                 value: Union[ArrayLike, Literal["minimize", "maximize"]], *,
-                 norm: float = 1.0, weight: float = 1.0, constraint_type: Optional[str] = None):
+    def __init__(
+        self,
+        var: cx.Variable,
+        trap: AbstractTrapModel,
+        x: ArrayLike,
+        y: ArrayLike,
+        z: ArrayLike,
+        value: Union[ArrayLike, Literal["minimize", "maximize"]],
+        *,
+        norm: float = 1.0,
+        weight: float = 1.0,
+        constraint_type: Optional[str] = None,
+    ):
         super().__init__(var, weight, constraint_type)
         if not hasattr(trap, "dc_fourth_order"):
-            raise NotImplementedError(
-                "The current trap model does not implement fourth order moments.")
+            raise NotImplementedError("The current trap model does not implement fourth order moments.")
         self.trap = trap
         self.xyz = x, y, z
         self.value = value
@@ -469,10 +520,10 @@ class QuarticObjective(Objective):
 
     def objective(self):
         pot = self.var @ self.trap.dc_fourth_order(*self.xyz)
-        if self.value == 'minimize':
+        if self.value == "minimize":
             cost = cx.sum(pot / self.norm)
-        elif self.value == 'maximize':
-            cost = - cx.sum(pot / self.norm)
+        elif self.value == "maximize":
+            cost = -cx.sum(pot / self.norm)
         else:
             cost = cx.sum_squares((pot - self.value) / self.norm)
         cost = cx.multiply(self.weight, cost)
@@ -486,15 +537,22 @@ class QuarticObjective(Objective):
 
 
 class CubicObjective(Objective):
-
-    def __init__(self, var: cx.Variable, trap: AbstractTrapModel,
-                 x: ArrayLike, y: ArrayLike, z: ArrayLike,
-                 value: Union[ArrayLike, Literal["minimize", "maximize"]], *,
-                 norm: float = 1.0, weight: float = 1.0, constraint_type: Optional[str] = None):
+    def __init__(
+        self,
+        var: cx.Variable,
+        trap: AbstractTrapModel,
+        x: ArrayLike,
+        y: ArrayLike,
+        z: ArrayLike,
+        value: Union[ArrayLike, Literal["minimize", "maximize"]],
+        *,
+        norm: float = 1.0,
+        weight: float = 1.0,
+        constraint_type: Optional[str] = None,
+    ):
         super().__init__(var, weight, constraint_type)
         if not hasattr(trap, "dc_third_order"):
-            raise NotImplementedError(
-                "The current trap model does not implement third order moments.")
+            raise NotImplementedError("The current trap model does not implement third order moments.")
         self.trap = trap
         self.xyz = x, y, z
         self.value = value
@@ -502,10 +560,10 @@ class CubicObjective(Objective):
 
     def objective(self):
         pot = self.var @ self.trap.dc_third_order(*self.xyz)
-        if self.value == 'minimize':
+        if self.value == "minimize":
             cost = cx.sum(pot / self.norm)
-        elif self.value == 'maximize':
-            cost = - cx.sum(pot / self.norm)
+        elif self.value == "maximize":
+            cost = -cx.sum(pot / self.norm)
         else:
             cost = cx.sum_squares((pot - self.value) / self.norm)
         cost = cx.multiply(self.weight, cost)

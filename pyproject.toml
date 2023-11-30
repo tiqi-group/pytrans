@@ -32,6 +32,8 @@ dev = [
     "pytest",
     "pytest-cov",
     "autopep8",
+    "flake8",
+    "flake8-pyproject",
     "black"
 ]
 docs = [
@@ -48,3 +50,21 @@ Documentation = "https://pytrans.readthedocs.io"
 [build-system]
 requires = ["setuptools>=68.1.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["pytrans"]
+
+[tool.black]
+line-length = 120
+target-version = ['py310']
+
+[tool.flake8]
+# https://github.com/microsoft/vscode-flake8/issues/135
+max-line-length = 120
+exclude = [
+    ".git",
+    "__pycache__"
+]
+extend-ignore = [
+    "E203"
+]

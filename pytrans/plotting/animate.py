@@ -25,9 +25,12 @@ def animate_waveform(trap, waveform, x, y, z, frames=None, **kwargs):
     print(potentials.shape)
     print(x.shape)
 
-    ln, = ax.plot(x * 1e6, [0] * len(x),)
-    lnv, = ax1.plot(np.arange(nv), [0] * nv)
-    tx = ax.text(0.1, 0.9, '', transform=ax.transAxes)
+    (ln,) = ax.plot(
+        x * 1e6,
+        [0] * len(x),
+    )
+    (lnv,) = ax1.plot(np.arange(nv), [0] * nv)
+    tx = ax.text(0.1, 0.9, "", transform=ax.transAxes)
 
     def init():
         ax.set_ylim(find_ylim(potentials))
@@ -44,6 +47,5 @@ def animate_waveform(trap, waveform, x, y, z, frames=None, **kwargs):
     kw.update(kwargs)
 
     frames = range(len(waveform)) if frames is None else frames
-    ani = FuncAnimation(fig, update, frames=frames,
-                        init_func=init, **kw)
+    ani = FuncAnimation(fig, update, frames=frames, init_func=init, **kw)
     return ani

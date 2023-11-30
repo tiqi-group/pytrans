@@ -6,6 +6,7 @@
 """ Define common types
 """
 from typing import Union, List, Tuple
+
 # from numpy.typing import ArrayLike
 from nptyping import NDArray, Shape, Float
 

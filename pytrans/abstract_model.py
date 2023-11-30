@@ -9,6 +9,7 @@ from .typing import ElectrodeNames
 from .electrode import DCElectrode, RFElectrode
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -26,7 +27,8 @@ class AbstractTrapModel:
     - electrode_constrains(min, max, slew rate)
     - filters?
     """
-    __required_attributes = ['_dc_electrodes', '_rf_electrodes', '_rf_voltage', '_rf_freq_mhz']
+
+    __required_attributes = ["_dc_electrodes", "_rf_electrodes", "_rf_voltage", "_rf_freq_mhz"]
 
     _dc_electrodes: Dict[str, DCElectrode]
     _rf_electrodes: Dict[str, RFElectrode]
@@ -37,7 +39,10 @@ class AbstractTrapModel:
     def __new__(cls, *args, **kwargs):
         for name in cls.__required_attributes:
             if not hasattr(cls, name):
-                raise TypeError(f"Can't instantiate class {cls.__name__} without attribute {name}. Required attributes: {', '.join(cls.__required_attributes)}")
+                raise TypeError(
+                    f"Can't instantiate class {cls.__name__} without attribute {name}. \
+                        Required attributes: {', '.join(cls.__required_attributes)}"
+                )
 
         cls._all_electrodes = cls._dc_electrodes
         return super().__new__(cls)
@@ -47,7 +52,10 @@ class AbstractTrapModel:
             try:
                 self._electrodes = {name: self._all_electrodes[name] for name in use_electrodes}
             except KeyError as e:
-                raise KeyError(f"Trap {self.__class__.__name__} has no electrode {e}. Available electrodes: {list(self._all_electrodes.keys())}") from e
+                raise KeyError(
+                    f"Trap {self.__class__.__name__} has no electrode {e}. \
+                        Available electrodes: {list(self._all_electrodes.keys())}"
+                ) from e
         else:
             self._electrodes = self._all_electrodes
 
@@ -66,8 +74,7 @@ class AbstractTrapModel:
 
     @property
     def n_electrodes(self):
-        """Number of active electrodes
-        """
+        """Number of active electrodes"""
         return len(self._electrodes)
 
     @classmethod
@@ -113,8 +120,13 @@ class AbstractTrapModel:
         TODO In these conditions, it probably doesn't make sense to have
         more than one RFElectrode object in the model. Think about simplifying this.
         """
-        return np.sum([rf_el.potential(x, y, z, ion_mass_amu, ion_unit_charge, self._rf_voltage, self._rf_freq_mhz)
-                       for rf_el in self._rf_electrodes.values()], axis=0)
+        return np.sum(
+            [
+                rf_el.potential(x, y, z, ion_mass_amu, ion_unit_charge, self._rf_voltage, self._rf_freq_mhz)
+                for rf_el in self._rf_electrodes.values()
+            ],
+            axis=0,
+        )
 
     def pseudo_gradient(self, x, y, z, ion_mass_amu, ion_unit_charge=1):
         """Pseudopotential gradient
@@ -122,8 +134,13 @@ class AbstractTrapModel:
         Returns:
             out: ndarray, shape: x.shape + (3,)
         """
-        return np.sum([rf_el.gradient(x, y, z, ion_mass_amu, ion_unit_charge, self._rf_voltage, self._rf_freq_mhz)
-                       for rf_el in self._rf_electrodes.values()], axis=0)
+        return np.sum(
+            [
+                rf_el.gradient(x, y, z, ion_mass_amu, ion_unit_charge, self._rf_voltage, self._rf_freq_mhz)
+                for rf_el in self._rf_electrodes.values()
+            ],
+            axis=0,
+        )
 
     def pseudo_hessian(self, x, y, z, ion_mass_amu, ion_unit_charge=1):
         """Pseudopotential curvatures
@@ -131,8 +148,13 @@ class AbstractTrapModel:
         Returns:
             out: ndarray, shape: x.shape + (3, 3)
         """
-        return np.sum([rf_el.hessian(x, y, z, ion_mass_amu, ion_unit_charge, self._rf_voltage, self._rf_freq_mhz)
-                       for rf_el in self._rf_electrodes.values()], axis=0)
+        return np.sum(
+            [
+                rf_el.hessian(x, y, z, ion_mass_amu, ion_unit_charge, self._rf_voltage, self._rf_freq_mhz)
+                for rf_el in self._rf_electrodes.values()
+            ],
+            axis=0,
+        )
 
     def potential(self, voltages, x, y, z, ion_mass_amu, ion_unit_charge=1, pseudo=True):
         u = np.tensordot(voltages, self.dc_potentials(x, y, z), axes=1)

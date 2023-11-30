@@ -15,10 +15,9 @@ from nptyping import NDArray
 
 
 def pad_waveform(waveform, pad_after, pad_before=0):
-    """Extends a waveform (2d numpy array) along the time axis
-    """
+    """Extends a waveform (2d numpy array) along the time axis"""
     pad_width = [(pad_before, pad_after)] + [(0, 0)] * (waveform.ndim - 1)
-    return np.pad(waveform, pad_width, mode='edge')
+    return np.pad(waveform, pad_width, mode="edge")
 
 
 def _rename(wname):
@@ -26,7 +25,6 @@ def _rename(wname):
 
 
 class TrapFilterTransform:
-
     def __init__(self, system: sg.dlti):
         assert isinstance(system, sg.dlti)
         self.system = system.to_tf()
@@ -50,7 +48,7 @@ class TrapFilterTransform:
         # stacking copies of the same variable is equivalent to constraining them to be equal
         w0 = cx.vstack([first_sample] * pad_before + [waveform] + [last_sample] * pad_after)
         assert w0.shape == (pad_before + n + pad_after, w)
-        M = convolution_matrix(self.impulse_response, w0.shape[0], mode='valid')
+        M = convolution_matrix(self.impulse_response, w0.shape[0], mode="valid")
         w_filt = M @ w0
         w_filt.name = partial(_rename, waveform.name())
         return w_filt
@@ -74,7 +72,7 @@ class TrapFilterTransform:
         """
         if pad_after > 0:
             waveform = pad_waveform(waveform, pad_after)
-        filtered_waveform, zf = sg.lfilter(self.system.num, self.system.den,
-                                           waveform, axis=0,
-                                           zi=np.outer(self.zi, waveform[0]))
+        filtered_waveform, zf = sg.lfilter(
+            self.system.num, self.system.den, waveform, axis=0, zi=np.outer(self.zi, waveform[0])
+        )
         return filtered_waveform

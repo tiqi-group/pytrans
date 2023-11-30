@@ -4,9 +4,9 @@
 # Created: 06/2021
 # Author: Carmelo Mordini <cmordini@phys.ethz.ch>
 
-'''
+"""
 Module docstring
-'''
+"""
 
 import numpy as np
 from .ions import Ion
@@ -28,7 +28,7 @@ def curv_to_freq(curv, mass=None, charge=None, ion: Ion = None):
     if ion is not None:
         mass = ion.mass
         charge = ion.charge
-    C = (2 * np.pi)**2 * mass / charge
+    C = (2 * np.pi) ** 2 * mass / charge
     return np.sign(curv) * np.sqrt(np.abs(curv) / C)
 
 
@@ -48,7 +48,7 @@ def freq_to_curv(freq, mass=None, charge=None, ion: Ion = None):
     if ion is not None:
         mass = ion.mass
         charge = ion.charge
-    C = (2 * np.pi)**2 * mass / charge
+    C = (2 * np.pi) ** 2 * mass / charge
     return C * np.sign(freq) * freq**2
 
 
@@ -95,23 +95,22 @@ def get_hessian(axial, split, tilt, freq_pseudo, mass, charge):
     a = v_ps - v_ax / 2
 
     # TODO This is brutal. There should be a way to vectorize it but I'm lazy
-    target_hessian = np.stack([
-        [[_v_ax, 0, 0],
-         [0, _a + _v_split, _v_tilt],
-         [0, _v_tilt, _a - _v_split]] for _v_ax, _a, _v_split, _v_tilt in zip(v_ax, a, v_split, v_tilt)
-    ])
+    target_hessian = np.stack(
+        [
+            [[_v_ax, 0, 0], [0, _a + _v_split, _v_tilt], [0, _v_tilt, _a - _v_split]]
+            for _v_ax, _a, _v_split, _v_tilt in zip(v_ax, a, v_split, v_tilt)
+        ]
+    )
     return target_hessian
 
 
 def get_hessian_dc(axial, split, mass, charge):
     # force theta = 45, split is approximate
     v_ax = freq_to_curv(axial, mass, charge)
-    b = (2 * np.pi)**2 * mass / charge * split * 5.5e6
-    target_hessian = np.stack([
-        [[_v_ax, 0, 0],
-         [0, -_v_ax / 2, _b],
-         [0, _b, -_v_ax / 2]] for _v_ax, _b, in zip(v_ax, b)
-    ])
+    b = (2 * np.pi) ** 2 * mass / charge * split * 5.5e6
+    target_hessian = np.stack(
+        [[[_v_ax, 0, 0], [0, -_v_ax / 2, _b], [0, _b, -_v_ax / 2]] for _v_ax, _b, in zip(v_ax, b)]
+    )
     return target_hessian
 
 

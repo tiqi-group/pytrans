@@ -20,6 +20,7 @@ from typing import List, Optional
 # length and time scales
 from scipy.constants import atomic_mass as _m0
 from scipy.constants import elementary_charge as _q0
+
 _x0 = 1e-6
 _t0 = 1e-6
 
@@ -27,8 +28,20 @@ _p0 = _m0 * _x0 / _t0
 _E0 = _m0 * _x0 / _q0 / _t0**2
 
 
-def simulate_waveform(trap: AbstractTrapModel, waveform: Waveform, ions: List[Ion], t, dt, x0: Coords,
-                      v0=None, bounds: Optional[Bounds] = None, time_interp_kind='linear', slowdown=1, pseudo=True, solve_kw=dict()):
+def simulate_waveform(
+    trap: AbstractTrapModel,
+    waveform: Waveform,
+    ions: List[Ion],
+    t,
+    dt,
+    x0: Coords,
+    v0=None,
+    bounds: Optional[Bounds] = None,
+    time_interp_kind="linear",
+    slowdown=1,
+    pseudo=True,
+    solve_kw=dict(),
+):
     """
     Simulate the waveform for a specified trap model, set of ions, and initial conditions.
 
@@ -51,7 +64,8 @@ def simulate_waveform(trap: AbstractTrapModel, waveform: Waveform, ions: List[Io
             The bounds within which the simulation takes place. Defaults to None.
             If set, the simulation will be terminated when one of the particles reaches the simulation boundary.
         time_interp_kind : str or int, optional
-            The kind of time interpolation between the waveform timesteps, as defined by scipy.interpolate.interp1d. Defaults to 'linear'.
+            The kind of time interpolation between the waveform timesteps,
+            as defined by scipy.interpolate.interp1d. Defaults to 'linear'.
         slowdown : int, optional
             A factor by which to slow down the simulation. Defaults to 1.
         pseudo : bool, optional
@@ -79,12 +93,15 @@ def simulate_waveform(trap: AbstractTrapModel, waveform: Waveform, ions: List[Io
 
     n_samples = len(waveform)
     if n_samples == 1:
+
         def waveform_t(t):
             return waveform[0]
+
     else:
         s = np.linspace(0, 1, n_samples)
-        waveform_s = interp1d(s, waveform, axis=0, kind=time_interp_kind,
-                              bounds_error=False, fill_value=(waveform[0], waveform[-1]))
+        waveform_s = interp1d(
+            s, waveform, axis=0, kind=time_interp_kind, bounds_error=False, fill_value=(waveform[0], waveform[-1])
+        )
 
         def waveform_t(t):
             return waveform_s(t * _t0 / (dt * n_samples * slowdown))
@@ -97,7 +114,7 @@ def simulate_waveform(trap: AbstractTrapModel, waveform: Waveform, ions: List[Io
         vv = waveform_t(t)
         tg = trap.gradient(vv, *_X.T, mass_amu, pseudo=pseudo)
         cg = coulomb_gradient(_X)
-        force = - unit_charge.reshape(-1, 1) * (tg + cg) / _E0
+        force = -unit_charge.reshape(-1, 1) * (tg + cg) / _E0
         return force.ravel()
 
     def hess(t, x):
@@ -107,7 +124,7 @@ def simulate_waveform(trap: AbstractTrapModel, waveform: Waveform, ions: List[Io
         trap_hess = trap.hessian(vv, *_X.T, mass_amu, pseudo=pseudo)
         hess[np.diag_indices(N, ndim=2)] += trap_hess  # add it in blocks
         hess = np.swapaxes(hess, 1, 2).reshape((N * d, N * d))
-        hess = - np.repeat(unit_charge, d).reshape(-1, 1) * hess / _E0 * _x0
+        hess = -np.repeat(unit_charge, d).reshape(-1, 1) * hess / _E0 * _x0
         return hess
 
     if bounds is not None:
@@ -115,7 +132,7 @@ def simulate_waveform(trap: AbstractTrapModel, waveform: Waveform, ions: List[Io
         b1 = np.tile([b[1] / _x0 for b in bounds], N)
 
         def exit_event(t, y, *args):
-            x = y[:N * d]
+            x = y[: N * d]
             return 1 if np.all(np.bitwise_and(x >= b0, x <= b1)) else -1
 
         exit_event.terminal = True
@@ -126,12 +143,12 @@ def simulate_waveform(trap: AbstractTrapModel, waveform: Waveform, ions: List[Io
 
     def fun(t, y):
         # y = x1, x2, p1, p2
-        x = y[:N * d]
-        p = y[N * d:]
+        x = y[: N * d]
+        p = y[N * d :]
         return np.r_[p / np.repeat(mass_amu, d), force(t, x)]
 
     def jac(t, y, *args):
-        x = y[:N * d]
+        x = y[: N * d]
         m = np.diag(1 / np.repeat(mass_amu, d))
         h = hess(t, x)
         zero = np.zeros_like(h)
@@ -148,8 +165,7 @@ def simulate_waveform(trap: AbstractTrapModel, waveform: Waveform, ions: List[Io
     t0, t1 = t[[0, -1]] / _t0
     state = [t0, (t1 - t0) / 100]
 
-    kw = dict(t_eval=t / _t0, dense_output=True, events=events,
-              jac=jac, method='LSODA')
+    kw = dict(t_eval=t / _t0, dense_output=True, events=events, jac=jac, method="LSODA")
     kw.update(solve_kw)
 
     print("Exec simulate_waveform")
@@ -163,16 +179,16 @@ def simulate_waveform(trap: AbstractTrapModel, waveform: Waveform, ions: List[Io
     print(f"- simulate_waveform elapsed time: {elapsed * 1e3:.3f} ms\n{sol.message}")
 
     sol.t = sol.t * _t0
-    sol.x = (sol.y[:N * d] * _x0).T.reshape(len(sol.t), N, d)
-    sol.v = (sol.y[N * d:] * _p0 / (_m0 * np.repeat(mass_amu, d).reshape(-1, 1))).T.reshape(len(sol.t), N, d)
+    sol.x = (sol.y[: N * d] * _x0).T.reshape(len(sol.t), N, d)
+    sol.v = (sol.y[N * d :] * _p0 / (_m0 * np.repeat(mass_amu, d).reshape(-1, 1))).T.reshape(len(sol.t), N, d)
 
     if sol.t_events is not None and len(sol.t_events[0]) > 0:
         sol.out_of_bounds = True
         _t = sol.t_events[0]  # there will be only one event, as it is terminal
         _y = sol.y_events[0]
         sol.t_out = _t * _t0
-        sol.x_out = (_y[:, :N * d] * _x0).reshape(len(_t), N, d)
-        sol.v_out = (_y[:, N * d:] * _p0 / (_m0 * np.repeat(mass_amu, d).reshape(1, -1))).reshape(len(_t), N, d)
+        sol.x_out = (_y[:, : N * d] * _x0).reshape(len(_t), N, d)
+        sol.v_out = (_y[:, N * d :] * _p0 / (_m0 * np.repeat(mass_amu, d).reshape(1, -1))).reshape(len(_t), N, d)
     else:
         sol.out_of_bounds = False
         sol.t_out = None

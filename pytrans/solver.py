@@ -37,9 +37,7 @@ class SolverResults:
     waveform: cx.Variable | None
 
 
-def _compile_objectives(
-    objectives: list[Objective], verbose: bool, parallel_compile: bool
-):
+def _compile_objectives(objectives: list[Objective], verbose: bool, parallel_compile: bool):
     # static voltage cost
     costs = []
     constraints = []
@@ -63,9 +61,7 @@ def _compile_objectives(
                 else:
                     constraints.append(result)
     else:
-        objectives_iter = (
-            tqdm(objectives, desc="Compiling objectives") if verbose else objectives
-        )
+        objectives_iter = tqdm(objectives, desc="Compiling objectives") if verbose else objectives
         for obj in objectives_iter:
             if obj.constraint_type is None:
                 costs.append(obj.objective())

@@ -54,7 +54,6 @@ class Electrode(ABC):
 
 
 class DCElectrode(Electrode):
-
     def potential(self, x, y, z):
         return self._unit_potential(x, y, z)
 
@@ -66,7 +65,6 @@ class DCElectrode(Electrode):
 
 
 class RFElectrode(Electrode):
-
     def kappa(self, ion_mass_amu, ion_unit_charge, rf_voltage, rf_freq_mhz):
         return rf_voltage**2 * ion_unit_charge / ion_mass_amu / rf_freq_mhz**2
 

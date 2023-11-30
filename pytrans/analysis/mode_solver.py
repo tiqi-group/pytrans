@@ -70,7 +70,7 @@ def coulomb_gradient(X: Coords):
     r_ab = distances(X)  # shape (N, N, d)
     r = np.sqrt(np.sum(r_ab**2, axis=-1))  # shape (N, N), diag == 0
     np.fill_diagonal(r, np.inf)
-    return - kappa * np.sum(r_ab / r[..., None]**3, axis=1)
+    return -kappa * np.sum(r_ab / r[..., None] ** 3, axis=1)
 
 
 def coulomb_hessian(X: Coords):
@@ -92,12 +92,19 @@ def coulomb_hessian(X: Coords):
     r = r[:, :, None, None]
     d_ij = np.eye(d)[None, None, :, :]
     H = kappa * (d_ij / r**3 - 3 * r_ab[:, :, :, None] * r_ab[:, :, None, :] / r**5)
-    H[np.diag_indices(N)] = - H.sum(axis=1)
+    H[np.diag_indices(N)] = -H.sum(axis=1)
     return H
 
 
-def mode_solver(trap: AbstractTrapModel, voltages: NDArray, ions: List[Ion],
-                x0: Coords, bounds=None, sort_axis=None, minimize_options=dict()) -> ModeSolverResults:
+def mode_solver(
+    trap: AbstractTrapModel,
+    voltages: NDArray,
+    ions: List[Ion],
+    x0: Coords,
+    bounds=None,
+    sort_axis=None,
+    minimize_options=dict(),
+) -> ModeSolverResults:
     N, d = x0.shape
     # ions = [ions] * N if isinstance(ions, Ion) else ions
     masses_amu = np.asarray([ion.mass_amu for ion in ions])
@@ -108,8 +115,7 @@ def mode_solver(trap: AbstractTrapModel, voltages: NDArray, ions: List[Ion],
 
     def jac(X):
         _X = X.reshape(N, d)
-        grad = trap.gradient(voltages, *_X.T, masses_amu) + \
-            coulomb_gradient(_X)
+        grad = trap.gradient(voltages, *_X.T, masses_amu) + coulomb_gradient(_X)
         grad = grad.ravel()
         return grad
 
@@ -124,8 +130,7 @@ def mode_solver(trap: AbstractTrapModel, voltages: NDArray, ions: List[Ion],
         """
         _X = X.reshape(N, d)
         hess = coulomb_hessian(_X)  # shape (N, N, d, d)
-        trap_hess = trap.hessian(
-            voltages, *_X.T, masses_amu)  # shape (N, d, d)
+        trap_hess = trap.hessian(voltages, *_X.T, masses_amu)  # shape (N, d, d)
         hess[np.diag_indices(N, ndim=2)] += trap_hess  # add it in blocks
         hess = np.swapaxes(hess, 1, 2).reshape((N * d, N * d))
         return hess
@@ -144,8 +149,7 @@ def mode_solver(trap: AbstractTrapModel, voltages: NDArray, ions: List[Ion],
     )
     options.update(minimize_options)
 
-    res = minimize(fun, x0.ravel(), method='TNC', jac=jac,
-                   bounds=bounds, options=options)
+    res = minimize(fun, x0.ravel(), method="TNC", jac=jac, bounds=bounds, options=options)
     x_eq = res.x.reshape((N, d))
     trap_pot = trap.potential(voltages, *x_eq.T, masses_amu)
     hess = hess(res.x)
@@ -156,11 +160,18 @@ def mode_solver(trap: AbstractTrapModel, voltages: NDArray, ions: List[Ion],
         x_eq = x_eq[ix]
         mode_vectors = mode_vectors[:, ix, :]
 
-    result = ModeSolverResults(ions=ions, x0=x0, x_eq=x_eq,
-                               fun=res.fun, jac=res.jac, hess=hess,
-                               mode_freqs=mode_freqs, mode_vectors=mode_vectors,
-                               trap_pot=trap_pot,
-                               minimize_results=res)
+    result = ModeSolverResults(
+        ions=ions,
+        x0=x0,
+        x_eq=x_eq,
+        fun=res.fun,
+        jac=res.jac,
+        hess=hess,
+        mode_freqs=mode_freqs,
+        mode_vectors=mode_vectors,
+        trap_pot=trap_pot,
+        minimize_results=res,
+    )
 
     return result
 
@@ -188,9 +199,11 @@ def diagonalize_hessian(ions: List[Ion], hessian: NDArray[Shape["L, L"], Float])
     return freqs, modes
 
 
-def project_on_single_ion_modes(mode_vectors: NDArray[Shape["M, N, 3"], Float],  # noqa: F821
-                                single_ion_modes: NDArray[Shape["3, 3"], Float] = np.eye(3),
-                                keys: List[str] = ['x', 'y', 'z']):
+def project_on_single_ion_modes(
+    mode_vectors: NDArray[Shape["M, N, 3"], Float],  # noqa: F821
+    single_ion_modes: NDArray[Shape["3, 3"], Float] = np.eye(3),
+    keys: List[str] = ["x", "y", "z"],
+):
     """
     Project the normal modes of a string of trapped ions on single-ion eigenmodes.
 
@@ -217,13 +230,15 @@ def project_on_single_ion_modes(mode_vectors: NDArray[Shape["M, N, 3"], Float], 
     (array([...]), {'x': array([...]), 'y': array([...]), 'z': array([...])})
     """
     # projections of normal modes on single-ion eigenmodes
-    proj = abs(np.einsum('Mai,mi', mode_vectors, single_ion_modes)).sum(1)
+    proj = abs(np.einsum("Mai,mi", mode_vectors, single_ion_modes)).sum(1)
     mode1_index = np.argmax(proj, axis=1)
 
-    mode_vectors_projected = np.asarray([mode_vectors[j] @ single_ion_modes[mode1_index[j]] for j in range(len(mode_vectors))])
+    mode_vectors_projected = np.asarray(
+        [mode_vectors[j] @ single_ion_modes[mode1_index[j]] for j in range(len(mode_vectors))]
+    )
 
     mode_labels = {}
-    keys = 'xyz' if keys is None else keys
+    keys = "xyz" if keys is None else keys
     for j, key in enumerate(keys):
         mode_labels[key] = np.where(mode1_index == j)[0]
 
