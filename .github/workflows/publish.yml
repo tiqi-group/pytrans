@@ -33,7 +33,7 @@ jobs:
   
     environment:
       name: testpypi
-      url: https://test.pypi.org/p/rectset
+      url: https://test.pypi.org/p/pytrans
   
     permissions:
       id-token: write  # IMPORTANT: mandatory for trusted publishing
@@ -63,7 +63,7 @@ jobs:
 
     environment:
       name: pypi
-      url: https://pypi.org/p/rectset
+      url: https://pypi.org/p/pytrans
 
     permissions:
       id-token: write  # IMPORTANT: mandatory for trusted publishing
