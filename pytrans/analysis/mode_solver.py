@@ -9,8 +9,8 @@ import numpy as np
 from scipy.constants import pi, elementary_charge, epsilon_0
 from scipy.optimize import minimize
 
+from numpy.typing import NDArray
 from typing import List
-from nptyping import NDArray, Shape, Float
 from pytrans.typing import Coords
 
 from pytrans.abstract_model import AbstractTrapModel
@@ -184,7 +184,7 @@ def _ravel_coords(*args):
     return shape, X
 
 
-def diagonalize_hessian(ions: List[Ion], hessian: NDArray[Shape["L, L"], Float]):  # noqa
+def diagonalize_hessian(ions: List[Ion], hessian: NDArray):  # noqa
     N, d = len(ions), 3
     masses_amu = np.asarray([ion.mass_amu for ion in ions])
     masses = np.repeat(masses_amu, d)
@@ -200,8 +200,8 @@ def diagonalize_hessian(ions: List[Ion], hessian: NDArray[Shape["L, L"], Float])
 
 
 def project_on_single_ion_modes(
-    mode_vectors: NDArray[Shape["M, N, 3"], Float],  # noqa: F821
-    single_ion_modes: NDArray[Shape["3, 3"], Float] = np.eye(3),
+    mode_vectors: NDArray,  # noqa: F821
+    single_ion_modes: NDArray = np.eye(3),
     keys: List[str] = ["x", "y", "z"],
 ):
     """
@@ -245,7 +245,7 @@ def project_on_single_ion_modes(
     return mode_vectors_projected, mode_labels
 
 
-def init_crystal(r0: NDArray[Shape["3"], Float], dx: float, n_ions: int, axis=0, randomize=True) -> Coords:
+def init_crystal(r0: NDArray, dx: float, n_ions: int, axis=0, randomize=True) -> Coords:
     """initialize positions of particles in a 1D crystal
     equally spaced by dx along the specified axis
 

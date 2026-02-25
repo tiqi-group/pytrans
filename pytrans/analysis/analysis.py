@@ -11,7 +11,7 @@ Module docstring
 import numpy as np
 from tqdm import tqdm
 from typing import Union, List, Dict, Optional
-from nptyping import NDArray
+from numpy.typing import NDArray
 
 from pytrans.typing import Coords, Coords1, RoiSize, Bounds, Waveform
 from pytrans.plotting.roi import Roi

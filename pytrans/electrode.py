@@ -5,9 +5,9 @@
 # Author: Carmelo Mordini <cmordini@phys.ethz.ch>
 
 import numpy as np
-from typing import Any
 from abc import ABC, abstractmethod
-from nptyping import NDArray, Float
+
+from numpy.typing import NDArray
 
 
 class Electrode(ABC):
@@ -19,7 +19,7 @@ class Electrode(ABC):
     """
 
     @abstractmethod
-    def _unit_potential(self, x: NDArray, y: NDArray, z: NDArray) -> NDArray[Any, Float]:
+    def _unit_potential(self, x: NDArray, y: NDArray, z: NDArray) -> NDArray:
         """
         Args:
             x, y, z (array_like): 3D coordinates. Must be broadcastable.
@@ -31,7 +31,7 @@ class Electrode(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def _unit_gradient(self, x: NDArray, y: NDArray, z: NDArray) -> NDArray[Any, Float]:
+    def _unit_gradient(self, x: NDArray, y: NDArray, z: NDArray) -> NDArray:
         """
         Args:
             x, y, z (array_like): 3D coordinates. Must be broadcastable.
@@ -42,7 +42,7 @@ class Electrode(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def _unit_hessian(self, x: NDArray, y: NDArray, z: NDArray) -> NDArray[Any, Float]:
+    def _unit_hessian(self, x: NDArray, y: NDArray, z: NDArray) -> NDArray:
         """
         Args:
             x, y, z (array_like): 3D coordinates. Must be broadcastable.

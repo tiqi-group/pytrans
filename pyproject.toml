@@ -21,7 +21,6 @@ dependencies = [
   "numpy",
   "scipy",
   "matplotlib",
-  "nptyping",
   "tqdm",
   "colorama",
   "tabulate"

@@ -6,7 +6,7 @@
 
 import numpy as np
 from typing import TYPE_CHECKING, Union, List, Optional
-from nptyping import NDArray
+from numpy.typing import NDArray
 from pytrans.typing import Coords1, RoiSize, Bounds
 
 from .roi import Roi

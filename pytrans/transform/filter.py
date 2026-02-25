@@ -11,7 +11,7 @@ import scipy.signal as sg
 from scipy.linalg import convolution_matrix
 from functools import partial
 
-from nptyping import NDArray
+from numpy.typing import NDArray
 
 
 def pad_waveform(waveform, pad_after, pad_before=0):
