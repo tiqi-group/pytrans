@@ -5,7 +5,6 @@
 # Author: Carmelo Mordini <cmordini@phys.ethz.ch>
 
 import numpy as np
-from typing import Any
 from abc import ABC, abstractmethod
 
 from numpy.typing import NDArray
