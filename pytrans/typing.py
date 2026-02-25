@@ -10,8 +10,8 @@ import numpy as np
 
 ElectrodeNames = Union[str, List[str]]
 Coords = np.ndarray
-Coords1 = np.ndarray 
+Coords1 = np.ndarray
 RoiSize = Tuple[float]
 Bounds = List[Tuple[float, float]]
 
-Waveform = np.ndarray  
+Waveform = np.ndarray
